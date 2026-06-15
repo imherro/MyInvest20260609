@@ -1,0 +1,151 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any
+
+
+class ShadowPortfolioEngine:
+    def __init__(self, rebalance_threshold: float = 0.03) -> None:
+        self.rebalance_threshold = rebalance_threshold
+
+    def apply_decision(
+        self,
+        *,
+        decision: dict[str, Any],
+        previous_portfolio: dict[str, Any] | None,
+        approved_target_pool: set[str],
+        research_first_symbols: set[str] | None = None,
+        market_returns: dict[str, float] | None = None,
+        benchmark_returns: dict[str, float] | None = None,
+    ) -> dict[str, Any]:
+        research_first_symbols = research_first_symbols or set()
+        market_returns = market_returns or {}
+        benchmark_returns = benchmark_returns or {}
+        previous = previous_portfolio or _empty_portfolio()
+
+        if not _is_decision_approved(decision):
+            return self._blocked_snapshot(decision, previous, benchmark_returns)
+
+        current_weights = dict(previous.get("holdings_weight", {}))
+        target_weights = self._target_weights(decision, approved_target_pool, research_first_symbols)
+        pnl_ratio = sum(current_weights.get(symbol, 0) * market_returns.get(symbol, 0) for symbol in current_weights)
+        nav_index = round(previous["nav_index"] * (1 + pnl_ratio), 6)
+        paper_trades = self._paper_trades(current_weights, target_weights)
+        turnover = round(sum(abs(item["target_weight"] - item["current_weight"]) for item in paper_trades) / 2, 6)
+        cash_weight = round(1 - sum(target_weights.values()), 6)
+
+        if cash_weight < -0.000001:
+            raise ValueError("target weights cannot exceed 1")
+
+        return {
+            "schema_version": "1.0",
+            "portfolio_id": f"shadow-{decision['basis_date']}-{decision['decision_id']}",
+            "basis_date": decision["basis_date"],
+            "generated_at": _utc_now(),
+            "source_decision_id": decision["decision_id"],
+            "status": "simulated",
+            "nav_index": nav_index,
+            "cash_weight": max(cash_weight, 0),
+            "holdings_weight": target_weights,
+            "paper_trades": paper_trades,
+            "turnover": turnover,
+            "drawdown": min(0, round(pnl_ratio, 6)),
+            "benchmark_returns": benchmark_returns,
+            "pnl_ratio": round(pnl_ratio, 6),
+            "constraints": {
+                "approved_target_pool_only": True,
+                "research_first_weight_zero": True,
+                "paper_only": True,
+            },
+        }
+
+    def _target_weights(
+        self,
+        decision: dict[str, Any],
+        approved_target_pool: set[str],
+        research_first_symbols: set[str],
+    ) -> dict[str, float]:
+        target_weights: dict[str, float] = {}
+        for action in decision["decision_actions"]:
+            symbol = action["symbol"]
+            target_weight = action["target_weight"]
+            is_research_first = action["gates"]["research_first"] or symbol in research_first_symbols
+            if is_research_first and target_weight > 0:
+                raise ValueError("ResearchFirst symbol cannot receive shadow weight")
+            if target_weight > 0 and symbol not in approved_target_pool:
+                raise ValueError("shadow portfolio cannot use symbols outside approved target pool")
+            if target_weight > 0:
+                target_weights[symbol] = round(target_weight, 6)
+        return target_weights
+
+    def _paper_trades(
+        self, current_weights: dict[str, float], target_weights: dict[str, float]
+    ) -> list[dict[str, Any]]:
+        paper_trades: list[dict[str, Any]] = []
+        symbols = sorted(set(current_weights) | set(target_weights))
+        for symbol in symbols:
+            current_weight = current_weights.get(symbol, 0)
+            target_weight = target_weights.get(symbol, 0)
+            delta = target_weight - current_weight
+            if abs(delta) <= self.rebalance_threshold:
+                continue
+            paper_trades.append(
+                {
+                    "symbol": symbol,
+                    "action": "increase" if delta > 0 else "decrease",
+                    "current_weight": round(current_weight, 6),
+                    "target_weight": round(target_weight, 6),
+                    "delta_weight_pp": round(delta * 100, 4),
+                    "is_paper": True,
+                    "reason": "decision_target_weight_rebalance",
+                }
+            )
+        return paper_trades
+
+    def _blocked_snapshot(
+        self,
+        decision: dict[str, Any],
+        previous: dict[str, Any],
+        benchmark_returns: dict[str, float],
+    ) -> dict[str, Any]:
+        return {
+            "schema_version": "1.0",
+            "portfolio_id": f"blocked-{decision['basis_date']}-{decision['decision_id']}",
+            "basis_date": decision["basis_date"],
+            "generated_at": _utc_now(),
+            "source_decision_id": decision["decision_id"],
+            "status": "blocked",
+            "nav_index": previous["nav_index"],
+            "cash_weight": previous["cash_weight"],
+            "holdings_weight": previous["holdings_weight"],
+            "paper_trades": [],
+            "turnover": 0,
+            "drawdown": previous.get("drawdown", 0),
+            "benchmark_returns": benchmark_returns,
+            "pnl_ratio": 0,
+            "constraints": {
+                "approved_target_pool_only": True,
+                "research_first_weight_zero": True,
+                "paper_only": True,
+            },
+        }
+
+
+def _is_decision_approved(decision: dict[str, Any]) -> bool:
+    return decision["status"] in {"human_approved", "finalized"} and decision["chatgpt_reviewed"] and decision[
+        "human_approval"
+    ]
+
+
+def _empty_portfolio() -> dict[str, Any]:
+    return {
+        "nav_index": 100.0,
+        "cash_weight": 1.0,
+        "holdings_weight": {},
+        "drawdown": 0,
+    }
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+

@@ -1,0 +1,8 @@
+features:
+  p0a_core_pipeline: true
+  p0b_shadow_account: true
+  p0c_theme_research: false
+  p0c_valuation: false
+  p1_web_dashboard: true
+  p1_alerts: false
+

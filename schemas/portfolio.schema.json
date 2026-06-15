@@ -1,0 +1,78 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "portfolio_id",
+    "basis_date",
+    "generated_at",
+    "source_decision_id",
+    "status",
+    "nav_index",
+    "cash_weight",
+    "holdings_weight",
+    "paper_trades",
+    "turnover",
+    "drawdown",
+    "benchmark_returns",
+    "pnl_ratio",
+    "constraints"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "portfolio_id": { "type": "string", "minLength": 1 },
+    "basis_date": { "type": "string", "format": "date" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source_decision_id": { "type": ["string", "null"] },
+    "status": { "type": "string", "enum": ["simulated", "blocked"] },
+    "nav_index": { "type": "number", "minimum": 0 },
+    "cash_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+    "holdings_weight": {
+      "type": "object",
+      "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+    },
+    "paper_trades": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "symbol",
+          "action",
+          "current_weight",
+          "target_weight",
+          "delta_weight_pp",
+          "is_paper",
+          "reason"
+        ],
+        "properties": {
+          "symbol": { "type": "string" },
+          "action": { "type": "string", "enum": ["increase", "decrease", "hold"] },
+          "current_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+          "target_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+          "delta_weight_pp": { "type": "number", "minimum": -100, "maximum": 100 },
+          "is_paper": { "type": "boolean" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "turnover": { "type": "number", "minimum": 0, "maximum": 2 },
+    "drawdown": { "type": "number", "minimum": -1, "maximum": 0 },
+    "benchmark_returns": {
+      "type": "object",
+      "additionalProperties": { "type": "number", "minimum": -1, "maximum": 10 }
+    },
+    "pnl_ratio": { "type": "number", "minimum": -1, "maximum": 10 },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approved_target_pool_only", "research_first_weight_zero", "paper_only"],
+      "properties": {
+        "approved_target_pool_only": { "type": "boolean" },
+        "research_first_weight_zero": { "type": "boolean" },
+        "paper_only": { "type": "boolean" }
+      }
+    }
+  }
+}
+

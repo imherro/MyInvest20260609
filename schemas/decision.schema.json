@@ -1,0 +1,82 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "decision_id",
+    "basis_date",
+    "generated_at",
+    "source_research_ids",
+    "status",
+    "required_human_review",
+    "chatgpt_reviewed",
+    "human_approval",
+    "decision_actions",
+    "risk_notes",
+    "trace"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "decision_id": { "type": "string", "minLength": 1 },
+    "basis_date": { "type": "string", "format": "date" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source_research_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "json_validated", "chatgpt_reviewed", "human_approved", "finalized", "blocked"]
+    },
+    "required_human_review": { "type": "boolean" },
+    "chatgpt_reviewed": { "type": "boolean" },
+    "human_approval": { "type": "boolean" },
+    "decision_actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "symbol",
+          "action",
+          "current_weight",
+          "target_weight",
+          "delta_weight_pp",
+          "rationale",
+          "gates"
+        ],
+        "properties": {
+          "symbol": { "type": "string", "minLength": 1 },
+          "action": {
+            "type": "string",
+            "enum": ["buy", "sell", "hold", "no_action", "research_first", "rebalance_candidate"]
+          },
+          "current_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+          "target_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+          "delta_weight_pp": { "type": "number", "minimum": -100, "maximum": 100 },
+          "rationale": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "gates": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["profile", "valuation", "liquidity", "research_first"],
+            "properties": {
+              "profile": { "type": "string", "enum": ["pass", "fail", "blocked"] },
+              "valuation": { "type": "string", "enum": ["pass", "fail", "blocked"] },
+              "liquidity": { "type": "string", "enum": ["pass", "fail", "blocked"] },
+              "research_first": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "risk_notes": { "type": "array", "items": { "type": "string" } },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_market_snapshot_id", "source_research_snapshot_ids"],
+      "properties": {
+        "source_market_snapshot_id": { "type": "string" },
+        "source_research_snapshot_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      }
+    }
+  }
+}
+
