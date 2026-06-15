@@ -38,6 +38,9 @@ http://127.0.0.1:8000/dashboard
 - `GET /timeline/replay`
 - `GET /comparison/state`
 - `GET /comparison/history`
+- `GET /macro/state`
+- `GET /macro/history`
+- `GET /model/consensus`
 - `GET /risk/state`
 - `GET /risk/history`
 - `GET /system/dashboard_state`
@@ -145,6 +148,7 @@ P1 read-only dashboard pages include:
 
 - overview
 - comparison
+- macro
 - portfolio
 - research
 - risk
@@ -175,6 +179,16 @@ P2 comparison analysis is read-only and computes:
 - performance attribution
 
 Comparison APIs are `GET /comparison/state` and `GET /comparison/history`. The real side is a ratio-only `real_proxy` derived from QMT/target-pool symbols when detailed ratio weights are not available.
+
+## Macro And Model Analysis
+
+P2 macro analysis is read-only and computes:
+
+- macro overlay state with liquidity index, rate pressure, inflation regime, and risk cycle state
+- multi-model consensus with disagreement score and calibrated confidence
+- alpha factor decomposition with ratio-only signal contribution
+
+Macro APIs are `GET /macro/state`, `GET /macro/history`, and `GET /model/consensus`. They derive JSON from existing snapshots and never write to SQLite.
 
 ## Documentation
 

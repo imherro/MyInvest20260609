@@ -86,6 +86,8 @@ Schema files:
 - `schemas/report_manifest.schema.json`
 - `schemas/risk_state.schema.json`
 - `schemas/comparison_state.schema.json`
+- `schemas/macro_state.schema.json`
+- `schemas/model_consensus.schema.json`
 
 Repository append methods validate schema and policy before writing.
 
@@ -150,6 +152,9 @@ Read-only JSON endpoints:
 - `GET /timeline/replay`
 - `GET /comparison/state`
 - `GET /comparison/history`
+- `GET /macro/state`
+- `GET /macro/history`
+- `GET /model/consensus`
 - `GET /risk/state`
 - `GET /risk/history`
 - `GET /system/dashboard_state`
@@ -314,6 +319,37 @@ Comparison rules:
 - no replay, shadow engine, risk engine, or `event_log` changes
 - schema validation through `comparison_state.schema.json`
 - `real_proxy` must be clearly marked when detailed QMT ratio weights are unavailable
+
+## Macro And Model Analysis Contract
+
+The P2 macro layer computes read-only macro, model-consensus, and factor-decomposition JSON from existing snapshots.
+
+Macro APIs:
+
+- `GET /macro/state`
+- `GET /macro/history`
+- `GET /model/consensus`
+
+Macro output includes:
+
+- liquidity index
+- rate pressure
+- inflation regime
+- risk cycle state
+- multi-model consensus
+- disagreement score
+- calibrated confidence
+- alpha factor decomposition
+- signal contribution breakdown
+
+Macro rules:
+
+- read-only computation only
+- no SQLite writes
+- no trading or execution output
+- no replay, shadow engine, comparison system, risk engine, or `event_log` changes
+- schema validation through `macro_state.schema.json` and `model_consensus.schema.json`
+- model consensus is explanatory analysis only and not an order instruction
 
 ## Final Verification
 

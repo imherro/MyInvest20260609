@@ -7,6 +7,7 @@ from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse
 
 from invest_system.comparison import compute_comparison_history, compute_comparison_state
+from invest_system.macro import compute_macro_history, compute_macro_state, compute_model_consensus
 from invest_system.repositories import DEFAULT_DB_PATH, SQLiteRepository
 from invest_system.risk import compute_risk_history, compute_risk_state
 from invest_system.self_check import system_status
@@ -39,6 +40,9 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/timeline/replay",
                     "/comparison/state",
                     "/comparison/history",
+                    "/macro/state",
+                    "/macro/history",
+                    "/model/consensus",
                     "/risk/state",
                     "/risk/history",
                     "/system/dashboard_state",
@@ -104,6 +108,18 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/comparison/history")
     def comparison_history_endpoint() -> dict[str, Any]:
         return compute_comparison_history(repo)
+
+    @app.get("/macro/state")
+    def macro_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return {"status": "ok", "data": compute_macro_state(repo, as_of)}
+
+    @app.get("/macro/history")
+    def macro_history_endpoint() -> dict[str, Any]:
+        return compute_macro_history(repo)
+
+    @app.get("/model/consensus")
+    def model_consensus_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return {"status": "ok", "data": compute_model_consensus(repo, as_of)}
 
     @app.get("/system/status")
     def system_status_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:

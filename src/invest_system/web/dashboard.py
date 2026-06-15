@@ -4,6 +4,7 @@ import html
 from typing import Any
 
 from invest_system.comparison import compute_comparison_state
+from invest_system.macro import compute_macro_state
 from invest_system.repositories import SQLiteRepository
 from invest_system.risk import compute_risk_state
 from invest_system.self_check import system_status
@@ -29,6 +30,7 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
     research_items = _latest_research_by_module(timeline)
     risk = compute_risk_state(repo, as_of)
     comparison = compute_comparison_state(repo, as_of)
+    macro = compute_macro_state(repo, as_of)
     data_gaps = _data_gaps(market, research_items)
     conflicts = _conflicts(market, research_items)
     state = {
@@ -52,6 +54,7 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
             "research": _research_state(research_items),
             "risk": _risk_state(risk),
             "comparison": _comparison_state(comparison),
+            "macro": _macro_state(macro),
             "report": _report_state(replay, research_items),
             "replay": {
                 "trace": replay.get("trace", {}),
@@ -70,6 +73,7 @@ def render_dashboard_page(state: dict[str, Any], page: str) -> str:
             _overview_section(data)
             + _risk_section(data)
             + _comparison_section(data)
+            + _macro_section(data)
             + _portfolio_section(data)
             + _research_section(data)
             + _report_section(data)
@@ -238,6 +242,15 @@ def _comparison_state(comparison: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _macro_state(macro: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "available": macro["status"] == "ok",
+        "macro_snapshot": macro["macro_snapshot"],
+        "model_consensus": macro["model_consensus"],
+        "alpha_factor_decomposition": macro["alpha_factor_decomposition"],
+    }
+
+
 def _data_gaps(market: dict[str, Any] | None, research_items: list[dict[str, Any]]) -> list[str]:
     gaps: list[str] = []
     if market:
@@ -384,6 +397,44 @@ def _comparison_section(data: dict[str, Any]) -> str:
     {_metric('Allocation Overlap', _percent(deviation['allocation_overlap']))}
   </div>
   <table><thead><tr><th>Date</th><th>Real Proxy NAV</th><th>Shadow NAV</th><th>Benchmark NAV</th></tr></thead><tbody>{curve_rows}</tbody></table>
+</section>
+"""
+
+
+def _macro_section(data: dict[str, Any]) -> str:
+    macro = data["macro"]
+    if not macro["available"]:
+        return "<section><h2>Macro</h2><p class=\"muted\">Macro state unavailable.</p></section>"
+    snapshot = macro["macro_snapshot"]
+    consensus = macro["model_consensus"]
+    factors = macro["alpha_factor_decomposition"]["factors"]
+    factor_rows = "".join(
+        "<tr>"
+        f"<td>{html.escape(item['factor'])}</td>"
+        f"<td>{item['contribution_score']}</td>"
+        f"<td>{html.escape(item['direction'])}</td>"
+        f"<td>{html.escape(item['source'])}</td>"
+        "</tr>"
+        for item in factors
+    )
+    if not factor_rows:
+        factor_rows = "<tr><td>none</td><td>0</td><td>neutral</td><td>macro_state</td></tr>"
+    return f"""
+<section>
+  <h2>Macro</h2>
+  <div class="grid">
+    {_metric('Liquidity Index', _percent(snapshot['liquidity_index']))}
+    {_metric('Rate Pressure', _percent(snapshot['rate_pressure']))}
+    {_metric('Inflation Regime', snapshot['inflation_regime'])}
+    {_metric('Risk Cycle', snapshot['risk_cycle_state'])}
+  </div>
+  <div class="grid">
+    {_metric('Consensus Score', consensus['consensus_score'])}
+    {_metric('Consensus State', consensus['consensus_state'])}
+    {_metric('Disagreement', _percent(consensus['disagreement_score']))}
+    {_metric('Confidence', _percent(consensus['calibrated_confidence']))}
+  </div>
+  <table><thead><tr><th>Factor</th><th>Contribution</th><th>Direction</th><th>Source</th></tr></thead><tbody>{factor_rows}</tbody></table>
 </section>
 """
 

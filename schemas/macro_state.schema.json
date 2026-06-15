@@ -1,0 +1,137 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "as_of",
+    "generated_at",
+    "source_ids",
+    "macro_snapshot",
+    "model_consensus",
+    "alpha_factor_decomposition"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "status": { "type": "string", "enum": ["ok", "empty"] },
+    "as_of": { "type": ["string", "null"] },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source_ids": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["market_snapshot_id", "portfolio_id", "research_snapshot_ids"],
+      "properties": {
+        "market_snapshot_id": { "type": ["string", "null"] },
+        "portfolio_id": { "type": ["string", "null"] },
+        "research_snapshot_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "macro_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "macro_snapshot_id",
+        "basis_date",
+        "liquidity_index",
+        "rate_pressure",
+        "inflation_regime",
+        "risk_cycle_state",
+        "data_gaps",
+        "conflicts",
+        "signals"
+      ],
+      "properties": {
+        "macro_snapshot_id": { "type": "string", "minLength": 1 },
+        "basis_date": { "type": ["string", "null"] },
+        "liquidity_index": { "type": "number", "minimum": 0, "maximum": 1 },
+        "rate_pressure": { "type": "number", "minimum": 0, "maximum": 1 },
+        "inflation_regime": { "type": "string", "enum": ["benign", "neutral", "elevated"] },
+        "risk_cycle_state": { "type": "string", "enum": ["risk_on", "balanced", "risk_off"] },
+        "data_gaps": { "type": "array", "items": { "type": "string" } },
+        "conflicts": { "type": "array", "items": { "type": "string" } },
+        "signals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "value", "source"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "value": { "type": "number" },
+              "source": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "model_consensus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "models",
+        "consensus_score",
+        "consensus_state",
+        "disagreement_score",
+        "calibrated_confidence",
+        "notes"
+      ],
+      "properties": {
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["model_id", "score", "stance", "confidence", "evidence"],
+            "properties": {
+              "model_id": { "type": "string", "minLength": 1 },
+              "score": { "type": "number", "minimum": 0, "maximum": 100 },
+              "stance": { "type": "string", "enum": ["risk_on", "neutral", "risk_off"] },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+              "evidence": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "consensus_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "consensus_state": { "type": "string", "enum": ["risk_on", "neutral", "risk_off"] },
+        "disagreement_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "calibrated_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "alpha_factor_decomposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factors", "signal_contribution", "explanatory_notes"],
+      "properties": {
+        "factors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["factor", "contribution_score", "direction", "source"],
+            "properties": {
+              "factor": { "type": "string", "minLength": 1 },
+              "contribution_score": { "type": "number", "minimum": -1, "maximum": 1 },
+              "direction": { "type": "string", "enum": ["positive", "neutral", "negative"] },
+              "source": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "signal_contribution": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["signal", "weight", "value"],
+            "properties": {
+              "signal": { "type": "string", "minLength": 1 },
+              "weight": { "type": "number", "minimum": 0, "maximum": 1 },
+              "value": { "type": "number", "minimum": -1, "maximum": 1 }
+            }
+          }
+        },
+        "explanatory_notes": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

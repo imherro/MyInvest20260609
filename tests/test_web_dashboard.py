@@ -46,6 +46,7 @@ def test_dashboard_state_endpoint_returns_json_without_sensitive_fields(tmp_path
     assert payload["data"]["research"]["available"] is True
     assert payload["data"]["risk"]["available"] is True
     assert payload["data"]["comparison"]["available"] is True
+    assert payload["data"]["macro"]["available"] is True
     assert payload["data"]["report"]["available"] is True
     _assert_no_forbidden_terms(payload)
 
@@ -63,6 +64,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
         if path == "/dashboard":
             assert "Risk" in body
             assert "Comparison" in body
+            assert "Macro" in body
         for forbidden in FORBIDDEN_VIEW_TERMS:
             assert forbidden not in body
 
