@@ -36,6 +36,8 @@ http://127.0.0.1:8000/dashboard
 - `GET /decision/latest`
 - `GET /portfolio/state`
 - `GET /timeline/replay`
+- `GET /risk/state`
+- `GET /risk/history`
 - `GET /system/dashboard_state`
 - `GET /system/status`
 
@@ -142,9 +144,22 @@ P1 read-only dashboard pages include:
 - overview
 - portfolio
 - research
+- risk
 - report preview
 
 The shared JSON state is available at `GET /system/dashboard_state`. Pages render from SQLite and JSON state only, do not write to the database, and do not include trade controls.
+
+## Risk Monitoring
+
+P1 risk monitoring is read-only and computes:
+
+- overall risk score
+- exposure warning
+- concentration risk
+- deviation from research or decision targets
+- shadow-vs-market gap
+
+Risk APIs are `GET /risk/state` and `GET /risk/history`. They compute from existing snapshots and never write to SQLite.
 
 ## Documentation
 

@@ -1,0 +1,55 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "as_of",
+    "generated_at",
+    "overall_risk_score",
+    "risk_level",
+    "exposure_warning",
+    "concentration_risk",
+    "deviation_from_research",
+    "shadow_vs_market_gap",
+    "warnings",
+    "source_ids"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "status": { "type": "string", "enum": ["ok", "empty"] },
+    "as_of": { "type": ["string", "null"] },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "overall_risk_score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "risk_level": { "type": "string", "enum": ["low", "medium", "high"] },
+    "exposure_warning": { "type": "string" },
+    "concentration_risk": { "type": "number", "minimum": 0, "maximum": 100 },
+    "deviation_from_research": { "type": "number", "minimum": 0, "maximum": 100 },
+    "shadow_vs_market_gap": { "type": "number", "minimum": 0, "maximum": 100 },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "severity", "message", "source"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1 },
+          "severity": { "type": "string", "enum": ["low", "medium", "high"] },
+          "message": { "type": "string", "minLength": 1 },
+          "source": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "source_ids": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["market_snapshot_id", "decision_id", "portfolio_id", "research_snapshot_id"],
+      "properties": {
+        "market_snapshot_id": { "type": ["string", "null"] },
+        "decision_id": { "type": ["string", "null"] },
+        "portfolio_id": { "type": ["string", "null"] },
+        "research_snapshot_id": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

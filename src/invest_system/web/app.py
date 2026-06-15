@@ -7,6 +7,7 @@ from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse
 
 from invest_system.repositories import DEFAULT_DB_PATH, SQLiteRepository
+from invest_system.risk import compute_risk_history, compute_risk_state
 from invest_system.self_check import system_status
 from invest_system.web.dashboard import build_dashboard_state, render_dashboard_page
 
@@ -35,6 +36,8 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/decision/latest",
                     "/portfolio/state",
                     "/timeline/replay",
+                    "/risk/state",
+                    "/risk/history",
                     "/system/dashboard_state",
                     "/system/status",
                 ],
@@ -82,6 +85,14 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                 "events": repo.timeline(as_of),
             },
         }
+
+    @app.get("/risk/state")
+    def risk_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return {"status": "ok", "data": compute_risk_state(repo, as_of)}
+
+    @app.get("/risk/history")
+    def risk_history_endpoint() -> dict[str, Any]:
+        return compute_risk_history(repo)
 
     @app.get("/system/status")
     def system_status_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:

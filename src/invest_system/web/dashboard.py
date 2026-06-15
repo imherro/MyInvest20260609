@@ -4,6 +4,7 @@ import html
 from typing import Any
 
 from invest_system.repositories import SQLiteRepository
+from invest_system.risk import compute_risk_state
 from invest_system.self_check import system_status
 from invest_system.validators.policies import assert_no_sensitive_content
 
@@ -25,6 +26,7 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
     target_pool = replay.get("target_pool")
     portfolio = replay.get("portfolio")
     research_items = _latest_research_by_module(timeline)
+    risk = compute_risk_state(repo, as_of)
     data_gaps = _data_gaps(market, research_items)
     conflicts = _conflicts(market, research_items)
     state = {
@@ -46,6 +48,7 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
             "target_pool": _target_pool_state(target_pool),
             "portfolio": _portfolio_state(portfolio, market),
             "research": _research_state(research_items),
+            "risk": _risk_state(risk),
             "report": _report_state(replay, research_items),
             "replay": {
                 "trace": replay.get("trace", {}),
@@ -60,7 +63,13 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
 def render_dashboard_page(state: dict[str, Any], page: str) -> str:
     data = state["data"]
     if page == "dashboard":
-        content = _overview_section(data) + _portfolio_section(data) + _research_section(data) + _report_section(data)
+        content = (
+            _overview_section(data)
+            + _risk_section(data)
+            + _portfolio_section(data)
+            + _research_section(data)
+            + _report_section(data)
+        )
         title = "Dashboard"
     elif page == "overview":
         content = _overview_section(data)
@@ -201,6 +210,19 @@ def _report_state(replay: dict[str, Any], research_items: list[dict[str, Any]]) 
     }
 
 
+def _risk_state(risk: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "available": risk["status"] == "ok",
+        "overall_risk_score": risk["overall_risk_score"],
+        "risk_level": risk["risk_level"],
+        "exposure_warning": risk["exposure_warning"],
+        "concentration_risk": risk["concentration_risk"],
+        "deviation_from_research": risk["deviation_from_research"],
+        "shadow_vs_market_gap": risk["shadow_vs_market_gap"],
+        "warnings": risk["warnings"],
+    }
+
+
 def _data_gaps(market: dict[str, Any] | None, research_items: list[dict[str, Any]]) -> list[str]:
     gaps: list[str] = []
     if market:
@@ -311,6 +333,36 @@ def _portfolio_section(data: dict[str, Any]) -> str:
     {_metric('Deviation', deviation)}
   </div>
   <table><thead><tr><th>Symbol</th><th>Weight</th><th>Allocation</th></tr></thead><tbody>{rows}</tbody></table>
+</section>
+"""
+
+
+def _risk_section(data: dict[str, Any]) -> str:
+    risk = data["risk"]
+    if not risk["available"]:
+        return "<section><h2>Risk</h2><p class=\"muted\">Risk state unavailable.</p></section>"
+    badge_class = "bad" if risk["risk_level"] == "high" else "warn" if risk["risk_level"] == "medium" else "value"
+    rows = "".join(
+        "<tr>"
+        f"<td>{html.escape(item['code'])}</td>"
+        f"<td>{html.escape(item['severity'])}</td>"
+        f"<td>{html.escape(item['message'])}</td>"
+        f"<td>{html.escape(item['source'])}</td>"
+        "</tr>"
+        for item in risk["warnings"]
+    )
+    if not rows:
+        rows = "<tr><td>none</td><td>low</td><td>No active warnings.</td><td>risk_state</td></tr>"
+    return f"""
+<section>
+  <h2>Risk</h2>
+  <div class="grid">
+    {_metric('Risk Score', risk['overall_risk_score'])}
+    {_metric('Risk Level', risk['risk_level'], badge_class)}
+    {_metric('Exposure', risk['exposure_warning'])}
+    {_metric('Shadow Gap', f"{risk['shadow_vs_market_gap']} pp")}
+  </div>
+  <table><thead><tr><th>Code</th><th>Severity</th><th>Message</th><th>Source</th></tr></thead><tbody>{rows}</tbody></table>
 </section>
 """
 

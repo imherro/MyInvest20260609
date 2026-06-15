@@ -84,6 +84,7 @@ Schema files:
 - `schemas/portfolio.schema.json`
 - `schemas/market_data_bundle.schema.json`
 - `schemas/report_manifest.schema.json`
+- `schemas/risk_state.schema.json`
 
 Repository append methods validate schema and policy before writing.
 
@@ -146,6 +147,8 @@ Read-only JSON endpoints:
 - `GET /decision/latest`
 - `GET /portfolio/state`
 - `GET /timeline/replay`
+- `GET /risk/state`
+- `GET /risk/history`
 - `GET /system/dashboard_state`
 - `GET /system/status`
 
@@ -254,6 +257,33 @@ Dashboard rules:
 - no trading forms or order controls
 - no replay, shadow engine, or `event_log` changes
 - no sensitive account, amount, share, order, fill, or local absolute path exposure
+
+## Risk Monitoring Contract
+
+The P1 risk layer computes risk state from existing JSON snapshots only.
+
+Risk APIs:
+
+- `GET /risk/state`
+- `GET /risk/history`
+
+Risk output includes:
+
+- `overall_risk_score`
+- `exposure_warning`
+- `concentration_risk`
+- `deviation_from_research`
+- `shadow_vs_market_gap`
+- structured warnings
+
+Risk rules:
+
+- read-only computation only
+- no SQLite writes
+- no trading or execution output
+- no replay, shadow engine, or `event_log` changes
+- schema validation through `risk_state.schema.json`
+- dashboard may display risk summary but must not expose sensitive data
 
 ## Final Verification
 

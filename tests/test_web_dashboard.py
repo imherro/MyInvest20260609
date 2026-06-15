@@ -44,6 +44,7 @@ def test_dashboard_state_endpoint_returns_json_without_sensitive_fields(tmp_path
     assert payload["data"]["portfolio"]["available"] is True
     assert payload["data"]["portfolio"]["equity_weight"] == 0.75
     assert payload["data"]["research"]["available"] is True
+    assert payload["data"]["risk"]["available"] is True
     assert payload["data"]["report"]["available"] is True
     _assert_no_forbidden_terms(payload)
 
@@ -58,6 +59,8 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/html")
         assert "MyInvest" in body
+        if path == "/dashboard":
+            assert "Risk" in body
         for forbidden in FORBIDDEN_VIEW_TERMS:
             assert forbidden not in body
 
