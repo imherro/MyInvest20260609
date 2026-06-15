@@ -1,0 +1,100 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "as_of",
+    "generated_at",
+    "source_ids",
+    "return_comparison",
+    "drawdown_comparison",
+    "exposure_comparison",
+    "deviation_analysis",
+    "attribution",
+    "curve"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "status": { "type": "string", "enum": ["ok", "empty"] },
+    "as_of": { "type": ["string", "null"] },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source_ids": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["real_proxy_source_id", "shadow_portfolio_id", "benchmark_ids"],
+      "properties": {
+        "real_proxy_source_id": { "type": ["string", "null"] },
+        "shadow_portfolio_id": { "type": ["string", "null"] },
+        "benchmark_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "return_comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["real_proxy_return", "shadow_return", "benchmark_return", "shadow_minus_benchmark", "real_proxy_minus_shadow"],
+      "properties": {
+        "real_proxy_return": { "type": "number" },
+        "shadow_return": { "type": "number" },
+        "benchmark_return": { "type": "number" },
+        "shadow_minus_benchmark": { "type": "number" },
+        "real_proxy_minus_shadow": { "type": "number" }
+      }
+    },
+    "drawdown_comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["real_proxy_drawdown", "shadow_drawdown", "benchmark_drawdown"],
+      "properties": {
+        "real_proxy_drawdown": { "type": "number" },
+        "shadow_drawdown": { "type": "number" },
+        "benchmark_drawdown": { "type": "number" }
+      }
+    },
+    "exposure_comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["real_proxy_equity_weight", "shadow_equity_weight", "benchmark_equity_weight", "active_exposure_pp"],
+      "properties": {
+        "real_proxy_equity_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+        "shadow_equity_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+        "benchmark_equity_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+        "active_exposure_pp": { "type": "number" }
+      }
+    },
+    "deviation_analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tracking_gap_pp", "allocation_overlap", "notes"],
+      "properties": {
+        "tracking_gap_pp": { "type": "number" },
+        "allocation_overlap": { "type": "number", "minimum": 0, "maximum": 1 },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "attribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["performance_attribution", "source_of_return", "risk_contribution"],
+      "properties": {
+        "performance_attribution": { "type": "array", "items": { "type": "string" } },
+        "source_of_return": { "type": "array", "items": { "type": "string" } },
+        "risk_contribution": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "curve": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["as_of", "real_proxy_nav", "shadow_nav", "benchmark_nav"],
+        "properties": {
+          "as_of": { "type": "string" },
+          "real_proxy_nav": { "type": "number", "minimum": 0 },
+          "shadow_nav": { "type": "number", "minimum": 0 },
+          "benchmark_nav": { "type": "number", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

@@ -36,6 +36,8 @@ http://127.0.0.1:8000/dashboard
 - `GET /decision/latest`
 - `GET /portfolio/state`
 - `GET /timeline/replay`
+- `GET /comparison/state`
+- `GET /comparison/history`
 - `GET /risk/state`
 - `GET /risk/history`
 - `GET /system/dashboard_state`
@@ -142,6 +144,7 @@ Reports are derived views. They are generated from `research_snapshot`, `decisio
 P1 read-only dashboard pages include:
 
 - overview
+- comparison
 - portfolio
 - research
 - risk
@@ -160,6 +163,18 @@ P1 risk monitoring is read-only and computes:
 - shadow-vs-market gap
 
 Risk APIs are `GET /risk/state` and `GET /risk/history`. They compute from existing snapshots and never write to SQLite.
+
+## Comparison Analysis
+
+P2 comparison analysis is read-only and computes:
+
+- real-proxy vs shadow vs benchmark return comparison
+- drawdown comparison
+- exposure comparison
+- deviation analysis
+- performance attribution
+
+Comparison APIs are `GET /comparison/state` and `GET /comparison/history`. The real side is a ratio-only `real_proxy` derived from QMT/target-pool symbols when detailed ratio weights are not available.
 
 ## Documentation
 

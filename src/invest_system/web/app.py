@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse
 
+from invest_system.comparison import compute_comparison_history, compute_comparison_state
 from invest_system.repositories import DEFAULT_DB_PATH, SQLiteRepository
 from invest_system.risk import compute_risk_history, compute_risk_state
 from invest_system.self_check import system_status
@@ -36,6 +37,8 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/decision/latest",
                     "/portfolio/state",
                     "/timeline/replay",
+                    "/comparison/state",
+                    "/comparison/history",
                     "/risk/state",
                     "/risk/history",
                     "/system/dashboard_state",
@@ -93,6 +96,14 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/risk/history")
     def risk_history_endpoint() -> dict[str, Any]:
         return compute_risk_history(repo)
+
+    @app.get("/comparison/state")
+    def comparison_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return {"status": "ok", "data": compute_comparison_state(repo, as_of)}
+
+    @app.get("/comparison/history")
+    def comparison_history_endpoint() -> dict[str, Any]:
+        return compute_comparison_history(repo)
 
     @app.get("/system/status")
     def system_status_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:

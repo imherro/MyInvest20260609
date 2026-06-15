@@ -22,6 +22,8 @@ def test_required_api_endpoints_return_json(tmp_path) -> None:
         "/decision/latest",
         "/portfolio/state",
         "/timeline/replay",
+        "/comparison/state",
+        "/comparison/history",
         "/risk/state",
         "/risk/history",
         "/system/dashboard_state",

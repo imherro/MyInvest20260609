@@ -85,6 +85,7 @@ Schema files:
 - `schemas/market_data_bundle.schema.json`
 - `schemas/report_manifest.schema.json`
 - `schemas/risk_state.schema.json`
+- `schemas/comparison_state.schema.json`
 
 Repository append methods validate schema and policy before writing.
 
@@ -147,6 +148,8 @@ Read-only JSON endpoints:
 - `GET /decision/latest`
 - `GET /portfolio/state`
 - `GET /timeline/replay`
+- `GET /comparison/state`
+- `GET /comparison/history`
 - `GET /risk/state`
 - `GET /risk/history`
 - `GET /system/dashboard_state`
@@ -284,6 +287,33 @@ Risk rules:
 - no replay, shadow engine, or `event_log` changes
 - schema validation through `risk_state.schema.json`
 - dashboard may display risk summary but must not expose sensitive data
+
+## Comparison Analysis Contract
+
+The P2 comparison layer computes read-only real-proxy, shadow, and benchmark comparisons from existing snapshots.
+
+Comparison APIs:
+
+- `GET /comparison/state`
+- `GET /comparison/history`
+
+Comparison output includes:
+
+- return comparison
+- drawdown comparison
+- exposure comparison
+- deviation analysis
+- performance attribution
+- ratio-only NAV curve points
+
+Comparison rules:
+
+- read-only computation only
+- no SQLite writes
+- no trading or execution output
+- no replay, shadow engine, risk engine, or `event_log` changes
+- schema validation through `comparison_state.schema.json`
+- `real_proxy` must be clearly marked when detailed QMT ratio weights are unavailable
 
 ## Final Verification
 

@@ -33,6 +33,8 @@ API_ENDPOINTS = [
     "/decision/latest",
     "/portfolio/state",
     "/timeline/replay",
+    "/comparison/state",
+    "/comparison/history",
     "/risk/state",
     "/risk/history",
     "/system/dashboard_state",

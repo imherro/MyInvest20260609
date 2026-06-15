@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
+from invest_system.comparison import compute_comparison_state
 from invest_system.repositories import SQLiteRepository
 from invest_system.risk import compute_risk_state
 from invest_system.self_check import system_status
@@ -27,6 +28,7 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
     portfolio = replay.get("portfolio")
     research_items = _latest_research_by_module(timeline)
     risk = compute_risk_state(repo, as_of)
+    comparison = compute_comparison_state(repo, as_of)
     data_gaps = _data_gaps(market, research_items)
     conflicts = _conflicts(market, research_items)
     state = {
@@ -49,6 +51,7 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
             "portfolio": _portfolio_state(portfolio, market),
             "research": _research_state(research_items),
             "risk": _risk_state(risk),
+            "comparison": _comparison_state(comparison),
             "report": _report_state(replay, research_items),
             "replay": {
                 "trace": replay.get("trace", {}),
@@ -66,6 +69,7 @@ def render_dashboard_page(state: dict[str, Any], page: str) -> str:
         content = (
             _overview_section(data)
             + _risk_section(data)
+            + _comparison_section(data)
             + _portfolio_section(data)
             + _research_section(data)
             + _report_section(data)
@@ -223,6 +227,17 @@ def _risk_state(risk: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _comparison_state(comparison: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "available": comparison["status"] == "ok",
+        "return_comparison": comparison["return_comparison"],
+        "drawdown_comparison": comparison["drawdown_comparison"],
+        "exposure_comparison": comparison["exposure_comparison"],
+        "deviation_analysis": comparison["deviation_analysis"],
+        "curve": comparison["curve"],
+    }
+
+
 def _data_gaps(market: dict[str, Any] | None, research_items: list[dict[str, Any]]) -> list[str]:
     gaps: list[str] = []
     if market:
@@ -333,6 +348,42 @@ def _portfolio_section(data: dict[str, Any]) -> str:
     {_metric('Deviation', deviation)}
   </div>
   <table><thead><tr><th>Symbol</th><th>Weight</th><th>Allocation</th></tr></thead><tbody>{rows}</tbody></table>
+</section>
+"""
+
+
+def _comparison_section(data: dict[str, Any]) -> str:
+    comparison = data["comparison"]
+    if not comparison["available"]:
+        return "<section><h2>Comparison</h2><p class=\"muted\">Comparison state unavailable.</p></section>"
+    returns = comparison["return_comparison"]
+    exposure = comparison["exposure_comparison"]
+    deviation = comparison["deviation_analysis"]
+    curve_rows = "".join(
+        "<tr>"
+        f"<td>{html.escape(item['as_of'])}</td>"
+        f"<td>{item['real_proxy_nav']}</td>"
+        f"<td>{item['shadow_nav']}</td>"
+        f"<td>{item['benchmark_nav']}</td>"
+        "</tr>"
+        for item in comparison["curve"]
+    )
+    return f"""
+<section>
+  <h2>Comparison</h2>
+  <div class="grid">
+    {_metric('Shadow Return', _percent(returns['shadow_return']))}
+    {_metric('Benchmark Return', _percent(returns['benchmark_return']))}
+    {_metric('Real Proxy Return', _percent(returns['real_proxy_return']))}
+    {_metric('Tracking Gap', f"{deviation['tracking_gap_pp']} pp")}
+  </div>
+  <div class="grid">
+    {_metric('Shadow Equity', _percent(exposure['shadow_equity_weight']))}
+    {_metric('Real Proxy Equity', _percent(exposure['real_proxy_equity_weight']))}
+    {_metric('Active Exposure', f"{exposure['active_exposure_pp']} pp")}
+    {_metric('Allocation Overlap', _percent(deviation['allocation_overlap']))}
+  </div>
+  <table><thead><tr><th>Date</th><th>Real Proxy NAV</th><th>Shadow NAV</th><th>Benchmark NAV</th></tr></thead><tbody>{curve_rows}</tbody></table>
 </section>
 """
 
