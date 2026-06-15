@@ -11,6 +11,8 @@ from invest_system.validators.policies import (
     assert_decision_policy,
     assert_portfolio_policy,
     assert_research_policy,
+    assert_target_pool_policy,
+    assert_no_sensitive_content,
 )
 from invest_system.validators.schema_validator import validate_or_raise
 
@@ -20,6 +22,7 @@ DEFAULT_DB_PATH = Path("data/local/invest_system.sqlite")
 SNAPSHOT_TABLES = {
     "market_snapshot": ("snapshot_id", "market"),
     "research_snapshot": ("snapshot_id", "research"),
+    "target_pool_snapshot": ("target_pool_id", "target_pool"),
     "decision_record": ("decision_id", "decision"),
     "portfolio_snapshot": ("portfolio_id", "portfolio"),
 }
@@ -63,6 +66,16 @@ class SQLiteRepository:
                     created_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS target_pool_snapshot (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    target_pool_id TEXT NOT NULL,
+                    basis_date TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+                    created_at TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS portfolio_snapshot (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     portfolio_id TEXT NOT NULL,
@@ -74,7 +87,9 @@ class SQLiteRepository:
 
                 CREATE TABLE IF NOT EXISTS event_log (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    event_type TEXT NOT NULL CHECK (event_type IN ('market', 'research', 'decision', 'portfolio')),
+                    event_type TEXT NOT NULL CHECK (
+                        event_type IN ('market', 'research', 'target_pool', 'decision', 'portfolio', 'market_event')
+                    ),
                     object_id TEXT NOT NULL,
                     basis_date TEXT NOT NULL,
                     payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
@@ -87,6 +102,8 @@ class SQLiteRepository:
                     ON research_snapshot(created_at);
                 CREATE INDEX IF NOT EXISTS idx_decision_record_created_at
                     ON decision_record(created_at);
+                CREATE INDEX IF NOT EXISTS idx_target_pool_snapshot_created_at
+                    ON target_pool_snapshot(created_at);
                 CREATE INDEX IF NOT EXISTS idx_portfolio_snapshot_created_at
                     ON portfolio_snapshot(created_at);
                 CREATE INDEX IF NOT EXISTS idx_event_log_created_at
@@ -137,6 +154,20 @@ class SQLiteRepository:
             event_type="decision",
         )
 
+    def append_target_pool_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
+        validate_or_raise(payload, "target_pool.schema.json")
+        assert_target_pool_policy(payload)
+        return self._insert_snapshot(
+            table="target_pool_snapshot",
+            id_column="target_pool_id",
+            object_id=payload["target_pool_id"],
+            basis_date=payload["basis_date"],
+            status=payload["status"],
+            payload=payload,
+            source=payload["source"],
+            event_type="target_pool",
+        )
+
     def append_portfolio_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_or_raise(payload, "portfolio.schema.json")
         assert_portfolio_policy(payload)
@@ -159,8 +190,46 @@ class SQLiteRepository:
     def latest_decision(self) -> dict[str, Any] | None:
         return self._latest_payload("decision_record")
 
+    def latest_target_pool(self, as_of: str | None = None) -> dict[str, Any] | None:
+        return self._latest_payload("target_pool_snapshot", as_of)
+
     def latest_portfolio(self) -> dict[str, Any] | None:
         return self._latest_payload("portfolio_snapshot")
+
+    def target_pool_sets(self, as_of: str | None = None) -> dict[str, set[str] | str | None]:
+        payload = self.latest_target_pool(as_of)
+        result: dict[str, set[str] | str | None] = {
+            "target_pool_id": payload["target_pool_id"] if payload else None,
+            "approved": set(),
+            "research_first": set(),
+            "blocked": set(),
+        }
+        if payload is None:
+            return result
+        for entry in payload["entries"]:
+            result[entry["pool_type"]].update(entry["symbols"])  # type: ignore[index, union-attr]
+        return result
+
+    def append_market_event(
+        self,
+        *,
+        object_id: str,
+        basis_date: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        assert_no_sensitive_content(payload)
+        created_at = _utc_now()
+        payload_json = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        with closing(self._connect()) as conn:
+            conn.execute(
+                """
+                INSERT INTO event_log (event_type, object_id, basis_date, payload_json, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                ("market_event", object_id, basis_date, payload_json, created_at),
+            )
+            conn.commit()
+        return {"object_id": object_id, "created_at": created_at, "type": "market_event"}
 
     def timeline(self, as_of: str | None = None) -> list[dict[str, Any]]:
         where = ""
@@ -194,6 +263,7 @@ class SQLiteRepository:
             "as_of": as_of,
             "market": self._latest_payload("market_snapshot", as_of),
             "research": self._latest_payload("research_snapshot", as_of),
+            "target_pool": self._latest_payload("target_pool_snapshot", as_of),
             "decision": self._latest_payload("decision_record", as_of),
             "portfolio": self._latest_payload("portfolio_snapshot", as_of),
         }
@@ -206,6 +276,18 @@ class SQLiteRepository:
                 table: conn.execute(f"SELECT COUNT(*) AS count FROM {table}").fetchone()["count"]
                 for table in [*SNAPSHOT_TABLES.keys(), "event_log"]
             }
+
+    def latest_event_timestamp(self) -> str | None:
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                """
+                SELECT created_at
+                FROM event_log
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        return row["created_at"] if row else None
 
     def all_payload_rows(self) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
@@ -241,11 +323,20 @@ class SQLiteRepository:
         payload: dict[str, Any],
         event_type: str,
         module: str | None = None,
+        source: str | None = None,
     ) -> dict[str, Any]:
         created_at = _utc_now()
         payload_json = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         with closing(self._connect()) as conn:
-            if module is None:
+            if source is not None:
+                conn.execute(
+                    f"""
+                    INSERT INTO {table} ({id_column}, basis_date, source, status, payload_json, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (object_id, basis_date, source, status, payload_json, created_at),
+                )
+            elif module is None:
                 conn.execute(
                     f"""
                     INSERT INTO {table} ({id_column}, basis_date, status, payload_json, created_at)

@@ -7,6 +7,7 @@
     "basis_date",
     "generated_at",
     "source_decision_id",
+    "source_target_pool_id",
     "status",
     "nav_index",
     "cash_weight",
@@ -24,6 +25,7 @@
     "basis_date": { "type": "string", "format": "date" },
     "generated_at": { "type": "string", "format": "date-time" },
     "source_decision_id": { "type": ["string", "null"] },
+    "source_target_pool_id": { "type": ["string", "null"] },
     "status": { "type": "string", "enum": ["simulated", "blocked"] },
     "nav_index": { "type": "number", "minimum": 0 },
     "cash_weight": { "type": "number", "minimum": 0, "maximum": 1 },
@@ -75,4 +77,3 @@
     }
   }
 }
-

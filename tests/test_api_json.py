@@ -14,7 +14,7 @@ def test_required_api_endpoints_return_json(tmp_path) -> None:
     seed_demo_repository(SQLiteRepository(db_path))
     app = create_app(db_path)
 
-    for path in ["/", "/research/latest", "/decision/latest", "/portfolio/state", "/timeline/replay"]:
+    for path in ["/", "/research/latest", "/decision/latest", "/portfolio/state", "/timeline/replay", "/system/status"]:
         response = _get(app, path)
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("application/json")
@@ -41,9 +41,24 @@ def test_timeline_replay_contains_trace(tmp_path) -> None:
     data = response.json()["data"]
 
     assert data["state"]["portfolio"]["source_decision_id"] == "decision-2026-06-15-demo"
+    assert data["state"]["portfolio"]["source_target_pool_id"] == "target-pool-2026-06-15-demo"
     assert data["state"]["trace"]["source_market_snapshot_id"] == "market-2026-06-15-demo"
     assert data["state"]["trace"]["source_research_snapshot_ids"] == ["research-2026-06-15-demo"]
-    assert [event["type"] for event in data["events"]] == ["market", "research", "decision", "portfolio"]
+    assert [event["type"] for event in data["events"]] == ["market", "research", "target_pool", "decision", "portfolio"]
+
+
+def test_system_status_reports_self_check(tmp_path) -> None:
+    db_path = tmp_path / "api.sqlite"
+    seed_demo_repository(SQLiteRepository(db_path))
+    app = create_app(db_path)
+
+    response = _get(app, "/system/status")
+    data = response.json()["data"]
+
+    assert data["record_counts"]["target_pool_snapshot"] == 1
+    assert data["self_check"]["status"] == "passed"
+    assert data["latest_event_timestamp"] is not None
+    assert data["replay_available"] is True
 
 
 def _get(app, path: str) -> httpx.Response:

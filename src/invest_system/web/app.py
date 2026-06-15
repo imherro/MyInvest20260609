@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import FastAPI, Query
 
 from invest_system.repositories import DEFAULT_DB_PATH, SQLiteRepository
+from invest_system.self_check import system_status
 
 
 def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
@@ -30,6 +31,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/decision/latest",
                     "/portfolio/state",
                     "/timeline/replay",
+                    "/system/status",
                 ],
             },
         }
@@ -58,6 +60,10 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                 "events": repo.timeline(as_of),
             },
         }
+
+    @app.get("/system/status")
+    def system_status_endpoint() -> dict[str, Any]:
+        return system_status(repo.db_path)
 
     return app
 

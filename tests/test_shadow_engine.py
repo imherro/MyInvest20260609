@@ -5,17 +5,18 @@ from copy import deepcopy
 import pytest
 
 from invest_system.demo import make_decision_record
+from invest_system.demo import make_target_pool_snapshot
+from invest_system.repositories import SQLiteRepository
 from invest_system.shadow import ShadowPortfolioEngine
 
 
 def test_shadow_engine_applies_approved_decision() -> None:
     decision = make_decision_record("market-demo", "research-demo")
+    repo = _repo_with_target_pool()
 
-    portfolio = ShadowPortfolioEngine().apply_decision(
+    portfolio = ShadowPortfolioEngine(repo).apply_decision(
         decision=decision,
         previous_portfolio=None,
-        approved_target_pool={"510300.SH", "159915.SZ", "511360.SH"},
-        research_first_symbols={"159999.SZ"},
     )
 
     assert portfolio["status"] == "simulated"
@@ -25,6 +26,7 @@ def test_shadow_engine_applies_approved_decision() -> None:
         "159915.SZ": 0.35,
         "511360.SH": 0.25,
     }
+    assert portfolio["source_target_pool_id"] == "target-pool-2026-06-15-demo"
     assert all(item["is_paper"] for item in portfolio["paper_trades"])
 
 
@@ -33,12 +35,11 @@ def test_shadow_engine_blocks_unapproved_decision_without_rebalance() -> None:
     decision = deepcopy(decision)
     decision["human_approval"] = False
     decision["status"] = "chatgpt_reviewed"
+    repo = _repo_with_target_pool()
 
-    portfolio = ShadowPortfolioEngine().apply_decision(
+    portfolio = ShadowPortfolioEngine(repo).apply_decision(
         decision=decision,
         previous_portfolio=None,
-        approved_target_pool={"510300.SH", "159915.SZ", "511360.SH"},
-        research_first_symbols={"159999.SZ"},
     )
 
     assert portfolio["status"] == "blocked"
@@ -48,13 +49,15 @@ def test_shadow_engine_blocks_unapproved_decision_without_rebalance() -> None:
 
 def test_shadow_engine_rejects_symbol_outside_approved_pool() -> None:
     decision = make_decision_record("market-demo", "research-demo")
+    target_pool = make_target_pool_snapshot()
+    target_pool = deepcopy(target_pool)
+    target_pool["entries"][0]["symbols"].remove("159915.SZ")
+    repo = _repo_with_target_pool(target_pool)
 
     with pytest.raises(ValueError):
-        ShadowPortfolioEngine().apply_decision(
+        ShadowPortfolioEngine(repo).apply_decision(
             decision=decision,
             previous_portfolio=None,
-            approved_target_pool={"510300.SH", "511360.SH"},
-            research_first_symbols={"159999.SZ"},
         )
 
 
@@ -62,12 +65,22 @@ def test_shadow_engine_rejects_research_first_positive_weight() -> None:
     decision = make_decision_record("market-demo", "research-demo")
     decision = deepcopy(decision)
     decision["decision_actions"][-1]["target_weight"] = 0.1
+    repo = _repo_with_target_pool()
 
     with pytest.raises(ValueError):
-        ShadowPortfolioEngine().apply_decision(
+        ShadowPortfolioEngine(repo).apply_decision(
             decision=decision,
             previous_portfolio=None,
-            approved_target_pool={"510300.SH", "159915.SZ", "511360.SH", "159999.SZ"},
-            research_first_symbols={"159999.SZ"},
         )
 
+
+def _repo_with_target_pool(target_pool: dict | None = None) -> SQLiteRepository:
+    import os
+    import tempfile
+
+    fd, path = tempfile.mkstemp(suffix=".sqlite")
+    os.close(fd)
+    repo = SQLiteRepository(path)
+    repo.init_db()
+    repo.append_target_pool_snapshot(target_pool or make_target_pool_snapshot())
+    return repo

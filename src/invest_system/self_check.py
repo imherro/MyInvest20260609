@@ -8,6 +8,7 @@ from invest_system.validators.policies import (
     assert_decision_policy,
     assert_portfolio_policy,
     assert_research_policy,
+    assert_target_pool_policy,
 )
 from invest_system.validators.schema_validator import validate_or_raise
 
@@ -15,6 +16,7 @@ from invest_system.validators.schema_validator import validate_or_raise
 SCHEMA_BY_TYPE = {
     "market": "market_snapshot.schema.json",
     "research": "research.schema.json",
+    "target_pool": "target_pool.schema.json",
     "decision": "decision.schema.json",
     "portfolio": "portfolio.schema.json",
 }
@@ -42,6 +44,8 @@ def _check_json_valid(repo: SQLiteRepository) -> dict[str, Any]:
             validate_or_raise(payload, SCHEMA_BY_TYPE[row["type"]])
             if row["type"] in {"market", "research"}:
                 assert_research_policy(payload)
+            elif row["type"] == "target_pool":
+                assert_target_pool_policy(payload)
             elif row["type"] == "decision":
                 assert_decision_policy(payload)
             elif row["type"] == "portfolio":
@@ -60,6 +64,7 @@ def _check_history_continuity(repo: SQLiteRepository) -> dict[str, Any]:
     market_ids = {row["object_id"] for row in rows if row["type"] == "market"}
     research_ids = {row["object_id"] for row in rows if row["type"] == "research"}
     decision_ids = {row["object_id"] for row in rows if row["type"] == "decision"}
+    target_pool_ids = {row["object_id"] for row in rows if row["type"] == "target_pool"}
     errors: list[str] = []
 
     for row in rows:
@@ -75,6 +80,9 @@ def _check_history_continuity(repo: SQLiteRepository) -> dict[str, Any]:
             decision_id = payload["source_decision_id"]
             if decision_id is not None and decision_id not in decision_ids:
                 errors.append(f"portfolio:{row['object_id']}:missing_decision:{decision_id}")
+            target_pool_id = payload["source_target_pool_id"]
+            if target_pool_id is not None and target_pool_id not in target_pool_ids:
+                errors.append(f"portfolio:{row['object_id']}:missing_target_pool:{target_pool_id}")
 
     return {
         "name": "history_continuity",
@@ -104,15 +112,32 @@ def _check_portfolio_replay(repo: SQLiteRepository) -> dict[str, Any]:
 
 def _check_event_log_consistency(repo: SQLiteRepository) -> dict[str, Any]:
     counts = repo.table_counts()
-    expected = counts["market_snapshot"] + counts["research_snapshot"] + counts["decision_record"] + counts[
-        "portfolio_snapshot"
-    ]
+    rows = repo.all_payload_rows()
+    events = repo.timeline()
     errors = []
-    if counts["event_log"] != expected:
-        errors.append("event_log_count_mismatch")
+    event_keys = {(event["type"], event["object_id"]) for event in events}
+    for row in rows:
+        if (row["type"], row["object_id"]) not in event_keys:
+            errors.append(f"missing_event:{row['type']}:{row['object_id']}")
     return {
         "name": "event_log_consistency",
         "passed": not errors,
-        "details": {"errors": errors, "counts": counts},
+        "details": {"errors": errors, "counts": counts, "event_count": len(events)},
     }
 
+
+def system_status(db_path: str | Path) -> dict[str, Any]:
+    repo = SQLiteRepository(db_path)
+    repo.init_db()
+    self_check = run_self_check(db_path)
+    replay_state = repo.replay_state()
+    return {
+        "status": "ok",
+        "data": {
+            "db_initialized": True,
+            "record_counts": repo.table_counts(),
+            "self_check": self_check,
+            "latest_event_timestamp": repo.latest_event_timestamp(),
+            "replay_available": replay_state.get("portfolio") is not None,
+        },
+    }

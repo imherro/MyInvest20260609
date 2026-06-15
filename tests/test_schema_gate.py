@@ -4,8 +4,8 @@ from copy import deepcopy
 
 import pytest
 
-from invest_system.demo import make_decision_record, make_research_snapshot
-from invest_system.validators.policies import PolicyViolation, assert_decision_policy
+from invest_system.demo import make_decision_record, make_research_snapshot, make_target_pool_snapshot
+from invest_system.validators.policies import PolicyViolation, assert_decision_policy, assert_target_pool_policy
 from invest_system.validators.schema_validator import SchemaValidationError, validate_or_raise
 
 
@@ -40,3 +40,15 @@ def test_decision_policy_blocks_research_first_positive_weight() -> None:
     with pytest.raises(PolicyViolation):
         assert_decision_policy(payload)
 
+
+def test_target_pool_schema_accepts_valid_snapshot() -> None:
+    validate_or_raise(make_target_pool_snapshot(), "target_pool.schema.json")
+
+
+def test_target_pool_policy_rejects_duplicate_pool_membership() -> None:
+    payload = make_target_pool_snapshot()
+    payload = deepcopy(payload)
+    payload["entries"][1]["symbols"].append("510300.SH")
+
+    with pytest.raises(PolicyViolation):
+        assert_target_pool_policy(payload)

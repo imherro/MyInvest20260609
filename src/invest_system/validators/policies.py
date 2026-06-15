@@ -87,6 +87,18 @@ def assert_portfolio_policy(payload: dict[str, Any]) -> None:
             raise PolicyViolation(f"$.paper_trades[{index}]: shadow execution must be paper-only")
 
 
+def assert_target_pool_policy(payload: dict[str, Any]) -> None:
+    assert_no_sensitive_content(payload)
+    symbol_pool: dict[str, str] = {}
+    for entry in payload["entries"]:
+        pool_type = entry["pool_type"]
+        for symbol in entry["symbols"]:
+            existing = symbol_pool.get(symbol)
+            if existing is not None and existing != pool_type:
+                raise PolicyViolation(f"$.entries: symbol {symbol} appears in multiple pool types")
+            symbol_pool[symbol] = pool_type
+
+
 def _walk(value: Any, path: str = "$", key: str | None = None):
     yield path, key, value
     if isinstance(value, dict):
@@ -96,4 +108,3 @@ def _walk(value: Any, path: str = "$", key: str | None = None):
     elif isinstance(value, list):
         for index, child_value in enumerate(value):
             yield from _walk(child_value, f"{path}[{index}]", None)
-

@@ -11,20 +11,24 @@ def seed_demo_repository(repo: SQLiteRepository) -> dict[str, Any]:
     repo.init_db()
     market = make_market_snapshot()
     research = make_research_snapshot(market["snapshot_id"])
+    target_pool = make_target_pool_snapshot()
     decision = make_decision_record(market["snapshot_id"], research["snapshot_id"])
-    portfolio = ShadowPortfolioEngine().apply_decision(
+    repo.append_market_snapshot(market)
+    repo.append_research_snapshot(research)
+    repo.append_target_pool_snapshot(target_pool)
+    repo.append_decision_record(decision)
+    portfolio = ShadowPortfolioEngine(repo).apply_decision(
         decision=decision,
         previous_portfolio=None,
-        approved_target_pool={"510300.SH", "159915.SZ", "511360.SH"},
-        research_first_symbols={"159999.SZ"},
         market_returns={},
         benchmark_returns={"CSI300": 0.0},
     )
 
     return {
-        "market": repo.append_market_snapshot(market),
-        "research": repo.append_research_snapshot(research),
-        "decision": repo.append_decision_record(decision),
+        "market": {"object_id": market["snapshot_id"], "type": "market"},
+        "research": {"object_id": research["snapshot_id"], "type": "research"},
+        "target_pool": {"object_id": target_pool["target_pool_id"], "type": "target_pool"},
+        "decision": {"object_id": decision["decision_id"], "type": "decision"},
         "portfolio": repo.append_portfolio_snapshot(portfolio),
     }
 
@@ -100,6 +104,22 @@ def make_research_snapshot(source_market_snapshot_id: str) -> dict[str, Any]:
             "research_first_list": [{"symbol": "159999.SZ", "blocking_reason": "profile_missing"}],
             "action_candidates": [{"symbol": "510300.SH", "target_weight": 0.4}],
         },
+    }
+
+
+def make_target_pool_snapshot() -> dict[str, Any]:
+    return {
+        "schema_version": "1.0",
+        "target_pool_id": "target-pool-2026-06-15-demo",
+        "basis_date": "2026-06-15",
+        "generated_at": _utc_now(),
+        "source": "seed",
+        "status": "active",
+        "entries": [
+            {"pool_type": "approved", "symbols": ["510300.SH", "159915.SZ", "511360.SH"]},
+            {"pool_type": "research_first", "symbols": ["159999.SZ"]},
+            {"pool_type": "blocked", "symbols": []},
+        ],
     }
 
 
@@ -182,4 +202,3 @@ def make_decision_record(source_market_snapshot_id: str, source_research_snapsho
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
-
