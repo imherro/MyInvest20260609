@@ -82,6 +82,7 @@ Schema files:
 - `schemas/decision.schema.json`
 - `schemas/portfolio.schema.json`
 - `schemas/market_data_bundle.schema.json`
+- `schemas/report_manifest.schema.json`
 
 Repository append methods validate schema and policy before writing.
 
@@ -122,6 +123,10 @@ P0c research generation:
 P0b-real data collection:
 
 - `scripts/collect_market_data.py`
+
+Report generation:
+
+- `scripts/generate_report.py`
 
 ## API Contract
 
@@ -194,6 +199,25 @@ Adapter rules:
 - live-source failures are recorded in `data_gaps`
 
 P0c research may consume the adapter bundle as price input while continuing to store outputs in `research_snapshot`.
+
+## Report Derivation Contract
+
+Reports are derived artifacts. JSON snapshots and SQLite remain the source of truth.
+
+Supported report formats:
+
+- Markdown
+- HTML
+- minimal PDF
+
+Report generation rules:
+
+- stdout must be a JSON manifest validated by `report_manifest.schema.json`
+- report files are written under caller-selected output directories, defaulting to `temp/reports`
+- reports may read `research_snapshot`, `decision_record`, `portfolio_snapshot`, `market_snapshot`, and replay state
+- reports must not be parsed back into the database
+- reports must not change replay, shadow execution, or `event_log`
+- reports must remain ratio-only and must not include account IDs, amounts, shares, orders, fills, or local absolute paths
 
 ## Final Verification
 

@@ -17,6 +17,7 @@ from invest_system.adapters import (  # noqa: E402
     build_p0c_price_data_from_bundle,
 )
 from invest_system.golden import MULTIDAY_DATES, seed_multiday_repository  # noqa: E402
+from invest_system.reports import generate_report  # noqa: E402
 from invest_system.repositories import SQLiteRepository  # noqa: E402
 from invest_system.research import generate_p0c_research  # noqa: E402
 from invest_system.self_check import run_self_check  # noqa: E402
@@ -51,6 +52,12 @@ def main() -> None:
     market_data_result = append_market_snapshot_from_adapters(repo, basis_date=MULTIDAY_DATES[-1], source="mock")
     p0c_price_data = build_p0c_price_data_from_bundle(market_data_result["bundle"])
     p0c_result = generate_p0c_research(repo, MULTIDAY_DATES[-1], price_data=p0c_price_data)
+    report_result = generate_report(
+        repo,
+        as_of=MULTIDAY_DATES[-1],
+        output_dir=db_path.parent / "reports",
+        formats=["markdown", "html"],
+    )
     self_checks = {basis_date: run_self_check(db_path, basis_date) for basis_date in MULTIDAY_DATES}
     policy_checks = _run_policy_checks(db_path)
     api_checks = asyncio.run(_run_api_checks(db_path))
@@ -59,12 +66,14 @@ def main() -> None:
         all(item["status"] == "passed" for item in self_checks.values())
         and all(item["status"] == "passed" for item in policy_checks.values())
         and all(item["status"] == "ok" for item in api_checks.values())
+        and report_result["status"] == "ok"
     )
     result: dict[str, Any] = {
         "status": "passed" if passed else "failed",
         "seed": seed_result,
         "market_data": market_data_result,
         "p0c_research": p0c_result,
+        "report": report_result,
         "record_counts": repo.table_counts(),
         "self_checks": self_checks,
         "policy_checks": policy_checks,

@@ -1,0 +1,44 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "as_of",
+    "generated_at",
+    "source_ids",
+    "formats",
+    "files"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "status": { "type": "string", "enum": ["ok", "empty"] },
+    "as_of": { "type": ["string", "null"] },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source_ids": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["market_snapshot_id", "decision_id", "portfolio_id", "research_snapshot_ids"],
+      "properties": {
+        "market_snapshot_id": { "type": ["string", "null"] },
+        "decision_id": { "type": ["string", "null"] },
+        "portfolio_id": { "type": ["string", "null"] },
+        "research_snapshot_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "formats": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["format", "path", "size_bytes"],
+        "properties": {
+          "format": { "type": "string", "enum": ["markdown", "html", "pdf"] },
+          "path": { "type": "string", "minLength": 1 },
+          "size_bytes": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

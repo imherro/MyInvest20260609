@@ -70,6 +70,14 @@ python scripts/collect_market_data.py --db temp/full_system_check.sqlite --basis
 
 Use `--allow-network` only when local credentials and optional data packages are ready. Without live access, the command records `data_gaps` and falls back to deterministic mock data.
 
+Generate derived reports from JSON and SQLite:
+
+```powershell
+python scripts/generate_report.py --db temp/full_system_check.sqlite --as-of 2026-06-15 --format markdown --format html
+```
+
+The command writes report files under `temp/reports` by default and prints a JSON manifest to stdout. JSON and SQLite remain the source of truth.
+
 ## Data Model
 
 Append-only tables:
@@ -104,6 +112,16 @@ P0b-real read-only adapters currently include:
 - mock fallback
 
 Adapter output is normalized to `market_data_bundle.schema.json` and then converted into the existing `market_snapshot` schema. The adapter layer never writes to external systems and never creates trading instructions.
+
+## Report Renderer
+
+P1 report generation currently supports:
+
+- Markdown
+- HTML
+- minimal PDF
+
+Reports are derived views. They are generated from `research_snapshot`, `decision_record`, `portfolio_snapshot`, and replay state, and they are never parsed back into the database.
 
 ## Documentation
 
