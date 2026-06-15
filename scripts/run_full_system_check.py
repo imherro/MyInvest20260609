@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from invest_system.golden import MULTIDAY_DATES, seed_multiday_repository  # noqa: E402
 from invest_system.repositories import SQLiteRepository  # noqa: E402
+from invest_system.research import generate_p0c_research  # noqa: E402
 from invest_system.self_check import run_self_check  # noqa: E402
 from invest_system.web import create_app  # noqa: E402
 
@@ -43,6 +44,7 @@ def main() -> None:
     repo = SQLiteRepository(db_path)
     repo.init_db()
     seed_result = seed_multiday_repository(repo)
+    p0c_result = generate_p0c_research(repo, MULTIDAY_DATES[-1])
     self_checks = {basis_date: run_self_check(db_path, basis_date) for basis_date in MULTIDAY_DATES}
     policy_checks = _run_policy_checks(db_path)
     api_checks = asyncio.run(_run_api_checks(db_path))
@@ -55,6 +57,7 @@ def main() -> None:
     result: dict[str, Any] = {
         "status": "passed" if passed else "failed",
         "seed": seed_result,
+        "p0c_research": p0c_result,
         "record_counts": repo.table_counts(),
         "self_checks": self_checks,
         "policy_checks": policy_checks,
@@ -110,4 +113,3 @@ async def _run_api_checks(db_path: Path) -> dict[str, dict[str, Any]]:
 
 if __name__ == "__main__":
     main()
-

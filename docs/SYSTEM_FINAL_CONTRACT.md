@@ -110,6 +110,10 @@ Validation:
 - `scripts/project_check.py`
 - `scripts/run_full_system_check.py`
 
+P0c research generation:
+
+- `scripts/generate_p0c_research.py`
+
 ## API Contract
 
 Start the API:
@@ -145,6 +149,20 @@ The replay chain must remain traceable:
 event_log -> market/research/target_pool -> decision -> portfolio
 ```
 
+## P0c Research Contract
+
+P0c research is stored in `research_snapshot` and must not change replay, event log, or shadow execution behavior.
+
+Supported modules:
+
+- `etf_valuation`
+- `stock_valuation`
+- `theme_research`
+- `leader_ranking`
+- `review_score`
+
+Every P0c module must pass the generic research schema and its module-specific payload schema.
+
 ## Final Verification
 
 Required release checks:
@@ -162,4 +180,3 @@ The smoke check must return JSON with:
 - all migrated policy checks passed
 - API endpoint checks passed
 - replay confidence score equal to `1.0`
-

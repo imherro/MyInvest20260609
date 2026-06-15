@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "theme",
+    "strength_score",
+    "leading_symbols",
+    "phase",
+    "related_etfs",
+    "evidence"
+  ],
+  "properties": {
+    "theme": { "type": "string", "minLength": 1 },
+    "strength_score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "leading_symbols": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "phase": { "type": "string", "enum": ["early", "mid", "late"] },
+    "related_etfs": { "type": "array", "items": { "type": "string" } },
+    "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+  }
+}
+

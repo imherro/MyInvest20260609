@@ -56,6 +56,12 @@ python scripts/check_cross_file_allocation_consistency.py --db temp/full_system_
 python scripts/project_check.py --current-only --db temp/full_system_check.sqlite
 ```
 
+Generate P0c research snapshots:
+
+```powershell
+python scripts/generate_p0c_research.py --db temp/full_system_check.sqlite --basis-date 2026-06-15
+```
+
 ## Data Model
 
 Append-only tables:
@@ -69,7 +75,16 @@ Append-only tables:
 
 SQLite triggers block historical `UPDATE` and `DELETE`.
 
+## Research Modules
+
+P0c research snapshots currently include:
+
+- ETF valuation
+- stock valuation
+- theme research
+- leader ranking
+- review score
+
 ## Documentation
 
 See `docs/SYSTEM_FINAL_CONTRACT.md` for the final runtime, schema, API, replay, and validation contract.
-

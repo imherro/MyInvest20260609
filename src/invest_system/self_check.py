@@ -21,6 +21,14 @@ SCHEMA_BY_TYPE = {
     "portfolio": "portfolio.schema.json",
 }
 
+RESEARCH_PAYLOAD_SCHEMA_BY_MODULE = {
+    "etf_valuation": "etf_valuation_payload.schema.json",
+    "stock_valuation": "stock_valuation_payload.schema.json",
+    "theme_research": "theme_research_payload.schema.json",
+    "leader_ranking": "leader_ranking_payload.schema.json",
+    "review_score": "review_score_payload.schema.json",
+}
+
 
 def run_self_check(db_path: str | Path, as_of: str | None = None) -> dict[str, Any]:
     repo = SQLiteRepository(db_path)
@@ -48,6 +56,9 @@ def _check_json_valid(repo: SQLiteRepository) -> dict[str, Any]:
             validate_or_raise(payload, SCHEMA_BY_TYPE[row["type"]])
             if row["type"] in {"market", "research"}:
                 assert_research_policy(payload)
+                module_schema = RESEARCH_PAYLOAD_SCHEMA_BY_MODULE.get(payload.get("module"))
+                if module_schema:
+                    validate_or_raise(payload["payload"], module_schema)
             elif row["type"] == "target_pool":
                 assert_target_pool_policy(payload)
             elif row["type"] == "decision":

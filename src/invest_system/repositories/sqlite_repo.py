@@ -181,20 +181,20 @@ class SQLiteRepository:
             event_type="portfolio",
         )
 
-    def latest_market(self) -> dict[str, Any] | None:
-        return self._latest_payload("market_snapshot")
+    def latest_market(self, as_of: str | None = None) -> dict[str, Any] | None:
+        return self._latest_payload("market_snapshot", as_of)
 
-    def latest_research(self) -> dict[str, Any] | None:
-        return self._latest_payload("research_snapshot")
+    def latest_research(self, as_of: str | None = None) -> dict[str, Any] | None:
+        return self._latest_payload("research_snapshot", as_of)
 
-    def latest_decision(self) -> dict[str, Any] | None:
-        return self._latest_payload("decision_record")
+    def latest_decision(self, as_of: str | None = None) -> dict[str, Any] | None:
+        return self._latest_payload("decision_record", as_of)
 
     def latest_target_pool(self, as_of: str | None = None) -> dict[str, Any] | None:
         return self._latest_payload("target_pool_snapshot", as_of)
 
-    def latest_portfolio(self) -> dict[str, Any] | None:
-        return self._latest_payload("portfolio_snapshot")
+    def latest_portfolio(self, as_of: str | None = None) -> dict[str, Any] | None:
+        return self._latest_payload("portfolio_snapshot", as_of)
 
     def target_pool_sets(self, as_of: str | None = None) -> dict[str, set[str] | str | None]:
         payload = self.latest_target_pool(as_of)

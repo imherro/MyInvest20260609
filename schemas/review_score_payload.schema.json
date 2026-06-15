@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "total_score",
+    "risk_adjusted_return_proxy",
+    "decision_quality",
+    "portfolio_trace",
+    "score_reasons"
+  ],
+  "properties": {
+    "total_score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "risk_adjusted_return_proxy": { "type": "number", "minimum": -100, "maximum": 100 },
+    "decision_quality": { "type": "number", "minimum": 0, "maximum": 100 },
+    "portfolio_trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_decision_id", "portfolio_id", "market_snapshot_id"],
+      "properties": {
+        "source_decision_id": { "type": "string" },
+        "portfolio_id": { "type": "string" },
+        "market_snapshot_id": { "type": "string" }
+      }
+    },
+    "score_reasons": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+  }
+}
+
