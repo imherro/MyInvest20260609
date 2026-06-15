@@ -47,3 +47,19 @@ def test_migrated_check_scripts_pass_on_multiday_db(tmp_path) -> None:
         completed = subprocess.run(command, check=True, capture_output=True, text=True)
         assert json.loads(completed.stdout)["status"] == "passed"
 
+
+def test_full_system_check_script_returns_passed_json(tmp_path) -> None:
+    db_path = tmp_path / "full.sqlite"
+
+    completed = subprocess.run(
+        [sys.executable, "scripts/run_full_system_check.py", "--db", str(db_path)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    payload = json.loads(completed.stdout)
+
+    assert payload["status"] == "passed"
+    assert payload["record_counts"]["portfolio_snapshot"] == 3
+    assert payload["self_checks"]["2026-06-14"]["replay_confidence_score"] == 1.0
+    assert payload["api_checks"]["/system/status"]["status"] == "ok"
