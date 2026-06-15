@@ -81,6 +81,7 @@ Schema files:
 - `schemas/target_pool.schema.json`
 - `schemas/decision.schema.json`
 - `schemas/portfolio.schema.json`
+- `schemas/market_data_bundle.schema.json`
 
 Repository append methods validate schema and policy before writing.
 
@@ -101,6 +102,10 @@ QMT mock import:
 
 - `scripts/import_qmt_positions.py`
 
+Read-only market data:
+
+- `scripts/collect_market_data.py`
+
 Validation:
 
 - `scripts/system_self_check.py`
@@ -113,6 +118,10 @@ Validation:
 P0c research generation:
 
 - `scripts/generate_p0c_research.py`
+
+P0b-real data collection:
+
+- `scripts/collect_market_data.py`
 
 ## API Contract
 
@@ -162,6 +171,29 @@ Supported modules:
 - `review_score`
 
 Every P0c module must pass the generic research schema and its module-specific payload schema.
+
+## Read-Only Data Adapter Contract
+
+The P0b-real adapter layer supports:
+
+- `tushare`
+- `baostock`
+- `yfinance`
+- `fred`
+- `mock`
+
+All adapter results are normalized to `market_data_bundle.schema.json`. The bundle is then converted into the existing `market_snapshot` schema and appended through the same repository method as every other market snapshot.
+
+Adapter rules:
+
+- read-only external access only
+- no write-back to external APIs
+- no broker order or execution path
+- no `event_log` schema change
+- mock fallback remains available for offline replay and tests
+- live-source failures are recorded in `data_gaps`
+
+P0c research may consume the adapter bundle as price input while continuing to store outputs in `research_snapshot`.
 
 ## Final Verification
 

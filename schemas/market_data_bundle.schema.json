@@ -1,0 +1,104 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "bundle_id",
+    "basis_date",
+    "generated_at",
+    "mode",
+    "read_only",
+    "attempted_sources",
+    "successful_sources",
+    "data_gaps",
+    "conflicts",
+    "source_results",
+    "indices",
+    "symbols",
+    "macro",
+    "quality"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "bundle_id": { "type": "string", "minLength": 1 },
+    "basis_date": { "type": "string", "format": "date" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "mode": {
+      "type": "string",
+      "enum": ["auto", "mock", "tushare", "baostock", "yfinance", "fred", "mixed"]
+    },
+    "read_only": { "type": "boolean" },
+    "attempted_sources": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "successful_sources": { "type": "array", "items": { "type": "string" } },
+    "data_gaps": { "type": "array", "items": { "type": "string" } },
+    "conflicts": { "type": "array", "items": { "type": "string" } },
+    "source_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "status", "read_only", "record_count", "data_gap"],
+        "properties": {
+          "source": { "type": "string" },
+          "status": { "type": "string", "enum": ["ok", "unavailable", "failed"] },
+          "read_only": { "type": "boolean" },
+          "record_count": { "type": "integer", "minimum": 0 },
+          "data_gap": { "type": ["string", "null"] }
+        }
+      },
+      "minItems": 1
+    },
+    "indices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["symbol", "name", "daily_return", "source"],
+        "properties": {
+          "symbol": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "daily_return": { "type": "number" },
+          "source": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "symbols": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["symbol", "last_price", "daily_return", "turnover_ratio", "source"],
+        "properties": {
+          "symbol": { "type": "string", "minLength": 1 },
+          "last_price": { "type": "number", "minimum": 0 },
+          "daily_return": { "type": "number" },
+          "turnover_ratio": { "type": "number", "minimum": 0 },
+          "source": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "macro": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["indicator", "value", "source"],
+        "properties": {
+          "indicator": { "type": "string", "minLength": 1 },
+          "value": { "type": "number" },
+          "source": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["completeness_score", "conflict_score", "freshness_score"],
+      "properties": {
+        "completeness_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "conflict_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "freshness_score": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

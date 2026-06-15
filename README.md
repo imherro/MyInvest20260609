@@ -62,6 +62,14 @@ Generate P0c research snapshots:
 python scripts/generate_p0c_research.py --db temp/full_system_check.sqlite --basis-date 2026-06-15
 ```
 
+Collect read-only market data and append it as a market snapshot:
+
+```powershell
+python scripts/collect_market_data.py --db temp/full_system_check.sqlite --basis-date 2026-06-15 --source auto
+```
+
+Use `--allow-network` only when local credentials and optional data packages are ready. Without live access, the command records `data_gaps` and falls back to deterministic mock data.
+
 ## Data Model
 
 Append-only tables:
@@ -84,6 +92,18 @@ P0c research snapshots currently include:
 - theme research
 - leader ranking
 - review score
+
+## Data Adapters
+
+P0b-real read-only adapters currently include:
+
+- Tushare
+- BaoStock
+- yfinance
+- FRED
+- mock fallback
+
+Adapter output is normalized to `market_data_bundle.schema.json` and then converted into the existing `market_snapshot` schema. The adapter layer never writes to external systems and never creates trading instructions.
 
 ## Documentation
 
