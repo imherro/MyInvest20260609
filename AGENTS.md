@@ -20,7 +20,9 @@ MyInvest is a local A-share investment research and risk-control system. It is n
 
 4. No real automatic trading
    - Do not add QMT write/trading/order placement features unless explicitly requested.
+   - QMT holding import is read-only and local-only.
    - A shadow account may create paper-only simulated trades for strategy review.
+   - Shadow-account holdings must be selected only from the approved target pool.
    - Shadow-account records are not broker orders and must never be sent to QMT or any broker.
    - Execution runtime must be local-only and excluded from Git, review packages, and developer packages unless explicitly requested.
 
