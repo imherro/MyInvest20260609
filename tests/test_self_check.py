@@ -16,6 +16,6 @@ def test_system_self_check_passes_for_seeded_history(tmp_path) -> None:
         "json_valid",
         "history_continuity",
         "portfolio_replay",
+        "multiday_replay",
         "event_log_consistency",
     }
-

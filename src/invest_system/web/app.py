@@ -28,6 +28,8 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                 "json_only": True,
                 "endpoints": [
                     "/research/latest",
+                    "/market/latest",
+                    "/target-pool/latest",
                     "/decision/latest",
                     "/portfolio/state",
                     "/timeline/replay",
@@ -39,6 +41,16 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/research/latest")
     def research_latest() -> dict[str, Any]:
         payload = repo.latest_research()
+        return _json_result(payload)
+
+    @app.get("/market/latest")
+    def market_latest() -> dict[str, Any]:
+        payload = repo.latest_market()
+        return _json_result(payload)
+
+    @app.get("/target-pool/latest")
+    def target_pool_latest() -> dict[str, Any]:
+        payload = repo.latest_target_pool()
         return _json_result(payload)
 
     @app.get("/decision/latest")
@@ -62,8 +74,8 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
         }
 
     @app.get("/system/status")
-    def system_status_endpoint() -> dict[str, Any]:
-        return system_status(repo.db_path)
+    def system_status_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return system_status(repo.db_path, as_of)
 
     return app
 

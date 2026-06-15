@@ -235,7 +235,8 @@ class SQLiteRepository:
         where = ""
         params: tuple[str, ...] = ()
         if as_of:
-            where = "WHERE created_at <= ?"
+            column = _as_of_column(as_of)
+            where = f"WHERE {column} <= ?"
             params = (as_of,)
         with closing(self._connect()) as conn:
             rows = conn.execute(
@@ -366,7 +367,8 @@ class SQLiteRepository:
         where = ""
         params: tuple[str, ...] = ()
         if as_of:
-            where = "WHERE created_at <= ?"
+            column = _as_of_column(as_of)
+            where = f"WHERE {column} <= ?"
             params = (as_of,)
         with closing(self._connect()) as conn:
             row = conn.execute(
@@ -440,3 +442,7 @@ class SQLiteRepository:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def _as_of_column(as_of: str) -> str:
+    return "basis_date" if len(as_of) == 10 else "created_at"

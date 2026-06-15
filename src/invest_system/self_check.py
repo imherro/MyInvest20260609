@@ -22,16 +22,20 @@ SCHEMA_BY_TYPE = {
 }
 
 
-def run_self_check(db_path: str | Path) -> dict[str, Any]:
+def run_self_check(db_path: str | Path, as_of: str | None = None) -> dict[str, Any]:
     repo = SQLiteRepository(db_path)
     checks = [
         _check_json_valid(repo),
         _check_history_continuity(repo),
-        _check_portfolio_replay(repo),
+        _check_portfolio_replay(repo, as_of),
+        _check_multiday_replay(repo),
         _check_event_log_consistency(repo),
     ]
+    passed_count = sum(1 for item in checks if item["passed"])
     return {
         "status": "passed" if all(item["passed"] for item in checks) else "failed",
+        "as_of": as_of,
+        "replay_confidence_score": round(passed_count / len(checks), 4),
         "checks": checks,
     }
 
@@ -91,21 +95,49 @@ def _check_history_continuity(repo: SQLiteRepository) -> dict[str, Any]:
     }
 
 
-def _check_portfolio_replay(repo: SQLiteRepository) -> dict[str, Any]:
-    latest = repo.latest_portfolio()
-    replay = repo.replay_state()
+def _check_portfolio_replay(repo: SQLiteRepository, as_of: str | None) -> dict[str, Any]:
+    portfolio_rows = [row for row in repo.all_payload_rows() if row["type"] == "portfolio"]
+    expected_id = _latest_portfolio_id_on_or_before(portfolio_rows, as_of) if as_of else (
+        portfolio_rows[-1]["payload"]["portfolio_id"] if portfolio_rows else None
+    )
+    replay = repo.replay_state(as_of)
     replayed = replay.get("portfolio")
     errors: list[str] = []
-    if latest and not replayed:
+    if expected_id and not replayed:
         errors.append("latest_portfolio_not_replayed")
-    if latest and replayed and latest["portfolio_id"] != replayed["portfolio_id"]:
+    if expected_id and replayed and expected_id != replayed["portfolio_id"]:
         errors.append("latest_portfolio_mismatch")
     return {
         "name": "portfolio_replay",
         "passed": not errors,
         "details": {
             "errors": errors,
+            "as_of": as_of,
+            "expected_portfolio_id": expected_id,
             "portfolio_id": replayed["portfolio_id"] if replayed else None,
+        },
+    }
+
+
+def _check_multiday_replay(repo: SQLiteRepository) -> dict[str, Any]:
+    portfolio_rows = [row for row in repo.all_payload_rows() if row["type"] == "portfolio"]
+    basis_dates = sorted({row["payload"]["basis_date"] for row in portfolio_rows})
+    errors: list[str] = []
+    replayed: dict[str, str | None] = {}
+    for basis_date in basis_dates:
+        expected = _latest_portfolio_id_on_or_before(portfolio_rows, basis_date)
+        actual_payload = repo.replay_state(basis_date).get("portfolio")
+        actual = actual_payload["portfolio_id"] if actual_payload else None
+        replayed[basis_date] = actual
+        if expected != actual:
+            errors.append(f"as_of:{basis_date}:expected:{expected}:actual:{actual}")
+    return {
+        "name": "multiday_replay",
+        "passed": not errors,
+        "details": {
+            "errors": errors,
+            "basis_dates": basis_dates,
+            "replayed": replayed,
         },
     }
 
@@ -126,11 +158,11 @@ def _check_event_log_consistency(repo: SQLiteRepository) -> dict[str, Any]:
     }
 
 
-def system_status(db_path: str | Path) -> dict[str, Any]:
+def system_status(db_path: str | Path, as_of: str | None = None) -> dict[str, Any]:
     repo = SQLiteRepository(db_path)
     repo.init_db()
-    self_check = run_self_check(db_path)
-    replay_state = repo.replay_state()
+    self_check = run_self_check(db_path, as_of)
+    replay_state = repo.replay_state(as_of)
     return {
         "status": "ok",
         "data": {
@@ -141,3 +173,16 @@ def system_status(db_path: str | Path) -> dict[str, Any]:
             "replay_available": replay_state.get("portfolio") is not None,
         },
     }
+
+
+def _latest_portfolio_id_on_or_before(portfolio_rows: list[dict[str, Any]], basis_date: str | None) -> str | None:
+    if basis_date is None:
+        return portfolio_rows[-1]["payload"]["portfolio_id"] if portfolio_rows else None
+    candidates = [
+        row["payload"]
+        for row in portfolio_rows
+        if row["payload"]["basis_date"] <= basis_date
+    ]
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda payload: (payload["basis_date"], payload["generated_at"]))[-1]["portfolio_id"]

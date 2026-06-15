@@ -14,7 +14,16 @@ def test_required_api_endpoints_return_json(tmp_path) -> None:
     seed_demo_repository(SQLiteRepository(db_path))
     app = create_app(db_path)
 
-    for path in ["/", "/research/latest", "/decision/latest", "/portfolio/state", "/timeline/replay", "/system/status"]:
+    for path in [
+        "/",
+        "/research/latest",
+        "/market/latest",
+        "/target-pool/latest",
+        "/decision/latest",
+        "/portfolio/state",
+        "/timeline/replay",
+        "/system/status",
+    ]:
         response = _get(app, path)
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("application/json")
@@ -57,6 +66,7 @@ def test_system_status_reports_self_check(tmp_path) -> None:
 
     assert data["record_counts"]["target_pool_snapshot"] == 1
     assert data["self_check"]["status"] == "passed"
+    assert data["self_check"]["replay_confidence_score"] == 1.0
     assert data["latest_event_timestamp"] is not None
     assert data["replay_available"] is True
 

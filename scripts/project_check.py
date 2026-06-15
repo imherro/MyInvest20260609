@@ -13,11 +13,16 @@ from invest_system.self_check import run_self_check  # noqa: E402
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--current-only", action="store_true")
+    parser.add_argument("--as-of")
     parser.add_argument("--db", default=str(DEFAULT_DB_PATH))
-    parser.add_argument("--as-of", default=None)
     args = parser.parse_args()
-    print(json.dumps(run_self_check(args.db, args.as_of), ensure_ascii=False, sort_keys=True))
+    result = run_self_check(args.db, args.as_of)
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    if result["status"] != "passed":
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
     main()
+

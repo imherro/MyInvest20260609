@@ -33,8 +33,9 @@ class ShadowPortfolioEngine:
         pnl_ratio = sum(current_weights.get(symbol, 0) * market_returns.get(symbol, 0) for symbol in current_weights)
         nav_index = round(previous["nav_index"] * (1 + pnl_ratio), 6)
         paper_trades = self._paper_trades(current_weights, target_weights)
+        next_weights = self._apply_paper_trades(current_weights, paper_trades)
         turnover = round(sum(abs(item["target_weight"] - item["current_weight"]) for item in paper_trades) / 2, 6)
-        cash_weight = round(1 - sum(target_weights.values()), 6)
+        cash_weight = round(1 - sum(next_weights.values()), 6)
 
         if cash_weight < -0.000001:
             raise ValueError("target weights cannot exceed 1")
@@ -49,7 +50,7 @@ class ShadowPortfolioEngine:
             "status": "simulated",
             "nav_index": nav_index,
             "cash_weight": max(cash_weight, 0),
-            "holdings_weight": target_weights,
+            "holdings_weight": next_weights,
             "paper_trades": paper_trades,
             "turnover": turnover,
             "drawdown": min(0, round(pnl_ratio, 6)),
@@ -113,6 +114,17 @@ class ShadowPortfolioEngine:
                 }
             )
         return paper_trades
+
+    def _apply_paper_trades(
+        self, current_weights: dict[str, float], paper_trades: list[dict[str, Any]]
+    ) -> dict[str, float]:
+        next_weights = {symbol: round(weight, 6) for symbol, weight in current_weights.items() if weight > 0}
+        for trade in paper_trades:
+            if trade["target_weight"] == 0:
+                next_weights.pop(trade["symbol"], None)
+            else:
+                next_weights[trade["symbol"]] = round(trade["target_weight"], 6)
+        return next_weights
 
     def _blocked_snapshot(
         self,
