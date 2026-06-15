@@ -12,6 +12,7 @@ The delivered MVP supports:
 - Shadow portfolio paper simulation
 - Multi-day replay by `basis_date`
 - JSON-only read APIs
+- Read-only HTML dashboard views
 - JSON-only CLI validation and append workflows
 
 ## Hard Boundaries
@@ -145,11 +146,22 @@ Read-only JSON endpoints:
 - `GET /decision/latest`
 - `GET /portfolio/state`
 - `GET /timeline/replay`
+- `GET /system/dashboard_state`
 - `GET /system/status`
 
 `/system/status` accepts optional `as_of=YYYY-MM-DD`.
 
 HTML docs are intentionally disabled.
+
+Read-only view endpoints:
+
+- `GET /dashboard`
+- `GET /overview`
+- `GET /portfolio/view`
+- `GET /research/view`
+- `GET /report/view`
+
+View endpoints are presentation only. They must not write to SQLite, change replay, expose trading controls, or display account IDs, amounts, shares, order IDs, fill IDs, trade amounts, or profit amounts.
 
 ## Replay Rule
 
@@ -218,6 +230,30 @@ Report generation rules:
 - reports must not be parsed back into the database
 - reports must not change replay, shadow execution, or `event_log`
 - reports must remain ratio-only and must not include account IDs, amounts, shares, orders, fills, or local absolute paths
+
+## Web Dashboard Contract
+
+The P1 dashboard reads from SQLite and JSON state only.
+
+Dashboard JSON:
+
+- `GET /system/dashboard_state`
+
+Dashboard views:
+
+- `/dashboard`
+- `/overview`
+- `/portfolio/view`
+- `/research/view`
+- `/report/view`
+
+Dashboard rules:
+
+- read-only presentation only
+- no database writes
+- no trading forms or order controls
+- no replay, shadow engine, or `event_log` changes
+- no sensitive account, amount, share, order, fill, or local absolute path exposure
 
 ## Final Verification
 

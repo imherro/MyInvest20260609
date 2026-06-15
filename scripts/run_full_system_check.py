@@ -33,7 +33,31 @@ API_ENDPOINTS = [
     "/decision/latest",
     "/portfolio/state",
     "/timeline/replay",
+    "/system/dashboard_state",
     "/system/status",
+]
+VIEW_ENDPOINTS = [
+    "/dashboard",
+    "/overview",
+    "/portfolio/view",
+    "/research/view",
+    "/report/view",
+]
+FORBIDDEN_VIEW_TERMS = [
+    "account_id",
+    "total_asset",
+    "market_value",
+    "share_count",
+    "available_quantity",
+    "trade_amount",
+    "profit_amount",
+    "order_id",
+    "fill_id",
+    "local_path",
+    "absolute_path",
+    "<form",
+    "下单",
+    "委托",
 ]
 
 
@@ -61,11 +85,13 @@ def main() -> None:
     self_checks = {basis_date: run_self_check(db_path, basis_date) for basis_date in MULTIDAY_DATES}
     policy_checks = _run_policy_checks(db_path)
     api_checks = asyncio.run(_run_api_checks(db_path))
+    view_checks = asyncio.run(_run_view_checks(db_path))
 
     passed = (
         all(item["status"] == "passed" for item in self_checks.values())
         and all(item["status"] == "passed" for item in policy_checks.values())
         and all(item["status"] == "ok" for item in api_checks.values())
+        and all(item["status"] == "ok" for item in view_checks.values())
         and report_result["status"] == "ok"
     )
     result: dict[str, Any] = {
@@ -78,6 +104,7 @@ def main() -> None:
         "self_checks": self_checks,
         "policy_checks": policy_checks,
         "api_checks": api_checks,
+        "view_checks": view_checks,
     }
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     if not passed:
@@ -123,6 +150,28 @@ async def _run_api_checks(db_path: Path) -> dict[str, dict[str, Any]]:
                 "http_status": response.status_code,
                 "content_type": response.headers.get("content-type", ""),
                 "json_status": payload.get("status"),
+            }
+    return checks
+
+
+async def _run_view_checks(db_path: Path) -> dict[str, dict[str, Any]]:
+    app = create_app(db_path)
+    checks: dict[str, dict[str, Any]] = {}
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        for endpoint in VIEW_ENDPOINTS:
+            response = await client.get(endpoint)
+            body = response.text
+            forbidden_hits = [term for term in FORBIDDEN_VIEW_TERMS if term in body]
+            checks[endpoint] = {
+                "status": "ok"
+                if response.status_code == 200
+                and response.headers.get("content-type", "").startswith("text/html")
+                and not forbidden_hits
+                else "failed",
+                "http_status": response.status_code,
+                "content_type": response.headers.get("content-type", ""),
+                "forbidden_hits": forbidden_hits,
             }
     return checks
 

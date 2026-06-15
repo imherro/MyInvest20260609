@@ -4,9 +4,11 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Query
+from fastapi.responses import HTMLResponse
 
 from invest_system.repositories import DEFAULT_DB_PATH, SQLiteRepository
 from invest_system.self_check import system_status
+from invest_system.web.dashboard import build_dashboard_state, render_dashboard_page
 
 
 def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
@@ -33,7 +35,15 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/decision/latest",
                     "/portfolio/state",
                     "/timeline/replay",
+                    "/system/dashboard_state",
                     "/system/status",
+                ],
+                "view_endpoints": [
+                    "/dashboard",
+                    "/overview",
+                    "/portfolio/view",
+                    "/research/view",
+                    "/report/view",
                 ],
             },
         }
@@ -76,6 +86,30 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/system/status")
     def system_status_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
         return system_status(repo.db_path, as_of)
+
+    @app.get("/system/dashboard_state")
+    def dashboard_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return build_dashboard_state(repo, as_of)
+
+    @app.get("/dashboard", response_class=HTMLResponse)
+    def dashboard_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_dashboard_page(build_dashboard_state(repo, as_of), "dashboard"))
+
+    @app.get("/overview", response_class=HTMLResponse)
+    def overview_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_dashboard_page(build_dashboard_state(repo, as_of), "overview"))
+
+    @app.get("/portfolio/view", response_class=HTMLResponse)
+    def portfolio_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_dashboard_page(build_dashboard_state(repo, as_of), "portfolio"))
+
+    @app.get("/research/view", response_class=HTMLResponse)
+    def research_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_dashboard_page(build_dashboard_state(repo, as_of), "research"))
+
+    @app.get("/report/view", response_class=HTMLResponse)
+    def report_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_dashboard_page(build_dashboard_state(repo, as_of), "report"))
 
     return app
 

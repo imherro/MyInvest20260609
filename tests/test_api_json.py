@@ -22,6 +22,7 @@ def test_required_api_endpoints_return_json(tmp_path) -> None:
         "/decision/latest",
         "/portfolio/state",
         "/timeline/replay",
+        "/system/dashboard_state",
         "/system/status",
     ]:
         response = _get(app, path)

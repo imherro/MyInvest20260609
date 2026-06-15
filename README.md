@@ -24,6 +24,7 @@ Open:
 http://127.0.0.1:8000/
 http://127.0.0.1:8000/system/status
 http://127.0.0.1:8000/timeline/replay
+http://127.0.0.1:8000/dashboard
 ```
 
 ## API
@@ -35,9 +36,20 @@ http://127.0.0.1:8000/timeline/replay
 - `GET /decision/latest`
 - `GET /portfolio/state`
 - `GET /timeline/replay`
+- `GET /system/dashboard_state`
 - `GET /system/status`
 
-All backend responses are JSON. FastAPI HTML docs are disabled.
+API responses are JSON. Read-only dashboard pages are view-layer HTML. FastAPI HTML docs are disabled.
+
+Read-only view endpoints:
+
+- `GET /dashboard`
+- `GET /overview`
+- `GET /portfolio/view`
+- `GET /research/view`
+- `GET /report/view`
+
+View endpoints never write data and do not expose trading controls.
 
 ## Validation
 
@@ -122,6 +134,17 @@ P1 report generation currently supports:
 - minimal PDF
 
 Reports are derived views. They are generated from `research_snapshot`, `decision_record`, `portfolio_snapshot`, and replay state, and they are never parsed back into the database.
+
+## Web Dashboard
+
+P1 read-only dashboard pages include:
+
+- overview
+- portfolio
+- research
+- report preview
+
+The shared JSON state is available at `GET /system/dashboard_state`. Pages render from SQLite and JSON state only, do not write to the database, and do not include trade controls.
 
 ## Documentation
 
