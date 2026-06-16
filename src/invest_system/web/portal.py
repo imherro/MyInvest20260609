@@ -487,6 +487,12 @@ def _overview_content(data: dict[str, Any]) -> str:
     counts = overview["record_counts"]
     count_cards = "".join(_metric_card(name, value) for name, value in counts.items())
     gaps = _data_gap_table(overview["data_gaps"])
+    gap_actions = """
+    <div class="badge-row">
+      <a class="step" href="/market/view#market-refresh">去刷新市场快照</a>
+      <a class="step" href="/market/latest">查看市场 JSON</a>
+    </div>
+    """
     conflicts = _list_items(overview["conflicts"], "当前没有冲突提示。")
     return f"""
 <section>
@@ -503,7 +509,7 @@ def _overview_content(data: dict[str, Any]) -> str:
   <div class="grid-4">{count_cards}</div>
 </section>
 <section class="grid-2">
-  <div class="panel"><h2>数据缺口</h2>{gaps}</div>
+  <div class="panel"><h2>数据缺口</h2>{gaps}{gap_actions}</div>
   <div class="panel"><h2>冲突提示</h2>{conflicts}</div>
 </section>
 """
@@ -611,7 +617,7 @@ def _market_content(data: dict[str, Any]) -> str:
     {_metric_card("权益上限", _percent(market["equity_max"]))}
   </div>
 </section>
-<section class="panel">
+<section class="panel" id="market-refresh">
   <h2>刷新市场快照</h2>
   <p>追加写入新的市场快照，不覆盖历史记录。</p>
   <div class="badge-row">

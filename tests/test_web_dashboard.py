@@ -100,6 +100,9 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "处理方式" in body
             assert "长期估值分位数据不足" in body
             assert "valuation_metrics_limited" not in body
+        if path in {"/app", "/overview"}:
+            assert "去刷新市场快照" in body
+            assert 'href="/market/view#market-refresh"' in body
         if path in {"/app", "/home_human"}:
             assert 'href="/portfolio/view"' in body
             assert 'href="/portfolio/state"' not in body
@@ -113,6 +116,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "科创50ETF华夏（588000.SH）" in body
             assert "刷新市场快照" in body
             assert "追加写入新的市场快照" in body
+            assert 'id="market-refresh"' in body
             assert 'id="market-refresh-button"' in body
             assert "/market/refresh" in body
         if path == "/research/view":
