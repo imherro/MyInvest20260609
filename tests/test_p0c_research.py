@@ -48,6 +48,26 @@ def test_p0c_payload_schemas_are_valid(tmp_path) -> None:
             validate_or_raise(payload["payload"], schema_by_module[module])
 
 
+def test_p0c_valuation_payloads_are_ratio_only(tmp_path) -> None:
+    db_path = tmp_path / "p0c_ratio_only.sqlite"
+    repo = SQLiteRepository(db_path)
+    seed_multiday_repository(repo)
+    generate_p0c_research(repo, "2026-06-15")
+
+    valuation_payloads = [
+        row["payload"]["payload"]
+        for row in repo.all_payload_rows()
+        if row["payload"].get("module") in {"etf_valuation", "stock_valuation"}
+    ]
+
+    assert valuation_payloads
+    for payload in valuation_payloads:
+        assert "price" not in payload
+        assert "fair_value_range" not in payload
+        assert "observed_to_fair_value_ratio" in payload
+        assert "fair_value_band_pct" in payload
+
+
 def test_generate_p0c_research_cli_outputs_json(tmp_path) -> None:
     db_path = tmp_path / "p0c_cli.sqlite"
     seed_multiday_repository(SQLiteRepository(db_path))
@@ -69,4 +89,3 @@ def test_generate_p0c_research_cli_outputs_json(tmp_path) -> None:
 
     assert payload["status"] == "ok"
     assert len(payload["inserted"]) == 5
-

@@ -106,7 +106,7 @@ def _etf_valuation_snapshot(
         fact_pack_id=fact_pack_id,
         market_id=market_id,
         summary=f"ETF valuation for {symbol} remains JSON-only and review-gated.",
-        key_facts=[f"{symbol} price is compared with a fair-value band."],
+        key_facts=[f"{symbol} observed level is compared with a ratio-only fair-value band."],
         reasoning=["Deviation from fair value determines score and risk flag."],
         risks=["Tracking error or delayed holdings disclosure can weaken the valuation signal."],
         payload=payload,
@@ -132,7 +132,7 @@ def _stock_valuation_snapshot(
         fact_pack_id=fact_pack_id,
         market_id=market_id,
         summary=f"Stock valuation for {symbol} is recorded as a structured research snapshot.",
-        key_facts=[f"{symbol} price is compared with a fair-value band."],
+        key_facts=[f"{symbol} observed level is compared with a ratio-only fair-value band."],
         reasoning=["Relative valuation and volatility determine score and risk flag."],
         risks=["Single-name news and liquidity shocks can invalidate the score."],
         payload=payload,
@@ -260,21 +260,20 @@ def _valuation_payload(
     method: str,
     volatility: float,
 ) -> dict[str, Any]:
-    low = round(fair_value_mid * 0.92, 4)
-    high = round(fair_value_mid * 1.08, 4)
     deviation = round((price - fair_value_mid) / fair_value_mid, 6)
+    observed_to_fair_value_ratio = round(price / fair_value_mid, 6)
     valuation_score = round(max(0, min(100, 50 - deviation * 220)), 4)
     risk_flag = "high" if volatility >= 0.3 or abs(deviation) >= 0.18 else "medium" if volatility >= 0.2 else "low"
     rating = "Undervalued" if deviation <= -0.08 else "Overvalued" if deviation >= 0.08 else "Fair"
     return {
         "symbol": symbol,
         "valuation_score": valuation_score,
-        "fair_value_range": {"low": low, "mid": round(fair_value_mid, 4), "high": high},
+        "fair_value_band_pct": {"low": -0.08, "mid": 0, "high": 0.08},
+        "observed_to_fair_value_ratio": observed_to_fair_value_ratio,
         "deviation": deviation,
         "risk_flag": risk_flag,
         "confidence": round(max(0.35, min(0.85, 0.82 - volatility * 0.5)), 4),
         "method": method,
-        "price": price,
         "rating": rating,
     }
 
@@ -328,4 +327,3 @@ def _phase(score: float) -> str:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
-

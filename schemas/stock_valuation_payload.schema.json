@@ -4,33 +4,32 @@
   "required": [
     "symbol",
     "valuation_score",
-    "fair_value_range",
+    "fair_value_band_pct",
+    "observed_to_fair_value_ratio",
     "deviation",
     "risk_flag",
     "confidence",
     "method",
-    "price",
     "rating"
   ],
   "properties": {
     "symbol": { "type": "string", "minLength": 1 },
     "valuation_score": { "type": "number", "minimum": 0, "maximum": 100 },
-    "fair_value_range": {
+    "fair_value_band_pct": {
       "type": "object",
       "additionalProperties": false,
       "required": ["low", "mid", "high"],
       "properties": {
-        "low": { "type": "number", "minimum": 0 },
-        "mid": { "type": "number", "minimum": 0 },
-        "high": { "type": "number", "minimum": 0 }
+        "low": { "type": "number", "minimum": -1, "maximum": 1 },
+        "mid": { "type": "number", "minimum": -1, "maximum": 1 },
+        "high": { "type": "number", "minimum": -1, "maximum": 1 }
       }
     },
+    "observed_to_fair_value_ratio": { "type": "number", "minimum": 0, "maximum": 10 },
     "deviation": { "type": "number", "minimum": -10, "maximum": 10 },
     "risk_flag": { "type": "string", "enum": ["low", "medium", "high"] },
     "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
     "method": { "type": "string", "minLength": 1 },
-    "price": { "type": "number", "minimum": 0 },
     "rating": { "type": "string", "enum": ["Undervalued", "Fair", "Overvalued", "Watch"] }
   }
 }
-

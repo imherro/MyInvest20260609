@@ -73,12 +73,14 @@ def build_market_snapshot_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     market_score = _market_score(bundle)
     crowding_penalty = _crowding_penalty(bundle)
     quality = bundle["quality"]["completeness_score"]
-    risk_level = "high" if quality < 0.45 or crowding_penalty >= 35 else "medium" if crowding_penalty >= 15 else "low"
-    equity_min = 0.35 if risk_level == "high" else 0.45 if risk_level == "medium" else 0.5
-    equity_max = 0.55 if risk_level == "high" else 0.65 if risk_level == "medium" else 0.7
+    signals = _market_signals(bundle, market_score, crowding_penalty)
+    data_gaps = _dedupe_strings([*bundle["data_gaps"], *_market_research_data_gaps(bundle)])
+    risk_level = _risk_level(quality, crowding_penalty, signals)
+    equity_min, equity_max = _equity_research_boundary(risk_level, signals)
     data_sources = [f"adapter:{source_name}" for source_name in bundle["successful_sources"]]
     if not data_sources:
         data_sources = ["adapter:unavailable"]
+    data_sources.append("derived:market_research_v1")
 
     snapshot = {
         "schema_version": "1.0",
@@ -87,28 +89,69 @@ def build_market_snapshot_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
         "generated_at": _utc_now(),
         "module": "market_position",
         "data_sources": data_sources,
-        "data_gaps": bundle["data_gaps"],
+        "data_gaps": data_gaps,
         "conflicts": bundle["conflicts"],
-        "executive_summary": "Read-only market data is normalized into a market position snapshot.",
+        "executive_summary": (
+            f"A-share market state is {signals['trend_state']} with {signals['breadth_state']} breadth, "
+            f"{signals['liquidity_state']} liquidity, and {signals['risk_appetite']} risk appetite. "
+            "The result is a Research/Market snapshot only."
+        ),
         "key_facts": [
-            f"Successful source count: {len(bundle['successful_sources'])}.",
-            f"Symbol records: {len(bundle['symbols'])}.",
-            f"Index records: {len(bundle['indices'])}.",
+            f"Basis date is {bundle['basis_date']} and only complete-day adapter records are used.",
+            (
+                "Index trend: "
+                f"{signals['trend_state']}; average index daily return {signals['index_return_pct']}; "
+                f"positive index ratio {signals['index_positive_pct']}."
+            ),
+            (
+                "Market breadth: "
+                f"{signals['breadth_state']}; positive normalized-record ratio {signals['breadth_pct']}."
+            ),
+            (
+                "Liquidity: "
+                f"{signals['liquidity_state']}; average turnover proxy {signals['turnover_pct']}."
+            ),
+            (
+                "Risk appetite: "
+                f"{signals['risk_appetite']}; average symbol daily return {signals['symbol_return_pct']}."
+            ),
+            (
+                "Main-line strength: "
+                f"{signals['main_line_strength']}; positive symbol ratio {signals['symbol_positive_pct']}."
+            ),
+            (
+                "Valuation and crowding: "
+                f"{signals['crowding_state']}; crowding penalty score {crowding_penalty}."
+            ),
+            f"Macro/policy environment: {signals['macro_policy_state']}.",
+            (
+                "Equity risk boundary: "
+                f"{_format_pct(equity_min)} to {_format_pct(equity_max)}; "
+                f"stance is {signals['equity_risk_stance']}."
+            ),
         ],
         "reasoning": [
-            "Adapter data is read-only and converted into the existing market_snapshot schema.",
-            "Mock fallback is retained when live data sources are unavailable.",
+            "Trend, breadth, liquidity, risk appetite, and crowding are derived from ratios and scores.",
+            "Missing live-source, macro, policy, or valuation inputs are recorded as data gaps and lower confidence.",
+            "The equity boundary is a market-risk review band, not a buy, sell, add, reduce, or execution instruction.",
+            "When breadth weakens, liquidity is thin, or crowding is elevated, the snapshot remains observe-only.",
         ],
         "risks": [
             "External source outage can reduce confidence.",
             "Conflicting source values must be reviewed before production use.",
+            "No single-security conclusion is valid from this Research/Market layer alone.",
+            "Policy or macro news not represented in structured adapters can invalidate the market state.",
         ],
-        "conclusion_strength": "medium" if quality >= 0.55 else "weak",
+        "conclusion_strength": _conclusion_strength(quality, data_gaps),
         "actionability": "observe",
-        "confidence": round(max(0.2, min(0.9, quality)), 4),
+        "confidence": _confidence(quality, data_gaps),
         "invalidation_conditions": ["A newer market data bundle supersedes this snapshot."],
         "next_review_date": bundle["basis_date"],
-        "must_not_do": ["Do not treat read-only market data as a broker execution instruction."],
+        "must_not_do": [
+            "Do not treat read-only market data as a broker execution instruction.",
+            "Do not produce single-security buy/add/reduce/sell guidance from this market snapshot.",
+            "Do not raise equity risk without fresh data, ResearchFirst coverage, and human review.",
+        ],
         "required_human_review": True,
         "status": "json_validated",
         "trace": {
@@ -126,6 +169,58 @@ def build_market_snapshot_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     }
     validate_or_raise(snapshot, "market_snapshot.schema.json")
     return snapshot
+
+
+def _market_signals(bundle: dict[str, Any], market_score: float, crowding_penalty: float) -> dict[str, Any]:
+    index_return = _average_daily_return(bundle["indices"])
+    symbol_return = _average_daily_return(bundle["symbols"])
+    combined_return = _average_return(bundle)
+    index_positive = _positive_ratio_rows(bundle["indices"])
+    symbol_positive = _positive_ratio_rows(bundle["symbols"])
+    breadth = _positive_ratio(bundle)
+    turnover = _average_turnover(bundle)
+    return {
+        "trend_state": _trend_state(index_return),
+        "breadth_state": _breadth_state(breadth),
+        "liquidity_state": _liquidity_state(turnover, bundle["symbols"]),
+        "risk_appetite": _risk_appetite_state(combined_return, breadth),
+        "main_line_strength": _main_line_strength(symbol_return, symbol_positive),
+        "crowding_state": _crowding_state(crowding_penalty),
+        "macro_policy_state": (
+            "structured macro/policy input available"
+            if bundle["macro"]
+            else "limited by missing structured macro/policy input"
+        ),
+        "equity_risk_stance": _equity_risk_stance(market_score, breadth, crowding_penalty),
+        "index_return_pct": _format_pct(index_return),
+        "symbol_return_pct": _format_pct(symbol_return),
+        "index_positive_pct": _format_pct(index_positive),
+        "symbol_positive_pct": _format_pct(symbol_positive),
+        "breadth_pct": _format_pct(breadth),
+        "turnover_pct": _format_pct(turnover),
+        "combined_return": combined_return,
+        "breadth": breadth,
+    }
+
+
+def _market_research_data_gaps(bundle: dict[str, Any]) -> list[str]:
+    gaps: list[str] = []
+    if not bundle["indices"]:
+        gaps.append("index_trend_missing:no index records were available")
+    elif len(bundle["indices"]) < len(DEFAULT_INDICES):
+        gaps.append("index_trend_partial:some requested index records were unavailable")
+    if not bundle["symbols"]:
+        gaps.append("market_breadth_missing:no symbol records were available")
+    elif len(bundle["symbols"]) < len(DEFAULT_SYMBOLS):
+        gaps.append("market_breadth_partial:some requested symbol records were unavailable")
+    if not bundle["symbols"] or all(row["turnover_ratio"] == 0 for row in bundle["symbols"]):
+        gaps.append("liquidity_proxy_missing:no usable turnover proxy was available")
+    if not bundle["macro"]:
+        gaps.append("macro_policy_limited:no structured macro or policy adapter record was available")
+    gaps.append("valuation_metrics_limited:no valuation percentile data was available; crowding uses return and conflict proxies")
+    if "mock" in bundle["successful_sources"]:
+        gaps.append("mock_fallback_used:mock data contributed because live coverage was incomplete")
+    return gaps
 
 
 def build_p0c_price_data_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
@@ -213,6 +308,37 @@ def _requires_mock_fallback(results: list[dict[str, Any]]) -> bool:
     return symbols == 0 and indices == 0
 
 
+def _conclusion_strength(quality: float, data_gaps: list[str]) -> str:
+    if quality >= 0.85 and not data_gaps:
+        return "strong"
+    if quality >= 0.55:
+        return "medium"
+    return "weak"
+
+
+def _confidence(quality: float, data_gaps: list[str]) -> float:
+    gap_penalty = min(0.35, len(data_gaps) * 0.03)
+    return round(max(0.2, min(0.9, quality - gap_penalty)), 4)
+
+
+def _risk_level(quality: float, crowding_penalty: float, signals: dict[str, Any]) -> str:
+    if quality < 0.45 or crowding_penalty >= 35 or signals["breadth"] < 0.35:
+        return "high"
+    if crowding_penalty >= 15 or signals["breadth"] < 0.5 or signals["combined_return"] < -0.005:
+        return "medium"
+    return "low"
+
+
+def _equity_research_boundary(risk_level: str, signals: dict[str, Any]) -> tuple[float, float]:
+    if risk_level == "high":
+        return 0.35, 0.55
+    if risk_level == "medium":
+        return 0.45, 0.65
+    if signals["equity_risk_stance"] == "watch_before_increase":
+        return 0.45, 0.65
+    return 0.5, 0.7
+
+
 def _bundle_from_results(
     *,
     basis_date: str,
@@ -285,6 +411,10 @@ def _dedupe_market_rows(key: str, rows: list[dict[str, Any]]) -> list[dict[str, 
     return deduped
 
 
+def _dedupe_strings(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(values))
+
+
 def _market_score(bundle: dict[str, Any]) -> float:
     average_return = _average_return(bundle)
     quality = bundle["quality"]["completeness_score"]
@@ -309,6 +439,10 @@ def _market_reasons(bundle: dict[str, Any], market_score: float) -> list[str]:
 
 def _average_return(bundle: dict[str, Any]) -> float:
     rows = bundle["indices"] + bundle["symbols"]
+    return _average_daily_return(rows)
+
+
+def _average_daily_return(rows: list[dict[str, Any]]) -> float:
     if not rows:
         return 0
     return sum(row["daily_return"] for row in rows) / len(rows)
@@ -316,6 +450,10 @@ def _average_return(bundle: dict[str, Any]) -> float:
 
 def _positive_ratio(bundle: dict[str, Any]) -> float:
     rows = bundle["indices"] + bundle["symbols"]
+    return _positive_ratio_rows(rows)
+
+
+def _positive_ratio_rows(rows: list[dict[str, Any]]) -> float:
     if not rows:
         return 0.5
     return sum(1 for row in rows if row["daily_return"] >= 0) / len(rows)
@@ -346,6 +484,68 @@ def _volatility_proxy(daily_return: float) -> float:
 
 def _bounded(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
+
+
+def _format_pct(value: float) -> str:
+    return f"{value * 100:.2f}%"
+
+
+def _trend_state(index_return: float) -> str:
+    if index_return >= 0.005:
+        return "uptrend"
+    if index_return <= -0.005:
+        return "downtrend"
+    return "range_bound"
+
+
+def _breadth_state(breadth: float) -> str:
+    if breadth >= 0.65:
+        return "broad"
+    if breadth >= 0.45:
+        return "mixed"
+    return "narrow"
+
+
+def _liquidity_state(turnover: float, rows: list[dict[str, Any]]) -> str:
+    if not rows:
+        return "unknown"
+    if turnover >= 0.025:
+        return "active"
+    if turnover >= 0.012:
+        return "normal"
+    return "thin"
+
+
+def _risk_appetite_state(average_return: float, breadth: float) -> str:
+    if average_return >= 0.003 and breadth >= 0.55:
+        return "risk_on"
+    if average_return <= -0.003 or breadth < 0.4:
+        return "risk_off"
+    return "neutral"
+
+
+def _main_line_strength(symbol_return: float, positive_ratio: float) -> str:
+    if symbol_return >= 0.004 and positive_ratio >= 0.6:
+        return "strong"
+    if symbol_return >= 0 and positive_ratio >= 0.4:
+        return "medium"
+    return "weak"
+
+
+def _crowding_state(crowding_penalty: float) -> str:
+    if crowding_penalty >= 35:
+        return "elevated"
+    if crowding_penalty >= 15:
+        return "watch"
+    return "contained"
+
+
+def _equity_risk_stance(market_score: float, breadth: float, crowding_penalty: float) -> str:
+    if market_score >= 60 and breadth >= 0.55 and crowding_penalty < 15:
+        return "can_review_higher_risk"
+    if market_score < 45 or breadth < 0.45 or crowding_penalty >= 35:
+        return "defensive"
+    return "watch_before_increase"
 
 
 def _utc_now() -> str:

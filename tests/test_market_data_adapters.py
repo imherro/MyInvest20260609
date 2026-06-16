@@ -26,7 +26,8 @@ def test_mock_market_data_bundle_appends_market_snapshot(tmp_path) -> None:
     validate_or_raise(result["bundle"], "market_data_bundle.schema.json")
     latest = repo.latest_market()
     assert latest["snapshot_id"] == "market-2026-06-15-mock-adapter"
-    assert latest["data_sources"] == ["adapter:mock"]
+    assert "adapter:mock" in latest["data_sources"]
+    assert "derived:market_research_v1" in latest["data_sources"]
     assert latest["actionability"] == "observe"
     assert repo.table_counts()["market_snapshot"] == 1
     assert repo.table_counts()["event_log"] == 1
@@ -45,6 +46,27 @@ def test_auto_market_data_uses_mock_fallback_when_network_disabled() -> None:
     snapshot = build_market_snapshot_from_bundle(bundle)
     assert snapshot["status"] == "json_validated"
     assert "adapter:mock" in snapshot["data_sources"]
+
+
+def test_market_snapshot_contains_research_coverage_and_data_gaps() -> None:
+    bundle = collect_market_data_bundle(basis_date="2026-06-15", source="mock")
+    snapshot = build_market_snapshot_from_bundle(bundle)
+    joined_facts = " ".join(snapshot["key_facts"])
+
+    for expected in [
+        "Index trend",
+        "Market breadth",
+        "Liquidity",
+        "Risk appetite",
+        "Main-line strength",
+        "Valuation and crowding",
+        "Macro/policy environment",
+        "Equity risk boundary",
+    ]:
+        assert expected in joined_facts
+    assert "derived:market_research_v1" in snapshot["data_sources"]
+    assert any("valuation_metrics_limited" in gap for gap in snapshot["data_gaps"])
+    assert snapshot["actionability"] == "observe"
 
 
 def test_market_data_bundle_builds_p0c_price_data_shape() -> None:
