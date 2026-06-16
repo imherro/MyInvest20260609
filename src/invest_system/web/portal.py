@@ -505,6 +505,48 @@ def _today_summary(data: dict[str, Any]) -> str:
     return "先看今日行动边界，再进入市场、风险、组合或研究页面。"
 
 
+def _home_priority_cards(data: dict[str, Any]) -> str:
+    dashboard = data["dashboard"]
+    guidance = data["guidance"]
+    queue = guidance["research_first"]["queue"]
+    valuation_review = data["research_valuation_review"]
+    cards = [
+        (
+            "每日报告",
+            "/report/view",
+            _report_headline(data),
+            "先看今天总摘要、阅读顺序和来源编号。",
+        ),
+        (
+            "研究工作台",
+            "/research/view#research-workbench",
+            _research_workbench_title(queue, valuation_review),
+            "处理 ResearchFirst 队列、估值复核和补充研究提示词。",
+        ),
+        (
+            "组合核对",
+            "/portfolio/view",
+            _portfolio_conclusion_label(
+                dashboard["portfolio"],
+                dashboard["actual_vs_shadow"],
+                dashboard["market"],
+            ),
+            "核对影子组合、实际持仓比例、纸面调仓和历史快照。",
+        ),
+    ]
+    return "".join(_priority_entry_card(title, href, status, detail) for title, href, status, detail in cards)
+
+
+def _priority_entry_card(title: str, href: str, status: str, detail: str) -> str:
+    return f"""
+<div class="panel feature">
+  <a href="{html.escape(href)}">{html.escape(title)}</a>
+  <p class="value">{html.escape(status)}</p>
+  <p class="small">{html.escape(detail)}</p>
+</div>
+"""
+
+
 def _home_content(data: dict[str, Any]) -> str:
     home = data["home"]
     guidance = data["guidance"]
@@ -527,6 +569,7 @@ def _home_content(data: dict[str, Any]) -> str:
         ("易用性检查", "/usability/view", "检查入口、页头、页脚、引导和执行边界。"),
     ]
     feature_cards = "".join(_feature_card(title, href, detail) for title, href, detail in features)
+    priority_cards = _home_priority_cards(data)
     flow = data["usability"]["human_flow"]
     flow_steps = _linked_flow(flow)
     readiness = guidance["readiness"]
@@ -555,7 +598,12 @@ def _home_content(data: dict[str, Any]) -> str:
 </section>
 {_daily_refresh_strip(daily_refresh)}
 <section>
-  <h2>功能入口</h2>
+  <h2>优先入口</h2>
+  <p class="detail">打开系统后先看这三处：先读结论，再处理研究卡点，最后核对组合。</p>
+  <div class="feature-grid">{priority_cards}</div>
+</section>
+<section>
+  <h2>全部功能入口</h2>
   <div class="feature-grid">{feature_cards}</div>
 </section>
 <section class="panel">

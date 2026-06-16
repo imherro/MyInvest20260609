@@ -135,6 +135,11 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert 'href="/research/view"' in body
             assert 'href="/research/latest"' not in body
         if path == "/app":
+            assert "优先入口" in body
+            assert "打开系统后先看这三处" in body
+            assert 'href="/report/view"' in body
+            assert 'href="/research/view#research-workbench"' in body
+            assert "组合核对" in body
             assert "今日刷新状态" in body
             assert "市场快照" in body
             assert "研究快照" in body
