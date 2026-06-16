@@ -63,8 +63,14 @@ def test_market_refresh_endpoint_appends_snapshot_as_json(tmp_path) -> None:
     assert response.headers["content-type"].startswith("application/json")
     assert payload["status"] == "ok"
     assert payload["data"]["market_snapshot_id"] == "market-2026-06-16-mock-adapter"
+    assert payload["data"]["auto_shadow"]["status"] in {"applied", "skipped"}
     assert after_counts["market_snapshot"] == before_counts["market_snapshot"] + 1
-    assert after_counts["event_log"] == before_counts["event_log"] + 1
+    if payload["data"]["auto_shadow"]["status"] == "applied":
+        assert after_counts["decision_record"] == before_counts["decision_record"] + 1
+        assert after_counts["portfolio_snapshot"] == before_counts["portfolio_snapshot"] + 1
+        assert after_counts["event_log"] == before_counts["event_log"] + 3
+    else:
+        assert after_counts["event_log"] == before_counts["event_log"] + 1
 
 
 def test_market_refresh_endpoint_returns_json_on_invalid_source(tmp_path) -> None:

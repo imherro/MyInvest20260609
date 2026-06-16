@@ -16,6 +16,7 @@ from invest_system.repositories import DEFAULT_DB_PATH, SQLiteRepository
 from invest_system.research.importer import append_research_import, validate_research_import
 from invest_system.risk import compute_risk_history, compute_risk_state
 from invest_system.self_check import system_status
+from invest_system.shadow import run_auto_shadow_portfolio
 from invest_system.web.dashboard import build_dashboard_state
 from invest_system.web.portal import build_portal_state, build_usability_state, render_portal_page
 from invest_system.workflow import build_daily_workflow_state
@@ -124,7 +125,14 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
 
     @app.post("/research/import")
     def research_import_endpoint(payload: Any = Body(...)) -> dict[str, Any]:
-        return append_research_import(repo, payload)
+        result = append_research_import(repo, payload)
+        if result["status"] == "ok":
+            result["data"]["auto_shadow"] = run_auto_shadow_portfolio(
+                repo,
+                trigger="research_import",
+                as_of=payload.get("basis_date") if isinstance(payload, dict) else None,
+            )
+        return result
 
     @app.post("/market/refresh")
     def market_refresh_endpoint(
@@ -165,6 +173,13 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "message": "市场快照刷新失败，请检查本地数据源配置后重试。",
                 },
             }
+        result["auto_shadow"] = run_auto_shadow_portfolio(
+            repo,
+            trigger="market_refresh",
+            as_of=refresh_date,
+            market_returns=_market_returns_from_bundle(result["bundle"]),
+            benchmark_returns=_benchmark_returns_from_bundle(result["bundle"]),
+        )
         return {"status": "ok", "data": result}
 
     @app.get("/research/latest")
@@ -316,3 +331,21 @@ def _json_result(payload: dict[str, Any] | None) -> dict[str, Any]:
     if payload is None:
         return {"status": "empty", "data": None}
     return {"status": "ok", "data": payload}
+
+
+def _market_returns_from_bundle(bundle: dict[str, Any]) -> dict[str, float]:
+    returns: dict[str, float] = {}
+    for item in bundle.get("symbols", []):
+        symbol = item.get("symbol")
+        if symbol:
+            returns[symbol] = float(item.get("daily_return", 0))
+    return returns
+
+
+def _benchmark_returns_from_bundle(bundle: dict[str, Any]) -> dict[str, float]:
+    returns: dict[str, float] = {}
+    for item in bundle.get("indices", []):
+        name = item.get("name") or item.get("symbol")
+        if name:
+            returns[str(name)] = float(item.get("daily_return", 0))
+    return returns

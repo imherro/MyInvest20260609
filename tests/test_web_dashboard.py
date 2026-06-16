@@ -126,6 +126,8 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "创业板ETF易方达（159915.SZ）" in body
             assert "沪深300ETF华泰柏瑞（510300.SH）" in body
             assert "短融ETF海富通（511360.SH）" in body
+            assert "自动模型对照" in body
+            assert "最近纸面变化" in body
             assert ">159915.SZ<" not in body
         if path == "/market/view":
             assert "永赢中证500ETF（退市）（159999.SZ）" in body

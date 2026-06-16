@@ -185,6 +185,20 @@ def _portfolio_state(portfolio: dict[str, Any] | None, market: dict[str, Any] | 
         "turnover": portfolio["turnover"],
         "drawdown": portfolio["drawdown"],
         "benchmark_returns": portfolio["benchmark_returns"],
+        "source_decision_id": portfolio["source_decision_id"],
+        "source_target_pool_id": portfolio["source_target_pool_id"],
+        "paper_changes": [
+            {
+                "symbol": item["symbol"],
+                "display_name": display_symbol(item["symbol"]),
+                "action": item["action"],
+                "current_weight": item["current_weight"],
+                "target_weight": item["target_weight"],
+                "delta_weight_pp": item["delta_weight_pp"],
+                "reason": item["reason"],
+            }
+            for item in portfolio["paper_trades"]
+        ],
         "holdings": holdings,
     }
 

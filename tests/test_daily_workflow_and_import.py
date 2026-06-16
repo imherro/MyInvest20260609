@@ -77,6 +77,8 @@ def test_research_import_validate_and_append_are_append_only(tmp_path) -> None:
     assert import_response.headers["content-type"].startswith("application/json")
     assert import_payload["status"] == "ok"
     assert import_payload["data"]["snapshot_id"] == payload["snapshot_id"]
+    assert import_payload["data"]["auto_shadow"]["status"] == "skipped"
+    assert import_payload["data"]["auto_shadow"]["reason"] == "missing_market_target_pool_or_portfolio"
     assert repo.table_counts()["research_snapshot"] == 1
     assert repo.table_counts()["event_log"] == 1
 

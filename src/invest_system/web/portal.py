@@ -860,6 +860,18 @@ def _portfolio_content(data: dict[str, Any]) -> str:
         ]
         for item in portfolio["holdings"]
     ]
+    change_rows = [
+        [
+            item["display_name"],
+            _change_label(item["action"]),
+            _percent(item["current_weight"]),
+            _percent(item["target_weight"]),
+            f"{item['delta_weight_pp']} pp",
+        ]
+        for item in portfolio["paper_changes"]
+    ]
+    if not change_rows:
+        change_rows = [["无", "不变", "无", "无", "0 pp"]]
     return f"""
 <section>
   <h2>影子组合状态</h2>
@@ -870,9 +882,19 @@ def _portfolio_content(data: dict[str, Any]) -> str:
     {_metric_card("偏离", "暂无" if portfolio["deviation_pp"] is None else f"{portfolio['deviation_pp']} pp")}
   </div>
 </section>
+<section class="panel">
+  <h2>自动模型对照</h2>
+  <p>影子组合由系统根据最新市场边界、研究门槛、标的池和风控约束自动维护。</p>
+  <p class="detail">它只生成纸面组合快照，用来和实际持仓对照；不会连接外部执行，也不需要你手动操作影子组合。</p>
+  <p class="detail">来源决策：{html.escape(str(portfolio["source_decision_id"]))}</p>
+</section>
 <section>
   <h2>持仓比例</h2>
   {_table(["标的", "比例", "分布"], rows, raw_columns={2})}
+</section>
+<section>
+  <h2>最近纸面变化</h2>
+  {_table(["标的", "动作", "原比例", "目标比例", "变化"], change_rows)}
 </section>
 <section>
   <h2>纸面表现</h2>
@@ -1260,6 +1282,14 @@ def _operation_label(value: str) -> str:
         "increase_risk": "提高风险",
         "new_subject_review": "新增标的",
         "external_execution": "外部执行",
+    }.get(value, value)
+
+
+def _change_label(value: str) -> str:
+    return {
+        "increase": "提高比例",
+        "decrease": "降低比例",
+        "hold": "保持不变",
     }.get(value, value)
 
 
