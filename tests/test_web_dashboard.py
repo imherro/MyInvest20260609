@@ -51,6 +51,8 @@ def test_dashboard_state_endpoint_returns_json_without_sensitive_fields(tmp_path
     assert payload["data"]["portfolio_history"]["rebalance_records"]
     assert payload["data"]["portfolio_history"]["rebalance_records"][0]["display_name"].endswith("）")
     assert payload["data"]["actual_vs_shadow"]["source_status"] == "actual_ratio_available"
+    assert payload["data"]["actual_vs_shadow"]["qmt_read_status"]["status"] == "success"
+    assert payload["data"]["actual_vs_shadow"]["qmt_read_status"]["next_action_label"] == "查看实际持仓与影子组合差异。"
     assert payload["data"]["actual_vs_shadow"]["actual_equity_weight"] == 0.75
     assert payload["data"]["actual_vs_shadow"]["shadow_equity_weight"] == 0.75
     assert "沪深300ETF华泰柏瑞（510300.SH）" in payload["data"]["target_pool"]["entries"][0]["display_symbols"]
@@ -134,6 +136,8 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "短融ETF海富通（511360.SH）" in body
             assert "自动模型对照" in body
             assert "最近纸面变化" in body
+            assert "QMT 读取状态" in body
+            assert "查看实际持仓与影子组合差异。" in body
             assert "实际持仓 vs 影子组合" in body
             assert "刷新实际持仓" in body
             assert "/portfolio/qmt/refresh" in body

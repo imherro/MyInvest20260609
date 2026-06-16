@@ -106,6 +106,7 @@ def build_actual_vs_shadow_state(repo: SQLiteRepository, as_of: str | None = Non
             "source_status": "actual_ratio_available" if actual_has_ratio else "actual_ratio_missing",
             "source_event_id": qmt_event["object_id"] if qmt_event else None,
             "source_basis_date": qmt_event["basis_date"] if qmt_event else None,
+            "qmt_read_status": _qmt_read_status(qmt_event, actual_has_ratio),
             "shadow_portfolio_id": portfolio["portfolio_id"] if portfolio else None,
             "actual_equity_weight": _equity_weight(actual_weights) if actual_has_ratio else None,
             "shadow_equity_weight": _equity_weight(shadow_weights) if portfolio else None,
@@ -351,6 +352,52 @@ def _qmt_symbols(event: dict[str, Any] | None) -> set[str]:
     if event is None:
         return set()
     return {str(symbol) for symbol in event["payload"].get("symbols", [])}
+
+
+def _qmt_read_status(qmt_event: dict[str, Any] | None, actual_has_ratio: bool) -> dict[str, Any]:
+    if qmt_event is None:
+        return {
+            "status": "missing",
+            "last_basis_date": None,
+            "last_event_id": None,
+            "reason": "qmt_position_import_missing",
+            "next_action": "refresh_qmt_positions",
+            "next_action_label": "打开并登录本机 QMT 后，点击从 QMT 刷新。",
+        }
+
+    payload = qmt_event["payload"]
+    event_status = str(payload.get("status", "unknown"))
+    data_gaps = payload.get("data_gaps", [])
+    reason = str(data_gaps[0]) if data_gaps else None
+    if event_status == "imported" and actual_has_ratio:
+        status = "success"
+        next_action = "review_actual_shadow_delta"
+        next_action_label = "查看实际持仓与影子组合差异。"
+    else:
+        status = "blocked" if event_status == "blocked" else "incomplete"
+        reason = reason or "qmt_holding_weight_missing"
+        next_action, next_action_label = _qmt_next_action(reason)
+
+    return {
+        "status": status,
+        "last_basis_date": qmt_event["basis_date"],
+        "last_event_id": qmt_event["object_id"],
+        "reason": reason,
+        "next_action": next_action,
+        "next_action_label": next_action_label,
+    }
+
+
+def _qmt_next_action(reason: str) -> tuple[str, str]:
+    if reason == "qmt_readonly_config_missing":
+        return ("set_qmt_readonly_config", "配置本机 QMT 只读路径后重新刷新。")
+    if reason in {"qmt_connect_failed", "qmt_read_failed"}:
+        return ("open_login_qmt_then_refresh", "确认 QMT 已打开并登录，然后重新刷新。")
+    if reason == "qmt_xtquant_sdk_missing":
+        return ("select_qmt_python_runtime", "确认本机 QMT SDK 可用后重新刷新。")
+    if reason in {"qmt_total_asset_unavailable", "qmt_position_missing"}:
+        return ("confirm_qmt_position_source", "确认 QMT 持仓数据可读取后重新刷新。")
+    return ("refresh_qmt_positions", "重新从 QMT 刷新实际持仓比例。")
 
 
 def _actual_vs_shadow_row(

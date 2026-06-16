@@ -850,6 +850,7 @@ def _portfolio_content(data: dict[str, Any]) -> str:
     portfolio = data["dashboard"]["portfolio"]
     history = data["dashboard"]["portfolio_history"]
     actual = data["dashboard"]["actual_vs_shadow"]
+    qmt_status = actual["qmt_read_status"]
     market = data["dashboard"]["market"]
     if not portfolio["available"]:
         return _empty_section("影子组合", "组合快照暂不可用，请先查看系统状态。")
@@ -936,6 +937,16 @@ def _portfolio_content(data: dict[str, Any]) -> str:
   <h2>历史快照在哪里看</h2>
   <p>人看的历史快照就在本页下方；系统原始回放在 <a href="/timeline/replay">历史回放 JSON</a>。</p>
   <p class="detail">组合专用 JSON 在 <a href="/portfolio/history">组合历史 JSON</a>。输入历史日期时，也可以用 <a href="/portfolio/view?as_of=2026-06-15">按日期查看组合页</a>。</p>
+</section>
+<section class="panel">
+  <h2>QMT 读取状态</h2>
+  <div class="grid-4">
+    {_metric_card("状态", _qmt_read_status_label(qmt_status["status"]))}
+    {_metric_card("最后日期", qmt_status["last_basis_date"] or "尚未读取")}
+    {_metric_card("原因", _qmt_reason_label(qmt_status["reason"]))}
+    {_metric_card("下一步", qmt_status["next_action_label"])}
+  </div>
+  <p class="detail">来源：{html.escape(str(qmt_status["last_event_id"] or "暂无 QMT 读取快照"))}</p>
 </section>
 <section id="qmt-refresh" class="panel">
   <h2>刷新实际持仓</h2>
@@ -1424,6 +1435,31 @@ def _actual_shadow_status_label(value: str) -> str:
         "aligned": "一致",
         "shadow_overweight": "影子更高",
         "shadow_underweight": "影子更低",
+    }.get(value, value)
+
+
+def _qmt_read_status_label(value: str) -> str:
+    return {
+        "success": "已读取",
+        "blocked": "读取受阻",
+        "incomplete": "数据不完整",
+        "missing": "尚未读取",
+    }.get(value, value)
+
+
+def _qmt_reason_label(value: str | None) -> str:
+    if value is None:
+        return "无"
+    return {
+        "qmt_position_import_missing": "尚未读取实际持仓比例",
+        "qmt_holding_weight_missing": "缺少实际比例",
+        "qmt_readonly_config_missing": "本机 QMT 只读配置缺失",
+        "qmt_xtquant_sdk_missing": "QMT SDK 不可用",
+        "qmt_connect_failed": "QMT 未连接",
+        "qmt_read_failed": "QMT 读取失败",
+        "qmt_total_asset_unavailable": "QMT 比例基准不可用",
+        "qmt_position_missing": "未读到持仓比例",
+        "qmt_weight_total_invalid": "持仓比例合计异常",
     }.get(value, value)
 
 

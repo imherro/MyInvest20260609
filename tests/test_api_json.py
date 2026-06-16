@@ -142,6 +142,9 @@ def test_portfolio_actual_vs_shadow_endpoint_returns_ratio_rows(tmp_path) -> Non
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("application/json")
     assert data["source_status"] == "actual_ratio_available"
+    assert data["qmt_read_status"]["status"] == "success"
+    assert data["qmt_read_status"]["last_basis_date"] == "2026-06-15"
+    assert data["qmt_read_status"]["next_action"] == "review_actual_shadow_delta"
     assert data["actual_equity_weight"] == 0.75
     assert data["shadow_equity_weight"] == 0.75
     assert any(item["display_name"].endswith("（159915.SZ）") for item in data["rows"])
