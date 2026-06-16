@@ -17,7 +17,7 @@ from invest_system.research.importer import append_research_import, validate_res
 from invest_system.risk import compute_risk_history, compute_risk_state
 from invest_system.self_check import system_status
 from invest_system.shadow import run_auto_shadow_portfolio
-from invest_system.web.dashboard import build_dashboard_state
+from invest_system.web.dashboard import build_dashboard_state, build_portfolio_history_state
 from invest_system.web.portal import build_portal_state, build_usability_state, render_portal_page
 from invest_system.workflow import build_daily_workflow_state
 
@@ -56,6 +56,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/target-pool/latest",
                     "/decision/latest",
                     "/portfolio/state",
+                    "/portfolio/history",
                     "/timeline/replay",
                     "/comparison/state",
                     "/comparison/history",
@@ -214,6 +215,10 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     def portfolio_state() -> dict[str, Any]:
         payload = repo.latest_portfolio()
         return _json_result(payload)
+
+    @app.get("/portfolio/history")
+    def portfolio_history_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return build_portfolio_history_state(repo, as_of)
 
     @app.get("/timeline/replay")
     def timeline_replay(as_of: str | None = Query(default=None)) -> dict[str, Any]:

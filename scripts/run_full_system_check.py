@@ -39,6 +39,7 @@ API_ENDPOINTS = [
     "/decision/proposal",
     "/decision/explain",
     "/portfolio/state",
+    "/portfolio/history",
     "/timeline/replay",
     "/comparison/state",
     "/comparison/history",

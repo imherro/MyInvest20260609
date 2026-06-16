@@ -47,6 +47,9 @@ def test_dashboard_state_endpoint_returns_json_without_sensitive_fields(tmp_path
     assert payload["data"]["portfolio"]["equity_weight"] == 0.75
     assert payload["data"]["portfolio"]["holdings"][0]["display_name"].endswith("（159915.SZ）")
     assert payload["data"]["portfolio"]["holdings"][0]["name"] != "159915.SZ"
+    assert payload["data"]["portfolio_history"]["snapshot_count"] == 3
+    assert payload["data"]["portfolio_history"]["rebalance_records"]
+    assert payload["data"]["portfolio_history"]["rebalance_records"][0]["display_name"].endswith("）")
     assert "沪深300ETF华泰柏瑞（510300.SH）" in payload["data"]["target_pool"]["entries"][0]["display_symbols"]
     assert payload["data"]["research"]["available"] is True
     assert payload["data"]["risk"]["available"] is True
@@ -128,6 +131,10 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "短融ETF海富通（511360.SH）" in body
             assert "自动模型对照" in body
             assert "最近纸面变化" in body
+            assert "每次纸面调仓记录" in body
+            assert "历史组合快照" in body
+            assert "/portfolio/history" in body
+            assert "/timeline/replay?as_of=2026-06-15" in body
             assert ">159915.SZ<" not in body
         if path == "/market/view":
             assert "永赢中证500ETF（退市）（159999.SZ）" in body

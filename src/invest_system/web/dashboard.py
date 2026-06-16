@@ -52,6 +52,7 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
             "market": _market_state(market),
             "target_pool": _target_pool_state(target_pool),
             "portfolio": _portfolio_state(portfolio, market),
+            "portfolio_history": build_portfolio_history_state(repo, as_of)["data"],
             "research": _research_state(research_items),
             "risk": _risk_state(risk),
             "comparison": _comparison_state(comparison),
@@ -61,6 +62,31 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
                 "trace": replay.get("trace", {}),
                 "event_count": len(timeline),
             },
+        },
+    }
+    assert_no_sensitive_content(state)
+    return state
+
+
+def build_portfolio_history_state(repo: SQLiteRepository, as_of: str | None = None) -> dict[str, Any]:
+    repo.init_db()
+    events = [event for event in repo.timeline(as_of) if event["type"] == "portfolio"]
+    snapshots = [_portfolio_snapshot_history_item(event) for event in reversed(events)]
+    rebalance_records = [
+        _portfolio_rebalance_history_item(event, trade)
+        for event in reversed(events)
+        for trade in event["payload"].get("paper_trades", [])
+    ]
+    state = {
+        "status": "ok",
+        "data": {
+            "schema_version": "1.0",
+            "as_of": as_of,
+            "snapshot_count": len(snapshots),
+            "rebalance_count": len(rebalance_records),
+            "snapshots": snapshots,
+            "rebalance_records": rebalance_records,
+            "json_replay_endpoint": "/timeline/replay",
         },
     }
     assert_no_sensitive_content(state)
@@ -200,6 +226,50 @@ def _portfolio_state(portfolio: dict[str, Any] | None, market: dict[str, Any] | 
             for item in portfolio["paper_trades"]
         ],
         "holdings": holdings,
+    }
+
+
+def _portfolio_snapshot_history_item(event: dict[str, Any]) -> dict[str, Any]:
+    payload = event["payload"]
+    holdings = [
+        {
+            "symbol": symbol,
+            "display_name": display_symbol(symbol),
+            "weight": weight,
+        }
+        for symbol, weight in sorted(payload["holdings_weight"].items())
+    ]
+    return {
+        "basis_date": payload["basis_date"],
+        "created_at": event["timestamp"],
+        "portfolio_id": payload["portfolio_id"],
+        "source_decision_id": payload["source_decision_id"],
+        "source_target_pool_id": payload["source_target_pool_id"],
+        "nav_index": payload["nav_index"],
+        "cash_weight": payload["cash_weight"],
+        "turnover": payload["turnover"],
+        "pnl_ratio": payload["pnl_ratio"],
+        "drawdown": payload["drawdown"],
+        "paper_trade_count": len(payload.get("paper_trades", [])),
+        "holdings": holdings,
+    }
+
+
+def _portfolio_rebalance_history_item(event: dict[str, Any], trade: dict[str, Any]) -> dict[str, Any]:
+    payload = event["payload"]
+    return {
+        "basis_date": payload["basis_date"],
+        "created_at": event["timestamp"],
+        "portfolio_id": payload["portfolio_id"],
+        "source_decision_id": payload["source_decision_id"],
+        "symbol": trade["symbol"],
+        "display_name": display_symbol(trade["symbol"]),
+        "action": trade["action"],
+        "current_weight": trade["current_weight"],
+        "target_weight": trade["target_weight"],
+        "delta_weight_pp": trade["delta_weight_pp"],
+        "reason": trade["reason"],
+        "is_paper": trade["is_paper"],
     }
 
 

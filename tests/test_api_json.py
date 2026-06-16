@@ -28,6 +28,7 @@ def test_required_api_endpoints_return_json(tmp_path) -> None:
         "/decision/proposal",
         "/decision/explain",
         "/portfolio/state",
+        "/portfolio/history",
         "/timeline/replay",
         "/comparison/state",
         "/comparison/history",
@@ -109,6 +110,22 @@ def test_timeline_replay_contains_trace(tmp_path) -> None:
     assert data["state"]["trace"]["source_market_snapshot_id"] == "market-2026-06-15-demo"
     assert data["state"]["trace"]["source_research_snapshot_ids"] == ["research-2026-06-15-demo"]
     assert [event["type"] for event in data["events"]] == ["market", "research", "target_pool", "decision", "portfolio"]
+
+
+def test_portfolio_history_endpoint_returns_snapshots_and_rebalances(tmp_path) -> None:
+    db_path = tmp_path / "api.sqlite"
+    seed_demo_repository(SQLiteRepository(db_path))
+    app = create_app(db_path)
+
+    response = _get(app, "/portfolio/history")
+    data = response.json()["data"]
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert data["snapshot_count"] == 1
+    assert data["snapshots"][0]["portfolio_id"] == "shadow-2026-06-15-decision-2026-06-15-demo"
+    assert data["snapshots"][0]["source_decision_id"] == "decision-2026-06-15-demo"
+    assert data["json_replay_endpoint"] == "/timeline/replay"
 
 
 def test_system_status_reports_self_check(tmp_path) -> None:

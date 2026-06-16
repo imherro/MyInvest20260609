@@ -80,6 +80,7 @@ HUMAN_ENDPOINT_MAP = {
     "/decision/proposal": "/decision/view",
     "/decision/explain": "/decision/view",
     "/portfolio/state": "/portfolio/view",
+    "/portfolio/history": "/portfolio/view",
     "/risk/state": "/risk/view",
     "/macro/state": "/macro/view",
     "/comparison/state": "/comparison/view",
@@ -846,6 +847,7 @@ def _decision_content(data: dict[str, Any]) -> str:
 
 def _portfolio_content(data: dict[str, Any]) -> str:
     portfolio = data["dashboard"]["portfolio"]
+    history = data["dashboard"]["portfolio_history"]
     market = data["dashboard"]["market"]
     if not portfolio["available"]:
         return _empty_section("影子组合", "组合快照暂不可用，请先查看系统状态。")
@@ -872,6 +874,34 @@ def _portfolio_content(data: dict[str, Any]) -> str:
     ]
     if not change_rows:
         change_rows = [["无", "不变", "无", "无", "0 pp"]]
+    rebalance_rows = [
+        [
+            item["basis_date"],
+            item["display_name"],
+            _change_label(item["action"]),
+            _percent(item["current_weight"]),
+            _percent(item["target_weight"]),
+            f"{item['delta_weight_pp']} pp",
+            item["source_decision_id"],
+        ]
+        for item in history["rebalance_records"]
+    ]
+    if not rebalance_rows:
+        rebalance_rows = [["暂无", "无", "无", "无", "无", "0 pp", "暂无"]]
+    snapshot_rows = [
+        [
+            item["basis_date"],
+            _percent(item["cash_weight"]),
+            _percent(item["turnover"]),
+            _percent(item["pnl_ratio"]),
+            item["paper_trade_count"],
+            _holdings_summary(item["holdings"]),
+            _timeline_link(item["basis_date"]),
+        ]
+        for item in history["snapshots"]
+    ]
+    if not snapshot_rows:
+        snapshot_rows = [["暂无", "无", "无", "无", 0, "无", "无"]]
     return f"""
 <section>
   <h2>影子组合状态</h2>
@@ -888,6 +918,11 @@ def _portfolio_content(data: dict[str, Any]) -> str:
   <p class="detail">它只生成纸面组合快照，用来和实际持仓对照；不会连接外部执行，也不需要你手动操作影子组合。</p>
   <p class="detail">来源决策：{html.escape(str(portfolio["source_decision_id"]))}</p>
 </section>
+<section class="panel">
+  <h2>历史快照在哪里看</h2>
+  <p>人看的历史快照就在本页下方；系统原始回放在 <a href="/timeline/replay">历史回放 JSON</a>。</p>
+  <p class="detail">组合专用 JSON 在 <a href="/portfolio/history">组合历史 JSON</a>。输入历史日期时，也可以用 <a href="/portfolio/view?as_of=2026-06-15">按日期查看组合页</a>。</p>
+</section>
 <section>
   <h2>持仓比例</h2>
   {_table(["标的", "比例", "分布"], rows, raw_columns={2})}
@@ -895,6 +930,14 @@ def _portfolio_content(data: dict[str, Any]) -> str:
 <section>
   <h2>最近纸面变化</h2>
   {_table(["标的", "动作", "原比例", "目标比例", "变化"], change_rows)}
+</section>
+<section>
+  <h2>每次纸面调仓记录</h2>
+  {_table(["日期", "标的", "动作", "原比例", "目标比例", "变化", "来源决策"], rebalance_rows)}
+</section>
+<section>
+  <h2>历史组合快照</h2>
+  {_table(["日期", "现金", "换手", "收益率", "调仓数", "持仓摘要", "回放"], snapshot_rows, raw_columns={6})}
 </section>
 <section>
   <h2>纸面表现</h2>
@@ -1061,6 +1104,7 @@ def _system_content(data: dict[str, Any]) -> str:
         ["/decision/proposal", "决策预览 JSON"],
         ["/decision/explain", "决策解释 JSON"],
         ["/system/dashboard_state", "综合看板 JSON"],
+        ["/portfolio/history", "组合历史 JSON"],
         ["/usability/state", "易用性检查 JSON"],
         ["/timeline/replay", "历史回放 JSON"],
         ["/system/status", "系统自检 JSON"],
@@ -1247,6 +1291,7 @@ def _endpoint_label(endpoint: str) -> str:
         "/decision/explain": "决策解释 JSON",
         "/portfolio/view": "影子组合",
         "/portfolio/state": "组合 JSON",
+        "/portfolio/history": "组合历史 JSON",
         "/research/view": "研究结论",
         "/research/import/view": "研究导入",
         "/research/import/validate": "研究导入校验 JSON",
@@ -1291,6 +1336,20 @@ def _change_label(value: str) -> str:
         "decrease": "降低比例",
         "hold": "保持不变",
     }.get(value, value)
+
+
+def _holdings_summary(holdings: list[dict[str, Any]]) -> str:
+    if not holdings:
+        return "无持仓"
+    return "；".join(
+        f"{item['display_name']} {_percent(item['weight'])}"
+        for item in holdings
+    )
+
+
+def _timeline_link(basis_date: str) -> str:
+    endpoint = f"/timeline/replay?as_of={basis_date}"
+    return f"<a href=\"{html.escape(endpoint)}\">回放</a>"
 
 
 def _operation_status(value: str) -> str:
