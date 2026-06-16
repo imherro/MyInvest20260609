@@ -48,6 +48,39 @@ def test_required_api_endpoints_return_json(tmp_path) -> None:
     assert _get(app, "/").json()["data"]["primary_human_entry"] == "/app"
 
 
+def test_market_refresh_endpoint_appends_snapshot_as_json(tmp_path) -> None:
+    db_path = tmp_path / "api.sqlite"
+    repo = SQLiteRepository(db_path)
+    seed_demo_repository(repo)
+    before_counts = repo.table_counts()
+    app = create_app(db_path)
+
+    response = _post(app, "/market/refresh?basis_date=2026-06-16&source=mock&allow_network=false")
+    payload = response.json()
+    after_counts = repo.table_counts()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert payload["status"] == "ok"
+    assert payload["data"]["market_snapshot_id"] == "market-2026-06-16-mock-adapter"
+    assert after_counts["market_snapshot"] == before_counts["market_snapshot"] + 1
+    assert after_counts["event_log"] == before_counts["event_log"] + 1
+
+
+def test_market_refresh_endpoint_returns_json_on_invalid_source(tmp_path) -> None:
+    db_path = tmp_path / "api.sqlite"
+    seed_demo_repository(SQLiteRepository(db_path))
+    app = create_app(db_path)
+
+    response = _post(app, "/market/refresh?basis_date=2026-06-16&source=bad_source&allow_network=false")
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert payload["status"] == "failed"
+    assert payload["data"]["reason"] == "invalid_market_refresh_request"
+
+
 def test_fastapi_html_docs_are_disabled(tmp_path) -> None:
     app = create_app(tmp_path / "api.sqlite")
 
@@ -91,7 +124,17 @@ def _get(app, path: str) -> httpx.Response:
     return asyncio.run(_async_get(app, path))
 
 
+def _post(app, path: str) -> httpx.Response:
+    return asyncio.run(_async_post(app, path))
+
+
 async def _async_get(app, path: str) -> httpx.Response:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         return await client.get(path)
+
+
+async def _async_post(app, path: str) -> httpx.Response:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        return await client.post(path)

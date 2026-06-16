@@ -111,6 +111,10 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
         if path == "/market/view":
             assert "永赢中证500ETF（退市）（159999.SZ）" in body
             assert "科创50ETF华夏（588000.SH）" in body
+            assert "刷新市场快照" in body
+            assert "追加写入新的市场快照" in body
+            assert 'id="market-refresh-button"' in body
+            assert "/market/refresh" in body
         if path == "/research/view":
             assert "永赢中证500ETF（退市）（159999.SZ）" in body
         if path == "/decision/view":

@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import Body, FastAPI, Query
 from fastapi.responses import HTMLResponse
 
+from invest_system.adapters import append_market_snapshot_from_adapters
 from invest_system.comparison import compute_comparison_history, compute_comparison_state
 from invest_system.decision import build_decision_explain, build_decision_proposal
 from invest_system.entry import build_home_state
@@ -44,6 +45,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/workflow/daily/state",
                     "/guidance/state",
                     "/usability/state",
+                    "POST /market/refresh",
                     "POST /research/import/validate",
                     "POST /research/import",
                     "/decision/proposal",
@@ -123,6 +125,47 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.post("/research/import")
     def research_import_endpoint(payload: Any = Body(...)) -> dict[str, Any]:
         return append_research_import(repo, payload)
+
+    @app.post("/market/refresh")
+    def market_refresh_endpoint(
+        basis_date: str | None = Query(default=None),
+        source: str = Query(default="auto"),
+        allow_network: bool = Query(default=True),
+    ) -> dict[str, Any]:
+        latest_market = repo.latest_market()
+        refresh_date = basis_date or (latest_market["basis_date"] if latest_market else None)
+        if refresh_date is None:
+            return {
+                "status": "failed",
+                "data": {
+                    "reason": "missing_basis_date",
+                    "message": "没有可复用的市场基准日，请指定 basis_date。",
+                },
+            }
+        try:
+            result = append_market_snapshot_from_adapters(
+                repo,
+                basis_date=refresh_date,
+                source=source,
+                allow_network=allow_network,
+            )
+        except ValueError as exc:
+            return {
+                "status": "failed",
+                "data": {
+                    "reason": "invalid_market_refresh_request",
+                    "message": str(exc),
+                },
+            }
+        except Exception:
+            return {
+                "status": "failed",
+                "data": {
+                    "reason": "market_refresh_failed",
+                    "message": "市场快照刷新失败，请检查本地数据源配置后重试。",
+                },
+            }
+        return {"status": "ok", "data": result}
 
     @app.get("/research/latest")
     def research_latest() -> dict[str, Any]:

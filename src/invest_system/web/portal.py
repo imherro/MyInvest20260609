@@ -200,7 +200,7 @@ def _build_usability_payload(
             "unified_footer",
             "pass",
             "统一页脚",
-            "页脚固定展示只读边界、JSON 事实源和纸面模拟边界。",
+            "页脚固定展示执行边界、JSON 事实源和纸面模拟边界。",
             "/app",
         ),
         _usability_check(
@@ -249,14 +249,14 @@ def _build_usability_payload(
             "json_source_available",
             "pass" if dashboard["overview"]["replay_available"] else "warn",
             "JSON 事实源",
-            "页面只读取 SQLite 与 JSON 回放状态，不写入业务数据。",
+            "页面读取 SQLite 与 JSON 回放状态；刷新按钮只追加快照。",
             "/system/dashboard_state",
         ),
         _usability_check(
             "read_only_boundary",
             "pass",
-            "只读边界",
-            "浏览器页面没有提交控件，也不会触发外部执行。",
+            "执行边界",
+            "浏览器页面只允许受控追加研究或市场快照，不触发外部执行。",
             "/system/view",
         ),
     ]
@@ -339,6 +339,7 @@ def _page_shell(title: str, active: str, content: str, data: dict[str, Any]) -> 
     .value {{ font-size:22px; font-weight:800; overflow-wrap:anywhere; }}
     .badge-row {{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }}
     .badge {{ border:1px solid var(--line); border-radius:6px; padding:5px 8px; background:#fff; color:var(--muted); font-size:13px; }}
+    .inline-control {{ display:inline-flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:6px; padding:7px 9px; background:#fff; color:var(--muted); }}
     .pass, .good {{ color:var(--good); font-weight:800; }}
     .warn {{ color:var(--warn); font-weight:800; }}
     .block, .bad, .missing {{ color:var(--bad); font-weight:800; }}
@@ -353,7 +354,9 @@ def _page_shell(title: str, active: str, content: str, data: dict[str, Any]) -> 
     .fill {{ height:100%; background:var(--accent); }}
     .two-pane {{ display:grid; grid-template-columns:minmax(0, 1fr) minmax(260px, 0.7fr); gap:12px; }}
     textarea {{ width:100%; min-height:300px; resize:vertical; border:1px solid var(--line); border-radius:8px; padding:12px; font:13px/1.45 Consolas, "Courier New", monospace; color:var(--ink); background:#fff; }}
+    input {{ border:0; color:var(--ink); background:transparent; font:inherit; }}
     button {{ border:1px solid #8ec8c1; border-radius:6px; padding:8px 11px; background:var(--soft); color:var(--accent-ink); font-weight:800; cursor:pointer; }}
+    button:disabled {{ opacity:0.6; cursor:wait; }}
     button.secondary {{ border-color:var(--line); background:#fff; color:var(--ink); }}
     pre {{ white-space:pre-wrap; overflow:auto; margin:0; border:1px solid var(--line); border-radius:8px; background:#fff; padding:12px; font:13px/1.45 Consolas, "Courier New", monospace; }}
     @media (max-width:900px) {{ .top {{ align-items:flex-start; flex-direction:column; }} nav {{ justify-content:flex-start; }} .hero, .two-pane, .footer-grid {{ grid-template-columns:1fr; }} .footer-links {{ justify-content:flex-start; }} .feature-grid, .grid-4 {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} .grid-3 {{ grid-template-columns:1fr; }} }}
@@ -379,14 +382,14 @@ def _page_shell(title: str, active: str, content: str, data: dict[str, Any]) -> 
       <div class="panel">
         <h2>使用边界</h2>
         <p>所有页面只读取 JSON 与 SQLite 回放结果。</p>
-        <p class="detail">研究、决策、影子组合分层显示；浏览器界面不写入核心数据。</p>
+        <p class="detail">研究、决策、影子组合分层显示；浏览器界面只允许受控追加快照，不触发交易。</p>
       </div>
     </section>
     {content}
   </main>
   <footer>
     <div class="wrap footer-grid">
-      <div>统一页脚：只读系统 / JSON 为事实源 / 影子组合仅纸面模拟 / 不连接外部执行。</div>
+      <div>统一页脚：JSON 为事实源 / 受控追加快照 / 影子组合仅纸面模拟 / 不连接外部执行。</div>
       <div class="footer-links">
         <a href="/usability/view">易用性检查</a>
         <a href="/system/status">系统 JSON</a>
@@ -439,7 +442,7 @@ def _home_content(data: dict[str, Any]) -> str:
         ("研究导入", "/research/import/view", "粘贴研究 JSON，先校验，再追加写入系统。"),
         ("报告预览", "/report/view", "查看可生成报告的章节与来源编号。"),
         ("系统状态", "/system/view", "查看自检、回放、记录数量和 JSON 入口。"),
-        ("易用性检查", "/usability/view", "检查入口、页头、页脚、引导和只读边界。"),
+        ("易用性检查", "/usability/view", "检查入口、页头、页脚、引导和执行边界。"),
     ]
     feature_cards = "".join(_feature_card(title, href, detail) for title, href, detail in features)
     flow = data["usability"]["human_flow"]
@@ -608,6 +611,16 @@ def _market_content(data: dict[str, Any]) -> str:
     {_metric_card("权益上限", _percent(market["equity_max"]))}
   </div>
 </section>
+<section class="panel">
+  <h2>刷新市场快照</h2>
+  <p>追加写入新的市场快照，不覆盖历史记录。</p>
+  <div class="badge-row">
+    <label class="inline-control">基准日期 <input id="market-refresh-date" type="date" value="{html.escape(market["basis_date"])}"></label>
+    <button type="button" id="market-refresh-button">刷新市场快照</button>
+    <a class="step" href="/market/latest">查看市场 JSON</a>
+  </div>
+  <pre id="market-refresh-result">等待刷新。</pre>
+</section>
 <section class="grid-2">
   <div class="panel">
     <h2>来源与缺口</h2>
@@ -623,6 +636,36 @@ def _market_content(data: dict[str, Any]) -> str:
   <h2>目标池</h2>
   {_table(["类型", "标的", "数量"], pool_rows)}
 </section>
+<script>
+(() => {{
+  const button = document.getElementById('market-refresh-button');
+  const input = document.getElementById('market-refresh-date');
+  const result = document.getElementById('market-refresh-result');
+  button.addEventListener('click', async () => {{
+    const basisDate = input.value;
+    if (!basisDate) {{
+      result.textContent = JSON.stringify({{ status: 'failed', data: {{ reason: 'missing_basis_date' }} }}, null, 2);
+      return;
+    }}
+    button.disabled = true;
+    result.textContent = '正在刷新市场快照...';
+    try {{
+      const url = `/market/refresh?basis_date=${{encodeURIComponent(basisDate)}}&source=auto&allow_network=true`;
+      const response = await fetch(url, {{ method: 'POST' }});
+      const data = await response.json();
+      result.textContent = JSON.stringify(data, null, 2);
+      if (data.status === 'ok') {{
+        result.textContent += '\\n\\n刷新完成。页面会在 1 秒后重新加载。';
+        window.setTimeout(() => window.location.reload(), 1000);
+      }}
+    }} catch (error) {{
+      result.textContent = JSON.stringify({{ status: 'failed', data: {{ reason: 'refresh_request_failed' }} }}, null, 2);
+    }} finally {{
+      button.disabled = false;
+    }}
+  }});
+}})();
+</script>
 """
 
 
