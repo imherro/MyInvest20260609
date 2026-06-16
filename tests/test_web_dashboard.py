@@ -167,6 +167,15 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert 'id="market-refresh"' in body
             assert 'id="market-refresh-button"' in body
             assert "/market/refresh" in body
+        if path == "/macro/view":
+            assert "宏观结论" in body
+            assert "共识分数是宏观周期、市场位置、组合匹配度和研究质量四类模型分数的平均" in body
+            assert "因子贡献不是简单相加成共识分数" in body
+            assert "共识分数来源" in body
+            assert "中文含义" in body
+            assert "流动性" in body
+            assert "利率压力" in body
+            assert "今日边界" in body
         if path == "/research/view":
             assert "永赢中证500ETF（退市）（159999.SZ）" in body
             assert "估值证据复核" in body

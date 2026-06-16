@@ -826,36 +826,212 @@ def _macro_content(data: dict[str, Any]) -> str:
     snapshot = macro["macro_snapshot"]
     consensus = macro["model_consensus"]
     factors = macro["alpha_factor_decomposition"]["factors"]
-    rows = [
-        [item["factor"], item["contribution_score"], item["direction"], item["source"]]
+    guidance = data["guidance"]
+    model_rows = [
+        [
+            _macro_model_label(item["model_id"]),
+            f"{float(item['score']):.2f} / 100",
+            _percent(item["confidence"]),
+            _macro_model_role(item["model_id"]),
+            "；".join(item.get("evidence", [])),
+        ]
+        for item in consensus.get("models", [])
+    ]
+    if not model_rows:
+        model_rows = [["none", "0 / 100", "0.00%", "暂无模型来源。", "暂无证据。"]]
+    factor_rows = [
+        [
+            _macro_factor_label(item["factor"]),
+            _macro_factor_meaning(item["factor"]),
+            item["contribution_score"],
+            _macro_direction_label(item["direction"]),
+            _macro_factor_interpretation(item),
+            _macro_source_label(item["source"]),
+        ]
         for item in factors
     ]
-    if not rows:
-        rows = [["none", "0", "neutral", "macro_state"]]
+    if not factor_rows:
+        factor_rows = [["none", "暂无", "0", "中性", "暂无解释。", "宏观状态"]]
     return f"""
+<section class="two-pane">
+  <div class="panel highlight">
+    <h2>宏观结论</h2>
+    <p class="value">{html.escape(_macro_conclusion_label(consensus["consensus_state"]))}</p>
+    <p class="detail">{html.escape(_macro_conclusion_detail(consensus, guidance))}</p>
+    <div class="badge-row">
+      <span class="badge">共识 {_score_out_of_100(consensus["consensus_score"])}</span>
+      <span class="badge">置信度 {_percent(consensus["calibrated_confidence"])}</span>
+      <span class="badge">分歧 {_percent(consensus["disagreement_score"])}</span>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>行动边界</h2>
+    <p>{html.escape(_macro_boundary_text(guidance))}</p>
+    <p class="detail"><a href="/guidance/view">查看今日行动边界</a></p>
+  </div>
+</section>
 <section>
   <h2>宏观状态</h2>
   <div class="grid-4">
     {_metric_card("流动性", _percent(snapshot["liquidity_index"]))}
     {_metric_card("利率压力", _percent(snapshot["rate_pressure"]))}
-    {_metric_card("通胀状态", snapshot["inflation_regime"])}
-    {_metric_card("风险周期", snapshot["risk_cycle_state"])}
+    {_metric_card("通胀状态", _inflation_label(snapshot["inflation_regime"]))}
+    {_metric_card("风险周期", _macro_cycle_label(snapshot["risk_cycle_state"]))}
   </div>
+  <p class="detail">这些是宏观环境输入：流动性越高越友好，利率压力越高越偏谨慎。</p>
 </section>
 <section>
   <h2>模型共识</h2>
   <div class="grid-4">
-    {_metric_card("共识分数", consensus["consensus_score"])}
-    {_metric_card("共识状态", consensus["consensus_state"])}
+    {_metric_card("共识分数", _score_out_of_100(consensus["consensus_score"]))}
+    {_metric_card("共识状态", _macro_cycle_label(consensus["consensus_state"]))}
     {_metric_card("分歧", _percent(consensus["disagreement_score"]))}
     {_metric_card("置信度", _percent(consensus["calibrated_confidence"]))}
+  </div>
+  <p class="detail">共识分数是宏观周期、市场位置、组合匹配度和研究质量四类模型分数的平均；它不是收益预测，也不是行动指令。</p>
+</section>
+<section>
+  <h2>共识分数来源</h2>
+  {_table(["模型", "分数", "置信度", "作用", "证据"], model_rows)}
+</section>
+<section class="panel">
+  <h2>分数和因子的关系</h2>
+  <p>共识分数回答“当前环境偏积极还是偏谨慎”；因子分解回答“哪些信号在推动这个判断”。两者相关，但因子贡献不是简单相加成共识分数。</p>
+  <div class="path">
+    <span class="step">基础数据</span><span class="arrow">→</span>
+    <span class="step">宏观状态</span><span class="arrow">→</span>
+    <span class="step">模型共识</span><span class="arrow">→</span>
+    <span class="step">因子解释</span><span class="arrow">→</span>
+    <a class="step" href="/guidance/view">今日边界</a>
   </div>
 </section>
 <section>
   <h2>因子分解</h2>
-  {_table(["因子", "贡献", "方向", "来源"], rows)}
+  <p class="detail">贡献值范围是 -1 到 +1：正数表示偏支持风险友好，负数表示偏谨慎，接近 0 表示影响较弱。</p>
+  {_table(["因子", "中文含义", "贡献", "方向", "怎么读", "来源"], factor_rows)}
 </section>
 """
+
+
+def _macro_conclusion_label(state: str) -> str:
+    return {
+        "risk_on": "宏观环境偏积极",
+        "neutral": "宏观环境中性",
+        "risk_off": "宏观环境偏谨慎",
+    }.get(state, state)
+
+
+def _macro_conclusion_detail(consensus: dict[str, Any], guidance: dict[str, Any]) -> str:
+    score = _score_out_of_100(consensus["consensus_score"])
+    state = consensus["consensus_state"]
+    if state == "risk_on":
+        base = f"共识分数 {score}，当前宏观和市场信号偏风险友好。"
+    elif state == "risk_off":
+        base = f"共识分数 {score}，当前宏观和市场信号偏防守。"
+    else:
+        base = f"共识分数 {score}，当前宏观和市场信号没有明显单边方向。"
+    readiness = guidance.get("readiness", {})
+    if not readiness.get("can_increase_risk", False):
+        return base + " 但今日边界仍未允许提高风险，先处理 ResearchFirst、风险和数据缺口。"
+    return base + " 可以继续进入只读复核，最终仍以今日边界和决策预览为准。"
+
+
+def _macro_boundary_text(guidance: dict[str, Any]) -> str:
+    readiness = guidance.get("readiness", {})
+    if not readiness.get("can_increase_risk", False):
+        return "宏观页只解释环境，不直接改变组合。即使宏观偏积极，也不能绕过 ResearchFirst、风险边界和决策预览。"
+    return "宏观页只解释环境。若要进入下一步，仍需回到今日行动边界和决策预览做只读复核。"
+
+
+def _score_out_of_100(value: float | int) -> str:
+    return f"{float(value):.2f} / 100"
+
+
+def _macro_model_label(value: str) -> str:
+    return {
+        "macro_cycle": "宏观周期",
+        "market_position": "市场位置",
+        "portfolio_alignment": "组合匹配度",
+        "research_quality": "研究质量",
+    }.get(value, value)
+
+
+def _macro_model_role(value: str) -> str:
+    return {
+        "macro_cycle": "用流动性和利率压力判断宏观环境。",
+        "market_position": "用市场评分判断当前市场强弱。",
+        "portfolio_alignment": "用组合暴露和市场目标区间判断是否匹配。",
+        "research_quality": "用研究快照置信度判断输入质量。",
+    }.get(value, "解释该模型对共识分数的贡献。")
+
+
+def _macro_factor_label(value: str) -> str:
+    return {
+        "macro_liquidity": "流动性",
+        "rate_pressure": "利率压力",
+        "market_momentum": "市场动量",
+        "portfolio_alignment": "组合匹配度",
+        "shadow_alpha_proxy": "影子相对表现",
+    }.get(value, value)
+
+
+def _macro_factor_meaning(value: str) -> str:
+    return {
+        "macro_liquidity": "资金环境是否宽松。",
+        "rate_pressure": "利率或资金成本压力是否偏高。",
+        "market_momentum": "市场评分反映的强弱状态。",
+        "portfolio_alignment": "组合风险暴露是否贴近市场目标。",
+        "shadow_alpha_proxy": "影子组合相对基准的解释性代理。",
+    }.get(value, "用于解释宏观判断的输入信号。")
+
+
+def _macro_factor_interpretation(item: dict[str, Any]) -> str:
+    factor = item["factor"]
+    direction = item["direction"]
+    if factor == "rate_pressure":
+        if direction == "positive":
+            return "利率压力较低，对风险环境有利。"
+        if direction == "negative":
+            return "利率压力较高，宏观环境更谨慎。"
+        return "利率压力影响不明显。"
+    if direction == "positive":
+        return "当前信号偏支持风险友好。"
+    if direction == "negative":
+        return "当前信号偏谨慎。"
+    return "当前信号影响较弱。"
+
+
+def _macro_direction_label(value: str) -> str:
+    return {
+        "positive": "正向",
+        "negative": "负向",
+        "neutral": "中性",
+    }.get(value, value)
+
+
+def _macro_source_label(value: str) -> str:
+    return {
+        "macro_snapshot": "宏观快照",
+        "market_snapshot": "市场快照",
+        "portfolio_snapshot": "组合快照",
+    }.get(value, value)
+
+
+def _macro_cycle_label(value: str) -> str:
+    return {
+        "risk_on": "偏积极",
+        "neutral": "中性",
+        "risk_off": "偏谨慎",
+        "balanced": "均衡",
+    }.get(value, value)
+
+
+def _inflation_label(value: str) -> str:
+    return {
+        "benign": "温和",
+        "neutral": "中性",
+        "elevated": "偏高",
+    }.get(value, value)
 
 
 def _comparison_content(data: dict[str, Any]) -> str:
