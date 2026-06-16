@@ -60,7 +60,7 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
             "portfolio_history": build_portfolio_history_state(repo, as_of)["data"],
             "actual_vs_shadow": actual_vs_shadow,
             "daily_refresh": _daily_refresh_state(timeline, as_of, actual_vs_shadow),
-            "research": _research_state(research_items),
+            "research": _research_state(research_items, timeline),
             "risk": _risk_state(risk),
             "comparison": _comparison_state(comparison),
             "macro": _macro_state(macro),
@@ -570,10 +570,11 @@ def _max_abs_delta(rows: list[dict[str, Any]]) -> float | None:
     return round(max(values), 4) if values else None
 
 
-def _research_state(research_items: list[dict[str, Any]]) -> dict[str, Any]:
+def _research_state(research_items: list[dict[str, Any]], timeline: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "available": bool(research_items),
         "theme": _theme_research_state(research_items),
+        "theme_history": _theme_history_state(timeline),
         "items": [
             {
                 "module": item["module"],
@@ -589,6 +590,103 @@ def _research_state(research_items: list[dict[str, Any]]) -> dict[str, Any]:
             for item in research_items
         ],
     }
+
+
+def _theme_history_state(timeline: list[dict[str, Any]]) -> dict[str, Any]:
+    events = [
+        event
+        for event in timeline
+        if event["type"] == "research" and event["payload"].get("module") == "theme_research"
+    ]
+    records: list[dict[str, Any]] = []
+    previous: dict[str, Any] | None = None
+    for event in events:
+        item = event["payload"]
+        mainlines = _theme_mainlines(item)
+        primary = mainlines[0] if mainlines else None
+        record = _theme_history_record(event, item, primary, previous)
+        records.append(record)
+        previous = record
+    latest = records[-1] if records else None
+    return {
+        "available": bool(records),
+        "record_count": len(records),
+        "latest_change": latest["change"] if latest else None,
+        "latest_detail": latest["change_detail"] if latest else "当前没有主线变化记录。",
+        "records": list(reversed(records)),
+        "notes": [
+            "主线变化记录来自 append-only research_snapshot 时间线。",
+            "它只解释研究主线变化，不产生买卖或调仓指令。",
+        ],
+    }
+
+
+def _theme_history_record(
+    event: dict[str, Any],
+    item: dict[str, Any],
+    primary: dict[str, Any] | None,
+    previous: dict[str, Any] | None,
+) -> dict[str, Any]:
+    theme = primary["theme"] if primary else None
+    display_theme = primary["display_theme"] if primary else "暂无主线"
+    strength = primary.get("strength_score") if primary else None
+    change, score_delta, detail = _theme_change(previous, theme, display_theme, strength)
+    return {
+        "snapshot_id": item["snapshot_id"],
+        "basis_date": item["basis_date"],
+        "created_at": event["timestamp"],
+        "primary_theme": theme,
+        "display_theme": display_theme,
+        "strength_score": strength,
+        "previous_theme": previous["primary_theme"] if previous else None,
+        "previous_display_theme": previous["display_theme"] if previous else None,
+        "previous_strength_score": previous["strength_score"] if previous else None,
+        "score_delta": score_delta,
+        "change": change,
+        "change_label": _theme_change_label(change),
+        "change_detail": detail,
+        "mainline_count": len(_theme_mainlines(item)),
+    }
+
+
+def _theme_change(
+    previous: dict[str, Any] | None,
+    theme: str | None,
+    display_theme: str,
+    strength: float | None,
+) -> tuple[str, float | None, str]:
+    if previous is None:
+        return ("initial", None, f"首次记录主线为{display_theme}。")
+    previous_theme = previous["primary_theme"]
+    previous_display = previous["display_theme"]
+    previous_strength = previous["strength_score"]
+    score_delta = (
+        round(float(strength) - float(previous_strength), 4)
+        if strength is not None and previous_strength is not None
+        else None
+    )
+    if theme != previous_theme:
+        detail = f"主线从{previous_display}切换为{display_theme}。"
+        if score_delta is not None:
+            detail += f" 强度变化 {score_delta:+.2f} 分。"
+        return ("switched", score_delta, detail)
+    if score_delta is None:
+        return ("continued", None, f"{display_theme}继续保持当前主线。")
+    if score_delta >= 5:
+        return ("strengthened", score_delta, f"{display_theme}继续保持当前主线，强度上升 {score_delta:+.2f} 分。")
+    if score_delta <= -5:
+        return ("weakened", score_delta, f"{display_theme}继续保持当前主线，强度下降 {score_delta:+.2f} 分。")
+    return ("continued", score_delta, f"{display_theme}继续保持当前主线，强度变化 {score_delta:+.2f} 分。")
+
+
+def _theme_change_label(value: str) -> str:
+    return {
+        "initial": "首次记录",
+        "continued": "延续",
+        "strengthened": "增强",
+        "weakened": "减弱",
+        "switched": "切换",
+    }.get(value, value)
 
 
 MAINLINE_RE = re.compile(

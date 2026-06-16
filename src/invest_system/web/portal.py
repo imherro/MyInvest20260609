@@ -79,6 +79,7 @@ HUMAN_ENDPOINT_MAP = {
     "/guidance/state": "/guidance/view",
     "/market/latest": "/market/view",
     "/theme/state": "/theme/view",
+    "/theme/history": "/theme/view",
     "/target-pool/latest": "/target-pool/view",
     "/research/latest": "/research/view",
     "/research/valuation-review": "/research/view#valuation-review",
@@ -831,6 +832,7 @@ def _guidance_research_first_scope(research_first: dict[str, Any]) -> str:
 
 def _theme_content(data: dict[str, Any]) -> str:
     theme = data["dashboard"]["research"]["theme"]
+    history = data["dashboard"]["research"]["theme_history"]
     if not theme["available"]:
         return _empty_section("主线研究", "当前没有 theme_research 快照，请先导入或生成主线研究 JSON。")
     primary = theme["primary"] or {}
@@ -865,6 +867,20 @@ def _theme_content(data: dict[str, Any]) -> str:
     ]
     if not evidence_rows:
         evidence_rows = [["暂无", theme["summary"]]]
+    history_rows = [
+        [
+            item["basis_date"],
+            item["display_theme"],
+            _theme_strength_text(item["strength_score"]),
+            _theme_change_label(item["change"]),
+            _theme_delta_text(item["score_delta"]),
+            item["change_detail"],
+            item["snapshot_id"],
+        ]
+        for item in history["records"]
+    ]
+    if not history_rows:
+        history_rows = [["暂无", "暂无主线", "暂无", "暂无", "暂无", "当前没有主线变化记录。", "无"]]
     return f"""
 <section class="two-pane">
   <div class="panel highlight">
@@ -893,7 +909,7 @@ def _theme_content(data: dict[str, Any]) -> str:
     <h2>来源追溯</h2>
     <p>快照：{html.escape(str(theme["snapshot_id"]))}</p>
     <p class="detail">基准日：{html.escape(str(theme["basis_date"]))}；行动性：{html.escape(str(theme["actionability"]))}。</p>
-    <p class="detail"><a href="/theme/state">主线研究 JSON</a>　<a href="/research/view">研究工作台</a></p>
+    <p class="detail"><a href="/theme/state">主线研究 JSON</a>　<a href="/theme/history">主线变化 JSON</a>　<a href="/research/view">研究工作台</a></p>
   </div>
 </section>
 <section>
@@ -904,6 +920,11 @@ def _theme_content(data: dict[str, Any]) -> str:
   <h2>你关心的方向</h2>
   <p class="detail">这张表专门回答 AI、半导体、电力设备、机器人是否进入当前主线。</p>
   {_table(["方向", "状态", "对应主线", "说明"], watch_rows)}
+</section>
+<section>
+  <h2>主线变化记录</h2>
+  <p class="detail">这里从历史 research_snapshot 追加记录推导，帮助你判断当前主线是延续、增强、减弱还是切换。</p>
+  {_table(["日期", "第一主线", "强度", "变化", "强度差", "说明", "来源快照"], history_rows)}
 </section>
 <section>
   <h2>证据摘录</h2>
@@ -2667,6 +2688,7 @@ def _system_content(data: dict[str, Any]) -> str:
         ["/workflow/daily/state", "每日工作流 JSON"],
         ["/guidance/state", "今日行动边界 JSON"],
         ["/theme/state", "主线研究 JSON"],
+        ["/theme/history", "主线变化 JSON"],
         ["/target-pool/latest", "策略目标池 JSON"],
         ["POST /research/import/validate", "研究导入校验 JSON"],
         ["POST /research/import", "研究追加导入 JSON"],
@@ -2854,6 +2876,7 @@ def _endpoint_label(endpoint: str) -> str:
         "/market/latest": "市场 JSON",
         "/theme/view": "主线研究",
         "/theme/state": "主线研究 JSON",
+        "/theme/history": "主线变化 JSON",
         "/target-pool/view": "策略目标池",
         "/target-pool/latest": "策略目标池 JSON",
         "/risk/view": "风险状态",
@@ -3046,6 +3069,22 @@ def _theme_watch_status_label(value: str) -> str:
         "included": "已进入当前主线",
         "not_in_top_mainlines": "未进入前三主线",
     }.get(value, value)
+
+
+def _theme_change_label(value: str) -> str:
+    return {
+        "initial": "首次记录",
+        "continued": "延续",
+        "strengthened": "增强",
+        "weakened": "减弱",
+        "switched": "切换",
+    }.get(value, value)
+
+
+def _theme_delta_text(value: Any) -> str:
+    if value is None:
+        return "暂无"
+    return f"{float(value):+.2f} 分"
 
 
 def _target_pool_source_label(value: str) -> str:

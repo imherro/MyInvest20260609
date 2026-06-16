@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from typing import Any
 
 import httpx
@@ -194,6 +195,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "主线研究" in body
             assert "当前第一主线" in body
             assert "当前主线排序" in body
+            assert "主线变化记录" in body
             assert "你关心的方向" in body
             assert "AI" in body
             assert "半导体" in body
@@ -201,6 +203,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "机器人" in body
             assert "市场宽度主题" in body
             assert "/theme/state" in body
+            assert "/theme/history" in body
             assert "ResearchFirst" in body
         if path == "/target-pool/view":
             assert "策略目标池" in body
@@ -280,6 +283,7 @@ def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
     db_path = tmp_path / "theme_view.sqlite"
     repo = SQLiteRepository(db_path)
     seed_multiday_repository(repo)
+    repo.append_research_snapshot(_strategic_mainline_theme_research())
     repo.append_research_snapshot(_mainline_theme_research())
     app = create_app(db_path)
 
@@ -299,6 +303,16 @@ def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
     assert watch["电力设备"]["status"] == "not_in_top_mainlines"
     assert watch["机器人"]["status"] == "not_in_top_mainlines"
 
+    history_response = _get(app, "/theme/history?as_of=2026-06-15")
+    history = history_response.json()["data"]
+
+    assert history_response.status_code == 200
+    assert history["record_count"] == 2
+    assert history["latest_change"] == "switched"
+    assert history["records"][0]["display_theme"] == "先进电子制造链"
+    assert history["records"][0]["previous_display_theme"] == "战略金属和铜箔材料"
+    assert history["records"][0]["score_delta"] == -11.74
+
     response = _get(app, "/theme/view?as_of=2026-06-15")
     body = response.text
 
@@ -309,6 +323,9 @@ def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
     assert "电力设备" in body
     assert "机器人" in body
     assert "未进入前三主线" in body
+    assert "主线变化记录" in body
+    assert "切换" in body
+    assert "强度变化 -11.74 分" in body
     assert "达利凯普（301566.SZ）" in body
     assert "代表标的只是研究对象" in body
     _assert_no_forbidden_terms(body)
@@ -403,6 +420,32 @@ def _mainline_theme_research() -> dict[str, Any]:
             ],
         },
     }
+
+
+def _strategic_mainline_theme_research() -> dict[str, Any]:
+    payload = deepcopy(_mainline_theme_research())
+    payload["snapshot_id"] = "theme-research-2026-06-15-mainline-strategic-test"
+    payload["executive_summary"] = "Mainline research identifies strategic metal as the earlier primary mainline."
+    payload["key_facts"] = [
+        "Mainline 1: strategic metal and copper-foil materials strength_score=100 continuity=strong_continuation research_first_queue=yes.",
+        "Representative plates/themes: 钨; PET铜箔; 有色金属. Representative symbols are research objects only: 688813.SH, 301217.SZ, 688170.SH, 688020.SH, 301511.SZ.",
+        "Mainline 2: advanced electronics manufacturing chain strength_score=92.04 continuity=continuation_watch research_first_queue=yes.",
+        "Representative plates/themes: 先进封装; 被动元件; 分立器件; MiniLED; 柔性屏(折叠屏); 电子. Representative symbols are research objects only: 301566.SZ, 688603.SH, 688167.SH, 688170.SH, 688757.SH.",
+        "Mainline 3: AI infrastructure hardware chain strength_score=86.43 continuity=continuation_watch research_first_queue=yes.",
+        "Representative plates/themes: PCB概念; 共封装光学(CPO); F5G概念; 光纤概念; 铜缆高速连接; 电子; 通信. Representative symbols are research objects only: 301526.SZ, 300726.SZ, 300570.SZ, 300548.SZ, 688813.SH.",
+    ]
+    payload["payload"] = {
+        "theme": "strategic metal and copper-foil materials",
+        "strength_score": 100,
+        "leading_symbols": ["688813.SH", "301217.SZ", "688170.SH", "688020.SH", "301511.SZ"],
+        "phase": "late",
+        "related_etfs": [],
+        "evidence": [
+            "strategic metal and copper-foil materials: score=100; plates=钨, PET铜箔, 有色金属; next_review_date=2026-06-16.",
+            "advanced electronics manufacturing chain: score=92.04; plates=先进封装, 被动元件, 分立器件, MiniLED, 柔性屏(折叠屏); next_review_date=2026-06-16.",
+        ],
+    }
+    return payload
 
 
 def _assert_no_forbidden_terms(payload: Any) -> None:

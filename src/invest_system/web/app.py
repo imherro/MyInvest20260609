@@ -68,6 +68,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/research/latest",
                     "/market/latest",
                     "/theme/state",
+                    "/theme/history",
                     "/target-pool/latest",
                     "/decision/latest",
                     "/portfolio/state",
@@ -222,6 +223,10 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/theme/state")
     def theme_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
         return {"status": "ok", "data": build_dashboard_state(repo, as_of)["data"]["research"]["theme"]}
+
+    @app.get("/theme/history")
+    def theme_history_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return {"status": "ok", "data": build_dashboard_state(repo, as_of)["data"]["research"]["theme_history"]}
 
     @app.get("/target-pool/latest")
     def target_pool_latest() -> dict[str, Any]:
