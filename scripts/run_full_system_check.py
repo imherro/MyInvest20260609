@@ -35,6 +35,7 @@ API_ENDPOINTS = [
     "/market/latest",
     "/research/latest",
     "/research/valuation-review",
+    "/research/valuation-prompts",
     "/target-pool/latest",
     "/decision/latest",
     "/decision/proposal",

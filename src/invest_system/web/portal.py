@@ -75,6 +75,7 @@ HUMAN_ENDPOINT_MAP = {
     "/target-pool/latest": "/research/view",
     "/research/latest": "/research/view",
     "/research/valuation-review": "/research/view#valuation-review",
+    "/research/valuation-prompts": "/research/view#valuation-prompts",
     "/research/import": "/research/import/view",
     "/research/import/validate": "/research/import/view",
     "/decision/latest": "/decision/view",
@@ -99,6 +100,10 @@ def build_portal_state(repo: SQLiteRepository, as_of: str | None = None) -> dict
     decision_proposal = build_decision_proposal(repo, as_of)
     daily_workflow = build_daily_workflow_state(repo, as_of)
     research_valuation_review = build_research_valuation_review_state(repo, as_of)["data"]
+    research_valuation_prompts = _build_research_valuation_prompt_payload(
+        research_valuation_review,
+        as_of,
+    )
     usability = _build_usability_payload(dashboard, home, guidance)
     state = {
         "status": "ok",
@@ -113,6 +118,7 @@ def build_portal_state(repo: SQLiteRepository, as_of: str | None = None) -> dict
             "decision_proposal": decision_proposal,
             "guidance": guidance,
             "research_valuation_review": research_valuation_review,
+            "research_valuation_prompts": research_valuation_prompts,
             "usability": usability,
         },
     }
@@ -158,6 +164,37 @@ def build_research_valuation_review_state(repo: SQLiteRepository, as_of: str | N
     }
     assert_no_sensitive_content(payload)
     return payload
+
+
+def build_research_valuation_prompt_state(repo: SQLiteRepository, as_of: str | None = None) -> dict[str, Any]:
+    review = build_research_valuation_review_state(repo, as_of)["data"]
+    payload = {
+        "status": "ok",
+        "data": _build_research_valuation_prompt_payload(review, as_of),
+    }
+    assert_no_sensitive_content(payload)
+    return payload
+
+
+def _build_research_valuation_prompt_payload(
+    review: dict[str, Any],
+    as_of: str | None,
+) -> dict[str, Any]:
+    prompts = [_valuation_prompt_item(row) for row in review["rows"]]
+    return {
+        "schema_version": "1.0",
+        "as_of": as_of,
+        "status": "ready" if prompts else "clear",
+        "prompt_count": len(prompts),
+        "human_endpoint": "/research/view#valuation-prompts",
+        "json_endpoint": "/research/valuation-prompts",
+        "import_endpoint": "/research/import/view",
+        "prompts": prompts,
+        "notes": [
+            "These prompts are read-only research-layer prompts derived from valuation review rows.",
+            "They request research_snapshot JSON only and do not create decisions or portfolio changes.",
+        ],
+    }
 
 
 def render_portal_page(state: dict[str, Any], page: str) -> str:
@@ -1100,6 +1137,7 @@ def _research_content(data: dict[str, Any]) -> str:
     research = data["dashboard"]["research"]
     guidance = data["guidance"]
     valuation_review = data["research_valuation_review"]
+    valuation_prompts = data["research_valuation_prompts"]
     if not research["available"]:
         return _empty_section("研究队列", "研究快照暂不可用，请先查看系统状态。")
     rows = [
@@ -1127,7 +1165,7 @@ def _research_content(data: dict[str, Any]) -> str:
     return f"""
 <section class="panel">
   <h2>研究入口</h2>
-  <p><a href="/research/import/view">导入新的研究 JSON</a>　<a href="#valuation-review">查看估值证据复核</a></p>
+  <p><a href="/research/import/view">导入新的研究 JSON</a>　<a href="#valuation-review">查看估值证据复核</a>　<a href="#valuation-prompts">生成补充研究提示词</a></p>
   <p class="detail">适合导入市场研究、主线研究或其它已校验研究快照。</p>
 </section>
 <section>
@@ -1139,6 +1177,7 @@ def _research_content(data: dict[str, Any]) -> str:
   {_table(["标的", "原因", "当前卡点", "来源"], queue_rows)}
 </section>
 {_valuation_review_section(valuation_review)}
+{_valuation_prompt_section(valuation_prompts)}
 """
 
 
@@ -1164,6 +1203,79 @@ def _valuation_review_section(review: dict[str, Any]) -> str:
   {_table(["标的", "状态", "已有证据", "缺什么", "下一步", "来源快照"], rows)}
 </section>
 """
+
+
+def _valuation_prompt_section(prompt_state: dict[str, Any]) -> str:
+    rows = [
+        [
+            item["display_name"],
+            item["module"],
+            item["source_snapshot_id"] or "无",
+            f"<pre>{html.escape(item['prompt_text'])}</pre>",
+        ]
+        for item in prompt_state["prompts"]
+    ]
+    if not rows:
+        rows = [["none", "无", "无", "当前没有需要生成的估值补充研究提示词。"]]
+        raw_columns: set[int] = set()
+    else:
+        raw_columns = {3}
+    return f"""
+<section id="valuation-prompts">
+  <h2>补充研究提示词</h2>
+  <p class="detail">复制对应标的的提示词到新的研究对话，完成后把 research_snapshot JSON 导入系统。</p>
+  <p class="detail"><a href="/research/valuation-prompts">查看提示词 JSON</a></p>
+  {_table(["标的", "模块", "来源快照", "提示词"], rows, raw_columns=raw_columns)}
+</section>
+"""
+
+
+def _valuation_prompt_item(row: dict[str, Any]) -> dict[str, Any]:
+    symbol = row["symbol"]
+    module = row["source_module"] or _research_module_for_symbol(symbol)
+    missing_evidence = "；".join(row["missing_evidence"])
+    data_gap_actions = "；".join(row["data_gap_actions"]) if row["data_gap_actions"] else "无明确数据缺口处理动作"
+    prompt_text = "\n".join(
+        [
+            "你是 MyInvest 研究层助手，只做研究，不做决策或执行。",
+            f"任务：补充 {row['display_name']} 的估值复核证据，并输出可导入系统的 research_snapshot JSON。",
+            f"标的代码：{symbol}",
+            f"建议模块：{module}",
+            f"来源研究快照：{row['source_snapshot_id']}",
+            f"来源日期：{row['source_basis_date'] or '未标明'}",
+            f"当前阻断：{row['blocker_label']}",
+            f"已有证据：{row['evidence_summary']}",
+            f"需要补充：{missing_evidence}",
+            f"数据缺口处理：{data_gap_actions}",
+            "请完成以下研究：",
+            "1. 复核标的画像、主营或指数跟踪对象，说明是否仍符合研究对象定义。",
+            "2. 补充估值证据，包括长期估值分位、同业对比、盈利或成长假设、风险折价；ETF 需补充折溢价和跟踪指数相对位置。",
+            "3. 复核流动性证据是否足以支持估值结论；无法取得的数据必须写入 data_gaps。",
+            "4. 明确 profile、valuation、liquidity 三个门槛是否通过；任一门槛未通过时 actionability 必须为 research_first。",
+            "输出限制：只输出一个合法 JSON 对象，不要 Markdown，不要自由文本。",
+            "JSON 类型：research_snapshot；schema_version=1.0；payload.symbol 必须等于上述标的代码。",
+            "禁止输出 decision_record、portfolio_snapshot、真实执行指令、金额、数量或账户信息。",
+        ]
+    )
+    item = {
+        "symbol": symbol,
+        "display_name": row["display_name"],
+        "module": module,
+        "source_snapshot_id": row["source_snapshot_id"],
+        "source_basis_date": row["source_basis_date"],
+        "prompt_title": f"{row['display_name']} 估值补充研究",
+        "prompt_text": prompt_text,
+        "expected_output": "research_snapshot_json",
+        "import_endpoint": "/research/import/view",
+    }
+    assert_no_sensitive_content(item)
+    return item
+
+
+def _research_module_for_symbol(symbol: str) -> str:
+    if symbol.startswith(("159", "510", "511", "512", "588")):
+        return "etf_valuation"
+    return "stock_valuation"
 
 
 def _valuation_review_row(queue_item: dict[str, Any], event: dict[str, Any] | None) -> dict[str, Any]:
@@ -1380,6 +1492,7 @@ def _system_content(data: dict[str, Any]) -> str:
         ["POST /research/import/validate", "研究导入校验 JSON"],
         ["POST /research/import", "研究追加导入 JSON"],
         ["/research/valuation-review", "估值复核 JSON"],
+        ["/research/valuation-prompts", "补充研究提示词 JSON"],
         ["/decision/proposal", "决策预览 JSON"],
         ["/decision/explain", "决策解释 JSON"],
         ["/portfolio/actual-vs-shadow", "实际/影子对照 JSON"],
@@ -1576,6 +1689,7 @@ def _endpoint_label(endpoint: str) -> str:
         "/research/view": "研究结论",
         "/research/import/view": "研究导入",
         "/research/valuation-review": "估值复核 JSON",
+        "/research/valuation-prompts": "补充研究提示词 JSON",
         "/research/import/validate": "研究导入校验 JSON",
         "/research/import": "研究追加导入 JSON",
         "/research/latest": "研究 JSON",

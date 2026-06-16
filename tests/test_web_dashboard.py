@@ -171,6 +171,8 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "永赢中证500ETF（退市）（159999.SZ）" in body
             assert "估值证据复核" in body
             assert "/research/valuation-review" in body
+            assert "补充研究提示词" in body
+            assert "/research/valuation-prompts" in body
         if path == "/decision/view":
             assert "创业板ETF易方达（159915.SZ）" in body
         for forbidden in FORBIDDEN_VIEW_TERMS:

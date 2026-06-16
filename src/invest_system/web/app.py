@@ -25,6 +25,7 @@ from invest_system.web.dashboard import (
 )
 from invest_system.web.portal import (
     build_portal_state,
+    build_research_valuation_prompt_state,
     build_research_valuation_review_state,
     build_usability_state,
     render_portal_page,
@@ -61,6 +62,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "POST /research/import/validate",
                     "POST /research/import",
                     "/research/valuation-review",
+                    "/research/valuation-prompts",
                     "/decision/proposal",
                     "/decision/explain",
                     "/research/latest",
@@ -204,6 +206,10 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/research/valuation-review")
     def research_valuation_review_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
         return build_research_valuation_review_state(repo, as_of)
+
+    @app.get("/research/valuation-prompts")
+    def research_valuation_prompts_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return build_research_valuation_prompt_state(repo, as_of)
 
     @app.get("/market/latest")
     def market_latest() -> dict[str, Any]:

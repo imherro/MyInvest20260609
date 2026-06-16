@@ -24,6 +24,7 @@ def test_required_api_endpoints_return_json(tmp_path) -> None:
         "/usability/state",
         "/research/latest",
         "/research/valuation-review",
+        "/research/valuation-prompts",
         "/market/latest",
         "/target-pool/latest",
         "/decision/latest",
