@@ -68,6 +68,8 @@ def test_guidance_api_and_view_are_stable(tmp_path) -> None:
     assert "ResearchFirst" in view_response.text
     assert 'href="/risk/view"' in view_response.text
     assert 'href="/research/view"' in view_response.text
+    assert '&lt;a href="/risk/view"' not in view_response.text
+    assert '&lt;a href="/research/view"' not in view_response.text
     assert 'href="/risk/state"' not in view_response.text
     assert 'href="/research/latest"' not in view_response.text
     for forbidden in FORBIDDEN_TERMS:

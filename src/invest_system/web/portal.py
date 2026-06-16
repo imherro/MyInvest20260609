@@ -572,15 +572,15 @@ def _guidance_content(data: dict[str, Any]) -> str:
 </section>
 <section>
   <h2>今天能不能做</h2>
-  {_table(["事项", "结果", "原因", "入口"], [_operation_row(item) for item in operations])}
+  {_table(["事项", "结果", "原因", "入口"], [_operation_row(item) for item in operations], raw_columns={3})}
 </section>
 <section>
   <h2>下一步复核项</h2>
-  {_table(["步骤", "原因", "入口"], [_next_step_row(item) for item in steps])}
+  {_table(["步骤", "原因", "入口"], [_next_step_row(item) for item in steps], raw_columns={2})}
 </section>
 <section>
   <h2>边界检查</h2>
-  {_table(["检查", "状态", "说明", "入口"], [_check_row(item) for item in checks])}
+  {_table(["检查", "状态", "说明", "入口"], [_check_row(item) for item in checks], raw_columns={3})}
 </section>
 <section class="panel">
   <h2>今天不要做</h2>
