@@ -1,0 +1,92 @@
+{
+  "actionability": "research_first",
+  "basis_date": "2026-06-15",
+  "conclusion_strength": "medium",
+  "confidence": 0.815,
+  "conflicts": [],
+  "data_gaps": [
+    "same_day_complete_data_unavailable:20260616",
+    "representative_symbol_profile_valuation_liquidity_gates_not_completed",
+    "intraday_and_after_close_realtime_confirmation_not_used"
+  ],
+  "data_sources": [
+    "tushare:trade_cal",
+    "tushare:index_daily",
+    "tushare:daily",
+    "tushare:ths_index",
+    "tushare:ths_daily",
+    "tushare:ths_member",
+    "tushare:sw_daily",
+    "tushare:limit_list_d"
+  ],
+  "executive_summary": "On 2026-06-15, the strongest research mainline is advanced electronics manufacturing chain. The snapshot identifies 1-3 watchlist mainlines and keeps every representative symbol inside ResearchFirst.",
+  "generated_at": "2026-06-16T03:34:35.497148Z",
+  "invalidation_conditions": [
+    "A newer complete trading day changes theme ranking or breadth.",
+    "Representative symbols fail profile, valuation, or liquidity gates.",
+    "Theme strength falls below the watch threshold in the next review."
+  ],
+  "key_facts": [
+    "Mainline 1: advanced electronics manufacturing chain strength_score=88.26 continuity=continuation_watch research_first_queue=yes.",
+    "Representative plates/themes: 先进封装; 被动元件; 分立器件; MiniLED; 柔性屏(折叠屏); 电子. Representative symbols are research objects only: 301566.SZ, 688603.SH, 688167.SH, 688170.SH, 688757.SH.",
+    "Mainline 2: strategic metal and copper-foil materials strength_score=86.22 continuity=strong_continuation research_first_queue=yes.",
+    "Representative plates/themes: 钨; PET铜箔; 有色金属. Representative symbols are research objects only: 688813.SH, 301217.SZ, 688170.SH, 688020.SH, 301511.SZ.",
+    "Mainline 3: AI infrastructure hardware chain strength_score=83.68 continuity=continuation_watch research_first_queue=yes.",
+    "Representative plates/themes: PCB概念; 共封装光学(CPO); F5G概念; 光纤概念; 铜缆高速连接; 电子; 通信. Representative symbols are research objects only: 301526.SZ, 300726.SZ, 300570.SZ, 300548.SZ, 688813.SH."
+  ],
+  "module": "theme_research",
+  "must_not_do": [
+    "Do not convert this research snapshot into broker execution.",
+    "Do not create buy, add, reduce, or sell instructions from this theme snapshot.",
+    "Do not use representative symbols outside ResearchFirst gate review."
+  ],
+  "next_review_date": "2026-06-16",
+  "payload": {
+    "evidence": [
+      "Basis date 2026-06-15 is selected from complete daily records.",
+      "Primary mainline: advanced electronics manufacturing chain; continuity=continuation_watch; limit_confirmation=confirmed:专用设备,元件,光学光电,军工电子.",
+      "All representative symbols are research-only objects and enter ResearchFirst review before any decision layer use.",
+      "advanced electronics manufacturing chain: score=88.26; plates=先进封装, 被动元件, 分立器件, MiniLED, 柔性屏(折叠屏); next_review_date=2026-06-16.",
+      "strategic metal and copper-foil materials: score=86.22; plates=钨, PET铜箔, 有色金属; next_review_date=2026-06-16.",
+      "AI infrastructure hardware chain: score=83.68; plates=PCB概念, 共封装光学(CPO), F5G概念, 光纤概念, 铜缆高速连接; next_review_date=2026-06-16."
+    ],
+    "leading_symbols": [
+      "301566.SZ",
+      "688603.SH",
+      "688167.SH",
+      "688170.SH",
+      "688757.SH"
+    ],
+    "phase": "mid",
+    "related_etfs": [],
+    "strength_score": 88.26,
+    "theme": "advanced electronics manufacturing chain"
+  },
+  "reasoning": [
+    "advanced electronics manufacturing chain formation reason: advanced packaging, passive components, discrete devices, and display-related hardware show synchronized strength.",
+    "advanced electronics manufacturing chain metrics: current_pct_avg=7.3582%, lookback_cumulative_pct_avg=3.1065%, positive_observation_ratio=0.4286, coverage_ratio=1.0, theme_breadth_ratio=1.0.",
+    "strategic metal and copper-foil materials formation reason: tungsten and PET copper foil show stronger short-cycle persistence than most concept groups.",
+    "strategic metal and copper-foil materials metrics: current_pct_avg=7.4802%, lookback_cumulative_pct_avg=11.6155%, positive_observation_ratio=0.5714, coverage_ratio=1.0, theme_breadth_ratio=0.4.",
+    "AI infrastructure hardware chain formation reason: electronics and communications strength is concentrated in PCB, CPO, F5G, optical fiber, and high-speed connection themes.",
+    "AI infrastructure hardware chain metrics: current_pct_avg=6.8376%, lookback_cumulative_pct_avg=2.2568%, positive_observation_ratio=0.3469, coverage_ratio=1.0, theme_breadth_ratio=1.0."
+  ],
+  "required_human_review": true,
+  "risks": [
+    "advanced electronics manufacturing chain: representative symbols still need profile, valuation, and liquidity gate review.",
+    "advanced electronics manufacturing chain: theme signal can reverse if next complete-day breadth weakens.",
+    "advanced electronics manufacturing chain: recent positive observation ratio is not yet broad enough.",
+    "strategic metal and copper-foil materials: representative symbols still need profile, valuation, and liquidity gate review.",
+    "strategic metal and copper-foil materials: theme signal can reverse if next complete-day breadth weakens.",
+    "strategic metal and copper-foil materials: short-cycle crowding risk is elevated after a fast move.",
+    "AI infrastructure hardware chain: representative symbols still need profile, valuation, and liquidity gate review.",
+    "AI infrastructure hardware chain: theme signal can reverse if next complete-day breadth weakens.",
+    "AI infrastructure hardware chain: recent positive observation ratio is not yet broad enough."
+  ],
+  "schema_version": "1.0",
+  "snapshot_id": "theme-research-2026-06-15-mainline-20260616T033435",
+  "status": "json_validated",
+  "trace": {
+    "fact_pack_id": "mainline-theme-fact-pack-2026-06-15",
+    "source_market_snapshot_id": null
+  }
+}
