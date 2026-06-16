@@ -197,13 +197,14 @@ def _research_first_section(research_first: dict[str, Any]) -> str:
             "<tr>"
             f"<td>{html.escape(item['symbol'])}</td>"
             f"<td>{html.escape(_research_reason_label(item['reason']))}</td>"
+            f"<td>{html.escape(_research_blocker_label(item.get('blockers', [])))}</td>"
             f"<td>{html.escape(item['source'])}</td>"
             "</tr>"
             for item in research_first["queue"]
         )
         if not rows:
-            rows = "<tr><td>none</td><td>active holding gate review required</td><td>decision_record</td></tr>"
-        body = f"<table><thead><tr><th>标的</th><th>原因</th><th>来源</th></tr></thead><tbody>{rows}</tbody></table>"
+            rows = "<tr><td>none</td><td>active holding gate review required</td><td>未标明</td><td>decision_record</td></tr>"
+        body = f"<table><thead><tr><th>标的</th><th>原因</th><th>当前卡点</th><th>来源</th></tr></thead><tbody>{rows}</tbody></table>"
     return f"""
 <section class="panel">
   <h2>ResearchFirst 覆盖</h2>
@@ -288,6 +289,25 @@ def _research_reason_label(reason: str) -> str:
         "research_first_required": "需要先研究",
         "profile_missing": "画像缺失",
     }.get(reason, reason)
+
+
+def _research_blocker_label(values: list[str]) -> str:
+    if not values:
+        return "未标明"
+    labels = {
+        "profile_gate_incomplete": "画像门槛未通过",
+        "valuation_gate_failed": "估值门槛未通过",
+        "liquidity_gate_incomplete": "流动性门槛未通过",
+        "duration_credit_incomplete": "久期或信用质量证据不足",
+        "data_gap": "仍有数据缺口",
+        "research_first_required": "仍需先研究",
+        "profile_or_gate_incomplete": "画像或门槛未完成",
+        "target_pool_blocked": "目标池阻断",
+        "blocked_in_target_pool": "目标池阻断",
+        "decision_requires_research_first": "决策要求先研究",
+        "profile_missing": "画像缺失",
+    }
+    return "；".join(labels.get(value, value) for value in values)
 
 
 def _value(value: float | None) -> str:

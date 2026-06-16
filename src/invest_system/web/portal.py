@@ -1075,11 +1075,16 @@ def _research_content(data: dict[str, Any]) -> str:
     ]
     queue = guidance["research_first"]["queue"]
     queue_rows = [
-        [display_symbol(item["symbol"]), _research_reason_label(item["reason"]), item["source"]]
+        [
+            display_symbol(item["symbol"]),
+            _research_reason_label(item["reason"]),
+            _research_blocker_label(item.get("blockers", [])),
+            item["source"],
+        ]
         for item in queue
     ]
     if not queue_rows:
-        queue_rows = [["none", "当前没有 ResearchFirst 队列。", "guidance"]]
+        queue_rows = [["none", "当前没有 ResearchFirst 队列。", "无", "guidance"]]
     return f"""
 <section class="panel">
   <h2>研究入口</h2>
@@ -1092,7 +1097,7 @@ def _research_content(data: dict[str, Any]) -> str:
 </section>
 <section>
   <h2>ResearchFirst 队列</h2>
-  {_table(["标的", "原因", "来源"], queue_rows)}
+  {_table(["标的", "原因", "当前卡点", "来源"], queue_rows)}
 </section>
 """
 
@@ -1620,6 +1625,25 @@ def _research_reason_label(value: str) -> str:
         "research_first_required": "需要先研究",
         "profile_missing": "画像缺失",
     }.get(value, value)
+
+
+def _research_blocker_label(values: list[str]) -> str:
+    if not values:
+        return "未标明"
+    labels = {
+        "profile_gate_incomplete": "画像门槛未通过",
+        "valuation_gate_failed": "估值门槛未通过",
+        "liquidity_gate_incomplete": "流动性门槛未通过",
+        "duration_credit_incomplete": "久期或信用质量证据不足",
+        "data_gap": "仍有数据缺口",
+        "research_first_required": "仍需先研究",
+        "profile_or_gate_incomplete": "画像或门槛未完成",
+        "target_pool_blocked": "目标池阻断",
+        "blocked_in_target_pool": "目标池阻断",
+        "decision_requires_research_first": "决策要求先研究",
+        "profile_missing": "画像缺失",
+    }
+    return "；".join(labels.get(value, value) for value in values)
 
 
 def _exposure_label(value: str) -> str:

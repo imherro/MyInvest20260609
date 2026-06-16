@@ -168,7 +168,7 @@ def _research_first_state(replay: dict[str, Any], timeline: list[dict[str, Any]]
     target_pool = replay.get("target_pool")
     decision = replay.get("decision")
     portfolio = replay.get("portfolio")
-    queue: dict[str, dict[str, str]] = {}
+    queue: dict[str, dict[str, Any]] = {}
     covered: set[str] = set()
     active_without_passed_gates: set[str] = set()
     approved, research_first, blocked = _target_pool_sets(target_pool)
@@ -176,9 +176,19 @@ def _research_first_state(replay: dict[str, Any], timeline: list[dict[str, Any]]
     decisions = _decision_actions_by_symbol(decision)
 
     for symbol in sorted(research_first):
-        queue[symbol] = {"symbol": symbol, "reason": "profile_or_gate_incomplete", "source": "target_pool"}
+        queue[symbol] = {
+            "symbol": symbol,
+            "reason": "profile_or_gate_incomplete",
+            "blockers": ["profile_or_gate_incomplete"],
+            "source": "target_pool",
+        }
     for symbol in sorted(blocked):
-        queue[symbol] = {"symbol": symbol, "reason": "blocked_in_target_pool", "source": "target_pool"}
+        queue[symbol] = {
+            "symbol": symbol,
+            "reason": "blocked_in_target_pool",
+            "blockers": ["target_pool_blocked"],
+            "source": "target_pool",
+        }
 
     for item in _research_queue_from_timeline(timeline):
         queue[item["symbol"]] = item
@@ -188,6 +198,7 @@ def _research_first_state(replay: dict[str, Any], timeline: list[dict[str, Any]]
             queue[symbol] = {
                 "symbol": symbol,
                 "reason": "decision_requires_research_first",
+                "blockers": ["decision_requires_research_first"],
                 "source": "decision_record",
             }
         if _action_has_passed_gates(action):
@@ -450,8 +461,8 @@ def _action_has_passed_gates(action: dict[str, Any]) -> bool:
     )
 
 
-def _research_queue_from_timeline(timeline: list[dict[str, Any]]) -> list[dict[str, str]]:
-    queue: dict[str, dict[str, str]] = {}
+def _research_queue_from_timeline(timeline: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    queue: dict[str, dict[str, Any]] = {}
     for event in timeline:
         if event["type"] != "research":
             continue
@@ -460,9 +471,11 @@ def _research_queue_from_timeline(timeline: list[dict[str, Any]]) -> list[dict[s
         symbol = payload.get("symbol") or snapshot.get("symbol")
         if symbol:
             if _research_snapshot_requires_first(snapshot):
+                blockers = _research_queue_blockers(snapshot)
                 queue[symbol] = {
                     "symbol": symbol,
                     "reason": _research_queue_reason(snapshot),
+                    "blockers": blockers,
                     "source": event["object_id"],
                 }
             else:
@@ -470,9 +483,11 @@ def _research_queue_from_timeline(timeline: list[dict[str, Any]]) -> list[dict[s
         for item in payload.get("research_first_list", []):
             symbol = item.get("symbol")
             if symbol:
+                reason = item.get("blocking_reason", "research_first_required")
                 queue[symbol] = {
                     "symbol": symbol,
-                    "reason": item.get("blocking_reason", "research_first_required"),
+                    "reason": reason,
+                    "blockers": [reason],
                     "source": event["object_id"],
                 }
     return list(queue.values())
@@ -488,6 +503,73 @@ def _research_queue_reason(snapshot: dict[str, Any]) -> str:
     if snapshot.get("actionability") == "research_first":
         return "research_first_required"
     return "research_first_required"
+
+
+def _research_queue_blockers(snapshot: dict[str, Any]) -> list[str]:
+    payload = snapshot.get("payload", {})
+    blockers: list[str] = []
+    gates = payload.get("gates") or payload.get("gate_status") or payload.get("research_gates") or {}
+    if isinstance(gates, dict):
+        _append_gate_blocker(blockers, gates.get("profile"), "profile_gate_incomplete")
+        _append_gate_blocker(blockers, gates.get("valuation"), "valuation_gate_failed")
+        _append_gate_blocker(blockers, gates.get("liquidity"), "liquidity_gate_incomplete")
+
+    text = _research_text(snapshot)
+    if _mentions_any(text, ("profile gate fails", "profile missing", "profile incomplete", "画像缺失", "画像不完整")):
+        blockers.append("profile_gate_incomplete")
+    if _mentions_any(
+        text,
+        (
+            "valuation gate fails",
+            "valuation gate failed",
+            "valuation fails",
+            "valuation pressure is high",
+            "valuation percentiles are extreme",
+            "估值门槛未通过",
+            "估值不通过",
+        ),
+    ):
+        blockers.append("valuation_gate_failed")
+    if _mentions_any(text, ("liquidity gate fails", "liquidity gate failed", "liquidity evidence is incomplete", "流动性不通过")):
+        blockers.append("liquidity_gate_incomplete")
+    if _mentions_any(text, ("duration and credit-quality evidence are incomplete", "credit-quality evidence", "duration evidence")):
+        blockers.append("duration_credit_incomplete")
+    if snapshot.get("data_gaps"):
+        blockers.append("data_gap")
+    if not blockers and snapshot.get("actionability") == "research_first":
+        blockers.append("research_first_required")
+    if not blockers and snapshot.get("status") == "blocked":
+        blockers.append("profile_or_gate_incomplete")
+    return _unique(blockers)
+
+
+def _append_gate_blocker(blockers: list[str], value: Any, blocker: str) -> None:
+    if value is not None and str(value).lower() != "pass":
+        blockers.append(blocker)
+
+
+def _research_text(snapshot: dict[str, Any]) -> str:
+    parts: list[str] = [
+        str(snapshot.get("executive_summary", "")),
+        " ".join(str(item) for item in snapshot.get("reasoning", [])),
+        " ".join(str(item) for item in snapshot.get("risks", [])),
+        " ".join(str(item) for item in snapshot.get("data_gaps", [])),
+    ]
+    return " ".join(parts).lower()
+
+
+def _mentions_any(text: str, needles: tuple[str, ...]) -> bool:
+    return any(needle.lower() in text for needle in needles)
+
+
+def _unique(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value not in seen:
+            seen.add(value)
+            result.append(value)
+    return result
 
 
 def _boundary_item(

@@ -104,6 +104,34 @@ def test_latest_symbol_research_can_clear_historical_research_first_item(tmp_pat
     assert "159999.SZ" not in queued_symbols
 
 
+def test_research_first_queue_reports_current_blockers(tmp_path) -> None:
+    repo = SQLiteRepository(tmp_path / "guidance_blockers.sqlite")
+    seed_multiday_repository(repo)
+    snapshot = _symbol_research("301566.SZ", "research_first", "blocked")
+    snapshot["snapshot_id"] = "stock-valuation-2026-06-15-301566.SZ-blocked-test"
+    snapshot["executive_summary"] = (
+        "301566.SZ profile and liquidity gates pass, but valuation gate fails; "
+        "ResearchFirst remains required."
+    )
+    snapshot["reasoning"] = [
+        "Profile gate passes.",
+        "Liquidity gate passes.",
+        "Valuation gate fails because peer pressure remains high.",
+    ]
+    snapshot["data_gaps"] = ["Forward earnings forecast is unavailable in the local structured source."]
+    repo.append_research_snapshot(snapshot)
+    app = create_app(repo.db_path)
+
+    state = compute_guidance_state(repo, "2026-06-15")
+    queued = next(item for item in state["research_first"]["queue"] if item["symbol"] == "301566.SZ")
+    view_response = _get(app, "/research/view?as_of=2026-06-15")
+
+    assert "valuation_gate_failed" in queued["blockers"]
+    assert "data_gap" in queued["blockers"]
+    assert "当前卡点" in view_response.text
+    assert "估值门槛未通过" in view_response.text
+
+
 def _prepare_guidance_repo(tmp_path) -> SQLiteRepository:
     repo = SQLiteRepository(tmp_path / "guidance.sqlite")
     seed_multiday_repository(repo)

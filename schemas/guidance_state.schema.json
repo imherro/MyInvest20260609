@@ -108,10 +108,14 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["symbol", "reason", "source"],
+            "required": ["symbol", "reason", "blockers", "source"],
             "properties": {
               "symbol": { "type": "string" },
               "reason": { "type": "string" },
+              "blockers": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
               "source": { "type": "string" }
             }
           }
