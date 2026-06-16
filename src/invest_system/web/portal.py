@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+from datetime import datetime
 from typing import Any
 
 from invest_system.decision import build_decision_proposal
@@ -414,9 +415,13 @@ def _page_shell(title: str, active: str, content: str, data: dict[str, Any]) -> 
     header {{ background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:10; }}
     .wrap {{ max-width:1200px; margin:0 auto; padding:14px 20px; }}
     .top {{ display:flex; align-items:center; justify-content:space-between; gap:16px; }}
-    .brand {{ display:grid; gap:3px; min-width:180px; }}
-    .brand-title {{ font-weight:800; font-size:20px; letter-spacing:0; }}
-    .brand-subtitle {{ color:var(--muted); font-size:12px; }}
+    .brand {{ display:flex; align-items:center; gap:10px; min-width:300px; flex-wrap:wrap; }}
+    .logo-lockup {{ display:inline-flex; align-items:center; gap:8px; color:var(--ink); text-decoration:none; }}
+    .logo-lockup:hover {{ text-decoration:none; }}
+    .logo-mark {{ width:34px; height:34px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; background:var(--accent); color:#fff; font-size:13px; font-weight:900; letter-spacing:0; }}
+    .brand-title {{ font-weight:900; font-size:20px; letter-spacing:0; }}
+    .header-meta {{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; color:var(--muted); font-size:12px; }}
+    .header-pill {{ border:1px solid var(--line); border-radius:999px; background:#f8fafc; padding:3px 8px; white-space:nowrap; }}
     nav {{ display:flex; flex-wrap:wrap; gap:7px; justify-content:flex-end; }}
     nav a {{ border:1px solid var(--line); border-radius:6px; padding:7px 9px; color:var(--ink); background:#fff; font-size:13px; }}
     nav a.active {{ border-color:#8ec8c1; background:var(--soft); color:var(--accent-ink); font-weight:700; }}
@@ -499,8 +504,14 @@ def _page_shell(title: str, active: str, content: str, data: dict[str, Any]) -> 
   <header>
     <div class="wrap top">
       <div class="brand">
-        <div class="brand-title">MyInvest</div>
-        <div class="brand-subtitle">只读研究与影子组合回放</div>
+        <a class="logo-lockup" href="/app" aria-label="MyInvest 首页">
+          <span class="logo-mark">MI</span>
+          <span class="brand-title">MyInvest</span>
+        </a>
+        <div class="header-meta" aria-label="页头时间与指数">
+          <span class="header-pill header-time">{html.escape(_header_datetime())}</span>
+          <span class="header-pill header-index">{html.escape(_header_index_text(data))}</span>
+        </div>
       </div>
       <nav aria-label="主导航">{nav}</nav>
     </div>
@@ -535,6 +546,28 @@ def _page_shell(title: str, active: str, content: str, data: dict[str, Any]) -> 
 </body>
 </html>
 """
+
+
+def _header_datetime() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M")
+
+
+def _header_index_text(data: dict[str, Any]) -> str:
+    market = data.get("dashboard", {}).get("market", {})
+    index = market.get("headline_index") if isinstance(market, dict) else None
+    if not isinstance(index, dict):
+        return "上证指数 暂无"
+    name = str(index.get("name") or "上证指数")
+    if name == "000001.SH":
+        name = "上证指数"
+    last_price = index.get("last_price")
+    daily_return = index.get("daily_return")
+    parts = [name]
+    if isinstance(last_price, int | float):
+        parts.append(f"{last_price:.2f}")
+    if isinstance(daily_return, int | float):
+        parts.append(f"{daily_return:+.2%}")
+    return " ".join(parts) if len(parts) > 1 else f"{name} 暂无"
 
 
 def _nav_item(item: dict[str, str], active: str) -> str:

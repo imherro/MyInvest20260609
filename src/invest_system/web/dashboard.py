@@ -350,6 +350,7 @@ def _market_state(market: dict[str, Any] | None) -> dict[str, Any]:
         "risk_level": payload["risk_level"],
         "equity_min": payload["equity_min"],
         "equity_max": payload["equity_max"],
+        "headline_index": payload.get("headline_index"),
         "confidence": market["confidence"],
         "data_sources": market["data_sources"],
         "data_gaps": market["data_gaps"],

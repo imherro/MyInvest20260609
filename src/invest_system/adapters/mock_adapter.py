@@ -13,8 +13,9 @@ def collect_mock(request: dict[str, Any]) -> dict[str, Any]:
         "511360.SH": (101.2, 0.0004, 0.008),
     }
     mock_indices = {
-        "000300.SH": ("CSI300", 0.0035),
-        "000905.SH": ("CSI500", 0.0018),
+        "000001.SH": ("上证指数", 3387.42, 0.0026),
+        "000300.SH": ("CSI300", 3985.16, 0.0035),
+        "000905.SH": ("CSI500", 5912.34, 0.0018),
     }
     return {
         "source": "mock",
@@ -22,8 +23,9 @@ def collect_mock(request: dict[str, Any]) -> dict[str, Any]:
         "indices": [
             {
                 "symbol": symbol,
-                "name": mock_indices.get(symbol, (symbol, 0.0))[0],
-                "daily_return": mock_indices.get(symbol, (symbol, 0.0))[1],
+                "name": mock_indices.get(symbol, (symbol, None, 0.0))[0],
+                "last_price": mock_indices.get(symbol, (symbol, None, 0.0))[1],
+                "daily_return": mock_indices.get(symbol, (symbol, None, 0.0))[2],
                 "source": "mock",
             }
             for symbol in indices

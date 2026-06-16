@@ -76,7 +76,8 @@ def _index_row(pro: Any, symbol: str, trade_date: str) -> dict[str, Any] | None:
     row = data.iloc[0]
     return {
         "symbol": symbol,
-        "name": symbol,
+        "name": "上证指数" if symbol == "000001.SH" else symbol,
+        "last_price": float(row["close"]),
         "daily_return": float(row.get("pct_chg", 0)) / 100,
         "source": "tushare:index_daily",
     }

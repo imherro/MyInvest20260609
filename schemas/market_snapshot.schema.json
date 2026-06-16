@@ -87,9 +87,20 @@
         "equity_max": { "type": "number", "minimum": 0, "maximum": 1 },
         "risk_level": { "type": "string", "enum": ["low", "medium", "high"] },
         "reason": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-        "crowding_penalty": { "type": "number", "minimum": 0, "maximum": 100 }
+        "crowding_penalty": { "type": "number", "minimum": 0, "maximum": 100 },
+        "headline_index": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["symbol", "name", "daily_return", "source"],
+          "properties": {
+            "symbol": { "type": "string", "minLength": 1 },
+            "name": { "type": "string", "minLength": 1 },
+            "last_price": { "type": ["number", "null"], "minimum": 0 },
+            "daily_return": { "type": "number" },
+            "source": { "type": "string", "minLength": 1 }
+          }
+        }
       }
     }
   }
 }
-

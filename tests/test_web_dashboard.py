@@ -51,6 +51,8 @@ def test_dashboard_state_endpoint_returns_json_without_sensitive_fields(tmp_path
     assert payload["data"]["portfolio_history"]["snapshot_count"] == 3
     assert payload["data"]["portfolio_history"]["rebalance_records"]
     assert payload["data"]["portfolio_history"]["rebalance_records"][0]["display_name"].endswith("）")
+    assert payload["data"]["market"]["headline_index"]["symbol"] == "000001.SH"
+    assert payload["data"]["market"]["headline_index"]["name"] == "上证指数"
     assert payload["data"]["actual_vs_shadow"]["source_status"] == "actual_ratio_available"
     assert payload["data"]["actual_vs_shadow"]["qmt_read_status"]["status"] == "success"
     assert payload["data"]["actual_vs_shadow"]["qmt_read_status"]["next_action_label"] == "查看实际持仓与影子组合差异。"
@@ -120,6 +122,10 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/html")
         assert "MyInvest" in body
+        assert "logo-mark" in body
+        assert "header-time" in body
+        assert "header-index" in body
+        assert "上证指数" in body
         assert "data-page-shell=\"portal\"" in body
         assert "统一页脚" in body
         assert "has-tip" in body

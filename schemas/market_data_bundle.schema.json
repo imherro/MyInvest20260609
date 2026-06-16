@@ -57,6 +57,7 @@
         "properties": {
           "symbol": { "type": "string", "minLength": 1 },
           "name": { "type": "string", "minLength": 1 },
+          "last_price": { "type": ["number", "null"], "minimum": 0 },
           "daily_return": { "type": "number" },
           "source": { "type": "string", "minLength": 1 }
         }

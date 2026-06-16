@@ -14,7 +14,7 @@ from invest_system.validators.schema_validator import validate_or_raise
 
 
 DEFAULT_SYMBOLS = ("510300.SH", "159915.SZ", "002920.SZ", "511360.SH")
-DEFAULT_INDICES = ("000300.SH", "000905.SH")
+DEFAULT_INDICES = ("000001.SH", "000300.SH", "000905.SH")
 SOURCE_ORDER = ("tushare", "baostock", "yfinance", "fred")
 
 
@@ -167,10 +167,32 @@ def build_market_snapshot_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
             "risk_level": risk_level,
             "reason": _market_reasons(bundle, market_score),
             "crowding_penalty": crowding_penalty,
+            "headline_index": _headline_index(bundle),
         },
     }
     validate_or_raise(snapshot, "market_snapshot.schema.json")
     return snapshot
+
+
+def _headline_index(bundle: dict[str, Any]) -> dict[str, Any] | None:
+    for row in bundle["indices"]:
+        if row["symbol"] == "000001.SH":
+            return _index_payload(row, "上证指数")
+    for row in bundle["indices"]:
+        name = str(row.get("name", ""))
+        if "上证" in name or "Shanghai" in name or "SSE" in name:
+            return _index_payload(row, name)
+    return None
+
+
+def _index_payload(row: dict[str, Any], fallback_name: str) -> dict[str, Any]:
+    return {
+        "symbol": row["symbol"],
+        "name": row.get("name") or fallback_name,
+        "last_price": row.get("last_price"),
+        "daily_return": row["daily_return"],
+        "source": row["source"],
+    }
 
 
 def _market_signals(bundle: dict[str, Any], market_score: float, crowding_penalty: float) -> dict[str, Any]:

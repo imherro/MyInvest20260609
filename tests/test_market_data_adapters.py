@@ -30,6 +30,9 @@ def test_mock_market_data_bundle_appends_market_snapshot(tmp_path) -> None:
     assert "adapter:mock" in latest["data_sources"]
     assert "derived:market_research_v1" in latest["data_sources"]
     assert latest["actionability"] == "observe"
+    assert latest["payload"]["headline_index"]["symbol"] == "000001.SH"
+    assert latest["payload"]["headline_index"]["name"] == "上证指数"
+    assert latest["payload"]["headline_index"]["last_price"] == 3387.42
     assert repo.table_counts()["market_snapshot"] == 1
     assert repo.table_counts()["event_log"] == 1
 
@@ -42,11 +45,13 @@ def test_auto_market_data_uses_mock_fallback_when_network_disabled() -> None:
     )
 
     assert "mock" in bundle["successful_sources"]
+    assert any(row["symbol"] == "000001.SH" for row in bundle["indices"])
     assert bundle["data_gaps"]
     assert all(result["read_only"] for result in bundle["source_results"])
     snapshot = build_market_snapshot_from_bundle(bundle)
     assert snapshot["status"] == "json_validated"
     assert "adapter:mock" in snapshot["data_sources"]
+    assert snapshot["payload"]["headline_index"]["symbol"] == "000001.SH"
 
 
 def test_market_data_collection_loads_local_env(monkeypatch) -> None:
