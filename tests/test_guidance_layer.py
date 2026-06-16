@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from typing import Any
 
 import httpx
@@ -104,9 +105,39 @@ def test_latest_symbol_research_can_clear_historical_research_first_item(tmp_pat
     assert "159999.SZ" not in queued_symbols
 
 
+def test_historical_failed_research_outside_current_scope_does_not_block(tmp_path) -> None:
+    repo = SQLiteRepository(tmp_path / "guidance_historical_scope.sqlite")
+    seed_multiday_repository(repo)
+    cleaned_pool = deepcopy(repo.latest_target_pool("2026-06-15"))
+    cleaned_pool["target_pool_id"] = "target-pool-2026-06-15-no-research-first-test"
+    for entry in cleaned_pool["entries"]:
+        if entry["pool_type"] in {"research_first", "blocked"}:
+            entry["symbols"] = []
+    repo.append_target_pool_snapshot(cleaned_pool)
+    cleaned_decision = deepcopy(repo.latest_decision("2026-06-15"))
+    cleaned_decision["decision_id"] = "decision-2026-06-15-no-research-first-test"
+    cleaned_decision["decision_actions"] = [
+        action for action in cleaned_decision["decision_actions"] if action["symbol"] != "159999.SZ"
+    ]
+    repo.append_decision_record(cleaned_decision)
+    snapshot = _symbol_research("301566.SZ", "research_first", "blocked")
+    snapshot["snapshot_id"] = "stock-valuation-2026-06-15-301566.SZ-historical-test"
+    snapshot["data_gaps"] = ["Forward earnings forecast is unavailable in the local structured source."]
+    repo.append_research_snapshot(snapshot)
+
+    state = compute_guidance_state(repo, "2026-06-15")
+    queued_symbols = {item["symbol"] for item in state["research_first"]["queue"]}
+
+    assert "301566.SZ" not in queued_symbols
+    assert state["research_first"]["queue"] == []
+    assert state["research_first"]["active_holdings_without_passed_gates"] == []
+    assert state["research_first"]["status"] == "pass"
+
+
 def test_research_first_queue_reports_current_blockers(tmp_path) -> None:
     repo = SQLiteRepository(tmp_path / "guidance_blockers.sqlite")
     seed_multiday_repository(repo)
+    _append_current_target_pool_symbol(repo, "301566.SZ", "blocked")
     snapshot = _symbol_research("301566.SZ", "research_first", "blocked")
     snapshot["snapshot_id"] = "stock-valuation-2026-06-15-301566.SZ-blocked-test"
     snapshot["executive_summary"] = (
@@ -153,6 +184,16 @@ def test_research_first_queue_reports_current_blockers(tmp_path) -> None:
     prompt = next(item for item in prompts["prompts"] if item["symbol"] == "301566.SZ")
     assert "达利凯普（301566.SZ）" in prompt["prompt_text"]
     assert "research_snapshot JSON" in prompt["prompt_text"]
+
+
+def _append_current_target_pool_symbol(repo: SQLiteRepository, symbol: str, pool_type: str) -> None:
+    target_pool = deepcopy(repo.latest_target_pool("2026-06-15"))
+    target_pool["target_pool_id"] = f"target-pool-2026-06-15-{symbol}-{pool_type}-test"
+    for entry in target_pool["entries"]:
+        entry["symbols"] = [item for item in entry["symbols"] if item != symbol]
+        if entry["pool_type"] == pool_type:
+            entry["symbols"].append(symbol)
+    repo.append_target_pool_snapshot(target_pool)
 
 
 def _prepare_guidance_repo(tmp_path) -> SQLiteRepository:

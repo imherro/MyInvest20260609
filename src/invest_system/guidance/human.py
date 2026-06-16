@@ -193,7 +193,18 @@ def _research_first_section(research_first: dict[str, Any]) -> str:
     if not research_first["queue"] and not research_first["active_holdings_without_passed_gates"]:
         body = "<p>ResearchFirst 覆盖通过，当前没有阻断队列。</p>"
     else:
-        rows = "".join(
+        active_rows = "".join(
+            "<tr>"
+            f"<td>{html.escape(symbol)}</td>"
+            "<td>当前持仓门槛未覆盖</td>"
+            "<td>阻断提高风险</td>"
+            "<td>portfolio_snapshot</td>"
+            "</tr>"
+            for symbol in research_first["active_holdings_without_passed_gates"]
+        )
+        if not active_rows:
+            active_rows = "<tr><td>none</td><td>当前持仓已覆盖</td><td>不阻断提高风险</td><td>guidance</td></tr>"
+        queue_rows = "".join(
             "<tr>"
             f"<td>{html.escape(item['symbol'])}</td>"
             f"<td>{html.escape(_research_reason_label(item['reason']))}</td>"
@@ -202,9 +213,15 @@ def _research_first_section(research_first: dict[str, Any]) -> str:
             "</tr>"
             for item in research_first["queue"]
         )
-        if not rows:
-            rows = "<tr><td>none</td><td>active holding gate review required</td><td>未标明</td><td>decision_record</td></tr>"
-        body = f"<table><thead><tr><th>标的</th><th>原因</th><th>当前卡点</th><th>来源</th></tr></thead><tbody>{rows}</tbody></table>"
+        if not queue_rows:
+            queue_rows = "<tr><td>none</td><td>当前候选队列已清空</td><td>不阻断新增候选</td><td>guidance</td></tr>"
+        body = (
+            "<h3>当前持仓门槛</h3>"
+            f"<table><thead><tr><th>标的</th><th>状态</th><th>影响</th><th>来源</th></tr></thead><tbody>{active_rows}</tbody></table>"
+            "<h3>当前候选队列</h3>"
+            f"<table><thead><tr><th>标的</th><th>原因</th><th>当前卡点</th><th>来源</th></tr></thead><tbody>{queue_rows}</tbody></table>"
+            "<p>历史或已排除候选只保留研究记录，不影响全局 readiness。</p>"
+        )
     return f"""
 <section class="panel">
   <h2>ResearchFirst 覆盖</h2>

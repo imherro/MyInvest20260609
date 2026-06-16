@@ -174,24 +174,35 @@ def _research_first_state(replay: dict[str, Any], timeline: list[dict[str, Any]]
     approved, research_first, blocked = _target_pool_sets(target_pool)
     active_symbols = _active_symbols(portfolio)
     decisions = _decision_actions_by_symbol(decision)
+    decision_research_first = {
+        symbol
+        for symbol, action in decisions.items()
+        if action["gates"].get("research_first")
+    }
+    current_research_scope = active_symbols | research_first | blocked | decision_research_first
 
-    for symbol in sorted(research_first):
-        queue[symbol] = {
-            "symbol": symbol,
-            "reason": "profile_or_gate_incomplete",
-            "blockers": ["profile_or_gate_incomplete"],
-            "source": "target_pool",
-        }
-    for symbol in sorted(blocked):
-        queue[symbol] = {
-            "symbol": symbol,
-            "reason": "blocked_in_target_pool",
-            "blockers": ["target_pool_blocked"],
-            "source": "target_pool",
-        }
-
-    for item in _research_queue_from_timeline(timeline):
+    for item in _research_queue_from_timeline(timeline, current_research_scope):
         queue[item["symbol"]] = item
+    for symbol in sorted(research_first):
+        queue.setdefault(
+            symbol,
+            {
+                "symbol": symbol,
+                "reason": "profile_or_gate_incomplete",
+                "blockers": ["profile_or_gate_incomplete"],
+                "source": "target_pool",
+            },
+        )
+    for symbol in sorted(blocked):
+        queue.setdefault(
+            symbol,
+            {
+                "symbol": symbol,
+                "reason": "blocked_in_target_pool",
+                "blockers": ["target_pool_blocked"],
+                "source": "target_pool",
+            },
+        )
 
     for symbol, action in decisions.items():
         if action["gates"].get("research_first"):
@@ -294,9 +305,9 @@ def _checks(
             "research_first",
             research_first["status"],
             "ResearchFirst coverage",
-            "当前持仓仍有门槛未通过。" if research_first["status"] == "block" else "仍存在 ResearchFirst 队列。" if research_first["status"] == "warn" else "当前持仓已通过门槛覆盖。",
+            _research_first_check_detail(research_first),
             "target_pool_and_decision",
-            "/research/latest" if research_first["status"] in {"warn", "block", "missing"} else None,
+            "/research/view" if research_first["status"] in {"warn", "block", "missing"} else None,
         ),
         _check(
             "risk_boundaries",
@@ -461,7 +472,10 @@ def _action_has_passed_gates(action: dict[str, Any]) -> bool:
     )
 
 
-def _research_queue_from_timeline(timeline: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _research_queue_from_timeline(
+    timeline: list[dict[str, Any]],
+    current_scope: set[str],
+) -> list[dict[str, Any]]:
     queue: dict[str, dict[str, Any]] = {}
     for event in timeline:
         if event["type"] != "research":
@@ -469,7 +483,7 @@ def _research_queue_from_timeline(timeline: list[dict[str, Any]]) -> list[dict[s
         snapshot = event["payload"]
         payload = snapshot.get("payload", {})
         symbol = payload.get("symbol") or snapshot.get("symbol")
-        if symbol:
+        if symbol and symbol in current_scope:
             if _research_snapshot_requires_first(snapshot):
                 blockers = _research_queue_blockers(snapshot)
                 queue[symbol] = {
@@ -482,7 +496,7 @@ def _research_queue_from_timeline(timeline: list[dict[str, Any]]) -> list[dict[s
                 queue.pop(symbol, None)
         for item in payload.get("research_first_list", []):
             symbol = item.get("symbol")
-            if symbol:
+            if symbol and symbol in current_scope:
                 reason = item.get("blocking_reason", "research_first_required")
                 queue[symbol] = {
                     "symbol": symbol,
@@ -491,6 +505,16 @@ def _research_queue_from_timeline(timeline: list[dict[str, Any]]) -> list[dict[s
                     "source": event["object_id"],
                 }
     return list(queue.values())
+
+
+def _research_first_check_detail(research_first: dict[str, Any]) -> str:
+    if research_first["active_holdings_without_passed_gates"]:
+        return "当前持仓仍有门槛未覆盖，阻断提高风险。"
+    if research_first["queue"]:
+        return "当前目标池或当前决策仍有 ResearchFirst 候选，阻断新增相关标的。"
+    if research_first["status"] == "missing":
+        return "缺少当前持仓或目标池门槛覆盖信息。"
+    return "当前持仓和当前候选已通过门槛覆盖。"
 
 
 def _research_snapshot_requires_first(snapshot: dict[str, Any]) -> bool:

@@ -21,7 +21,13 @@ def build_decision_proposal(repo: SQLiteRepository, as_of: str | None = None) ->
     market = replay.get("market")
     decision = replay.get("decision")
     portfolio = replay.get("portfolio")
-    research_items = _latest_research_by_module(timeline)
+    target_pool = replay.get("target_pool")
+    research_items = _current_research_items(
+        _latest_research_by_module(timeline),
+        decision,
+        portfolio,
+        target_pool,
+    )
     risk = compute_risk_state(repo, as_of)
     macro = compute_macro_state(repo, as_of)
     guidance = compute_guidance_state(repo, as_of)
@@ -34,6 +40,7 @@ def build_decision_proposal(repo: SQLiteRepository, as_of: str | None = None) ->
         guidance=guidance,
         decision=decision,
         portfolio=portfolio,
+        target_pool=target_pool,
         gate_summary=gate_summary,
     )
     explanation = _explanation(
@@ -155,14 +162,15 @@ def _decision_preview(
     guidance: dict[str, Any],
     decision: dict[str, Any] | None,
     portfolio: dict[str, Any] | None,
+    target_pool: dict[str, Any] | None,
     gate_summary: dict[str, str],
 ) -> list[dict[str, Any]]:
-    symbols = _candidate_symbols(research_items, decision, portfolio)
+    symbols = _candidate_symbols(research_items, decision, portfolio, target_pool)
     if not symbols:
         symbols = ["portfolio_review"]
     decision_actions = _decision_actions_by_symbol(decision)
     research_by_symbol = _research_by_symbol(research_items)
-    research_first_symbols = _research_first_symbols(guidance, research_items)
+    research_first_symbols = _research_first_symbols(guidance)
     current_weights = portfolio.get("holdings_weight", {}) if portfolio else {}
     preview = []
     for symbol in symbols[:12]:
@@ -189,8 +197,10 @@ def _candidate_symbols(
     research_items: list[dict[str, Any]],
     decision: dict[str, Any] | None,
     portfolio: dict[str, Any] | None,
+    target_pool: dict[str, Any] | None,
 ) -> list[str]:
     symbols: list[str] = []
+    current_scope = _current_candidate_scope(decision, portfolio, target_pool)
     cleanup_symbols = {
         item.get("payload", {}).get("symbol") or item.get("symbol")
         for item in research_items
@@ -202,18 +212,18 @@ def _candidate_symbols(
             continue
         payload = item.get("payload", {})
         symbol = payload.get("symbol") or item.get("symbol")
-        if symbol and symbol not in cleanup_symbols:
+        if symbol and symbol not in cleanup_symbols and _is_current_symbol(symbol, current_scope):
             symbols.append(symbol)
         for candidate in payload.get("action_candidates", []):
             symbol = candidate.get("symbol")
-            if symbol and symbol not in cleanup_symbols:
+            if symbol and symbol not in cleanup_symbols and _is_current_symbol(symbol, current_scope):
                 symbols.append(symbol)
         for symbol in payload.get("leading_symbols", []):
-            if symbol and symbol not in cleanup_symbols:
+            if symbol and symbol not in cleanup_symbols and _is_current_symbol(symbol, current_scope):
                 symbols.append(symbol)
         for queued in payload.get("research_first_list", []):
             symbol = queued.get("symbol")
-            if symbol and symbol not in cleanup_symbols:
+            if symbol and symbol not in cleanup_symbols and _is_current_symbol(symbol, current_scope):
                 symbols.append(symbol)
     if decision:
         symbols.extend(action["symbol"] for action in decision["decision_actions"])
@@ -222,14 +232,70 @@ def _candidate_symbols(
     return list(dict.fromkeys(symbols))
 
 
-def _research_first_symbols(guidance: dict[str, Any], research_items: list[dict[str, Any]]) -> set[str]:
+def _current_research_items(
+    research_items: list[dict[str, Any]],
+    decision: dict[str, Any] | None,
+    portfolio: dict[str, Any] | None,
+    target_pool: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    current_scope = _current_candidate_scope(decision, portfolio, target_pool)
+    return [
+        item
+        for item in research_items
+        if _research_item_is_current(item, current_scope)
+    ]
+
+
+def _research_item_is_current(item: dict[str, Any], current_scope: set[str]) -> bool:
+    if not current_scope:
+        return True
+    payload = item.get("payload", {})
+    symbol = payload.get("symbol") or item.get("symbol")
+    if symbol:
+        return symbol in current_scope
+    referenced_symbols = _research_referenced_symbols(payload)
+    if referenced_symbols:
+        return bool(referenced_symbols & current_scope)
+    return True
+
+
+def _research_referenced_symbols(payload: dict[str, Any]) -> set[str]:
+    symbols: set[str] = set()
+    for candidate in payload.get("action_candidates", []):
+        symbol = candidate.get("symbol")
+        if symbol:
+            symbols.add(symbol)
+    symbols.update(symbol for symbol in payload.get("leading_symbols", []) if symbol)
+    for queued in payload.get("research_first_list", []):
+        symbol = queued.get("symbol")
+        if symbol:
+            symbols.add(symbol)
+    return symbols
+
+
+def _current_candidate_scope(
+    decision: dict[str, Any] | None,
+    portfolio: dict[str, Any] | None,
+    target_pool: dict[str, Any] | None,
+) -> set[str]:
+    symbols: set[str] = set()
+    if target_pool:
+        for entry in target_pool.get("entries", []):
+            symbols.update(entry.get("symbols", []))
+    if decision:
+        symbols.update(action["symbol"] for action in decision["decision_actions"])
+    if portfolio:
+        symbols.update(symbol for symbol, weight in portfolio["holdings_weight"].items() if weight > 0)
+    return symbols
+
+
+def _is_current_symbol(symbol: str, current_scope: set[str]) -> bool:
+    return not current_scope or symbol in current_scope
+
+
+def _research_first_symbols(guidance: dict[str, Any]) -> set[str]:
     symbols = {item["symbol"] for item in guidance["research_first"]["queue"]}
     symbols.update(guidance["research_first"]["active_holdings_without_passed_gates"])
-    for item in research_items:
-        for queued in item.get("payload", {}).get("research_first_list", []):
-            symbol = queued.get("symbol")
-            if symbol:
-                symbols.add(symbol)
     return symbols
 
 

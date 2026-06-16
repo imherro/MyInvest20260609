@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from typing import Any
 
 import httpx
@@ -71,6 +72,7 @@ def test_decision_explain_endpoint_returns_traceable_json(tmp_path) -> None:
 def test_symbol_research_snapshots_are_not_collapsed_by_module(tmp_path) -> None:
     repo = SQLiteRepository(tmp_path / "decision_symbol_research.sqlite")
     seed_multiday_repository(repo)
+    _append_current_target_pool_symbols(repo, ["301566.SZ", "688603.SH"], "research_first")
     repo.append_research_snapshot(_symbol_research("301566.SZ", 0.7))
     repo.append_research_snapshot(_symbol_research("688603.SH", 0.69))
 
@@ -86,6 +88,17 @@ def test_symbol_research_snapshots_are_not_collapsed_by_module(tmp_path) -> None
         "research_first": True,
         "risk_boundary": "block",
     }
+
+
+def test_historical_failed_research_is_not_a_decision_candidate(tmp_path) -> None:
+    repo = SQLiteRepository(tmp_path / "decision_historical_scope.sqlite")
+    seed_multiday_repository(repo)
+    repo.append_research_snapshot(_symbol_research("301566.SZ", 0.7))
+
+    proposal = build_decision_proposal(repo, "2026-06-15")
+    preview_symbols = {item["symbol"] for item in proposal["decision_preview"]}
+
+    assert "301566.SZ" not in preview_symbols
 
 
 def test_current_cleanup_research_is_not_a_decision_candidate(tmp_path) -> None:
@@ -139,6 +152,16 @@ def _prepare_decision_repo(tmp_path) -> SQLiteRepository:
     market_data = append_market_snapshot_from_adapters(repo, basis_date="2026-06-15", source="mock")
     generate_p0c_research(repo, "2026-06-15", price_data=build_p0c_price_data_from_bundle(market_data["bundle"]))
     return repo
+
+
+def _append_current_target_pool_symbols(repo: SQLiteRepository, symbols: list[str], pool_type: str) -> None:
+    target_pool = deepcopy(repo.latest_target_pool("2026-06-15"))
+    target_pool["target_pool_id"] = f"target-pool-2026-06-15-{pool_type}-symbols-test"
+    for entry in target_pool["entries"]:
+        entry["symbols"] = [symbol for symbol in entry["symbols"] if symbol not in symbols]
+        if entry["pool_type"] == pool_type:
+            entry["symbols"].extend(symbols)
+    repo.append_target_pool_snapshot(target_pool)
 
 
 def _cleanup_research(symbol: str) -> dict[str, Any]:

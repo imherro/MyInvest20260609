@@ -739,6 +739,7 @@ def _guidance_content(data: dict[str, Any]) -> str:
     {_metric_card("人工复核", _need_label(readiness["requires_human_review"]), _bool_class(not readiness["requires_human_review"]))}
   </div>
 </section>
+{_guidance_research_first_scope(guidance["research_first"])}
 <section>
   <h2>今天能不能做</h2>
   {_table(["事项", "结果", "原因", "入口"], [_operation_row(item) for item in operations], raw_columns={3})}
@@ -754,6 +755,47 @@ def _guidance_content(data: dict[str, Any]) -> str:
 <section class="panel">
   <h2>今天不要做</h2>
   {_list_items(guidance["today_action"]["do_not_do"], "暂无额外限制。")}
+</section>
+"""
+
+
+def _guidance_research_first_scope(research_first: dict[str, Any]) -> str:
+    active_rows = [
+        [
+            display_symbol(symbol),
+            "当前持仓门槛未覆盖",
+            "阻断提高风险",
+            "组合页",
+        ]
+        for symbol in research_first["active_holdings_without_passed_gates"]
+    ]
+    if not active_rows:
+        active_rows = [["无", "当前持仓已覆盖", "不阻断提高风险", "guidance"]]
+
+    queue_rows = [
+        [
+            display_symbol(item["symbol"]),
+            _research_reason_label(item["reason"]),
+            _research_blocker_label(item.get("blockers", [])),
+            item["source"],
+        ]
+        for item in research_first["queue"]
+    ]
+    if not queue_rows:
+        queue_rows = [["无", "当前候选队列已清空", "不阻断新增候选", "guidance"]]
+
+    return f"""
+<section class="grid-2">
+  <div class="panel">
+    <h2>当前持仓门槛</h2>
+    <p class="detail">这里只看已经持有的标的；未覆盖时阻断提高风险，但不代表历史候选仍要补研究。</p>
+    {_table(["标的", "状态", "影响", "入口"], active_rows)}
+  </div>
+  <div class="panel">
+    <h2>当前候选 ResearchFirst</h2>
+    <p class="detail">这里只看最新目标池和当前决策里的候选；历史或已排除候选只保留研究记录，不影响全局状态。</p>
+    {_table(["标的", "原因", "当前卡点", "来源"], queue_rows)}
+  </div>
 </section>
 """
 
@@ -1762,8 +1804,8 @@ def _research_content(data: dict[str, Any]) -> str:
   </div>
   <div class="panel">
     <h2>放行规则</h2>
-    <p>标的只有画像、估值、流动性门槛都通过，才会从 ResearchFirst 队列移出。</p>
-    <p class="detail">研究页只负责补证和导入研究快照；是否进入决策和影子组合，以决策页和组合页为准。</p>
+    <p>当前持仓、最新目标池和当前决策里的标的，只有画像、估值、流动性门槛都通过，才会从当前 ResearchFirst 队列移出。</p>
+    <p class="detail">历史或已排除候选只保留研究记录；是否进入决策和影子组合，以当前目标池、决策页和组合页为准。</p>
   </div>
 </section>
 {_research_workbench_section(queue, valuation_review, valuation_prompts)}
@@ -1809,7 +1851,7 @@ def _research_workbench_detail(
         reason = _research_reason_label(first["reason"])
         blockers = _research_blocker_label(first.get("blockers", []))
         return (
-            f"队列里还有 {queue_count} 个标的。优先处理 {display_symbol(first['symbol'])}，"
+            f"当前队列里还有 {queue_count} 个标的。优先处理 {display_symbol(first['symbol'])}，"
             f"原因是{reason}，当前卡点是{blockers}。估值复核 {review_count} 项，提示词 {prompt_count} 条。"
         )
     if review_count:
@@ -1826,7 +1868,7 @@ def _research_workbench_section(
     return f"""
 <section id="research-workbench">
   <h2>下一项该研究什么</h2>
-  <p class="detail">这张表把 ResearchFirst 队列、估值复核和补充研究提示词合在一起，按当前队列顺序给出下一步。</p>
+  <p class="detail">这张表只合并当前 ResearchFirst 队列、估值复核和补充研究提示词；历史或已排除候选不会阻断这里。</p>
   {_table(["标的", "状态", "为什么还没放行", "下一步", "入口"], rows, raw_columns={4})}
 </section>
 """
