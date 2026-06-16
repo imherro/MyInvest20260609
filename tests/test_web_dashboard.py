@@ -66,6 +66,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
         "/risk/view",
         "/macro/view",
         "/comparison/view",
+        "/decision/view",
         "/portfolio/view",
         "/research/view",
         "/research/import/view",

@@ -17,6 +17,7 @@ The delivered MVP supports:
 - Read-only usability check layer
 - Daily research workflow status layer
 - Research JSON import validation and append path
+- Read-only decision proposal and explanation layer
 - JSON-only CLI validation and append workflows
 
 ## Hard Boundaries
@@ -95,6 +96,7 @@ Schema files:
 - `schemas/entry_home_state.schema.json`
 - `schemas/investor_policy.schema.json`
 - `schemas/guidance_state.schema.json`
+- `schemas/decision_proposal.schema.json`
 
 Repository append methods validate schema and policy before writing.
 
@@ -158,6 +160,8 @@ Read-only JSON endpoints:
 - `GET /usability/state`
 - `POST /research/import/validate`
 - `POST /research/import`
+- `GET /decision/proposal`
+- `GET /decision/explain`
 - `GET /market/latest`
 - `GET /research/latest`
 - `GET /target-pool/latest`
@@ -190,6 +194,7 @@ Read-only view endpoints:
 - `GET /risk/view`
 - `GET /macro/view`
 - `GET /comparison/view`
+- `GET /decision/view`
 - `GET /portfolio/view`
 - `GET /research/view`
 - `GET /research/import/view`
@@ -277,6 +282,8 @@ Portal JSON:
 
 - `GET /system/dashboard_state`
 - `GET /workflow/daily/state`
+- `GET /decision/proposal`
+- `GET /decision/explain`
 - `GET /usability/state`
 
 Portal views:
@@ -291,6 +298,7 @@ Portal views:
 - `/risk/view`
 - `/macro/view`
 - `/comparison/view`
+- `/decision/view`
 - `/portfolio/view`
 - `/research/view`
 - `/research/import/view`
@@ -305,6 +313,7 @@ Portal rules:
 - `/app` is the natural-person entrypoint
 - `/workflow/daily/view` shows the daily research loop status
 - `/research/import/view` provides validation-first research import
+- `/decision/view` shows read-only decision proposal and explanation
 - feature entrances must be visible without knowing raw JSON paths
 - usability checks must be available at `/usability/state` and `/usability/view`
 - no database writes
@@ -413,6 +422,54 @@ Import rules:
 - ratio-only and ResearchFirst policy checks are required
 - no broker integration, no external execution, no decision generation, and no shadow portfolio mutation
 - error responses must be JSON and must not echo sensitive fields or local absolute paths
+
+## Decision Proposal Contract
+
+The decision proposal layer is read-only and explains what the system would consider next.
+
+Decision proposal JSON:
+
+- `GET /decision/proposal`
+
+Decision explanation JSON:
+
+- `GET /decision/explain`
+
+Decision proposal view:
+
+- `GET /decision/view`
+
+Allowed proposal actions:
+
+- `observe`
+- `research_first`
+- `rebalance_candidate`
+- `no_action`
+
+Decision proposal output includes:
+
+- recommended action
+- review state
+- confidence
+- symbol-level proposal preview
+- ResearchFirst, profile, valuation, liquidity, risk-boundary gates
+- market → research → risk → macro → portfolio → guidance explanation chain
+- invalidation conditions
+- trace source IDs
+
+Decision proposal rules:
+
+- JSON endpoints output JSON only
+- view endpoint is derived HTML only
+- read-only computation only
+- no SQLite writes
+- no `decision_record` append
+- no external execution
+- no shadow portfolio mutation
+- no replay or `event_log` changes
+- no buy/sell action output
+- no bypass of ResearchFirst, profile, valuation, liquidity, or risk-boundary gates
+- no sensitive account, amount, share, order, fill, trade amount, profit amount, or local absolute path exposure
 
 ## Guidance Layer Contract
 

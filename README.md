@@ -44,6 +44,8 @@ http://127.0.0.1:8008/dashboard
 - `GET /usability/state`
 - `POST /research/import/validate`
 - `POST /research/import`
+- `GET /decision/proposal`
+- `GET /decision/explain`
 - `GET /market/latest`
 - `GET /research/latest`
 - `GET /target-pool/latest`
@@ -74,6 +76,7 @@ Read-only view endpoints:
 - `GET /risk/view`
 - `GET /macro/view`
 - `GET /comparison/view`
+- `GET /decision/view`
 - `GET /portfolio/view`
 - `GET /research/view`
 - `GET /research/import/view`
@@ -178,6 +181,7 @@ P1 read-only B/S portal pages include:
 - risk
 - macro
 - comparison
+- decision preview
 - shadow portfolio
 - research
 - research JSON import
@@ -202,6 +206,7 @@ It checks:
 - today's action boundary
 - shadow portfolio replay
 - report preview readiness
+- decision proposal preview
 
 The workflow is a status and guidance layer. It does not collect data, generate research, write SQLite, or create execution output.
 
@@ -214,6 +219,23 @@ Research import standardizes how externally generated research enters the system
 - `GET /research/import/view` provides the browser page for paste, validate, and append.
 
 The import path validates `research.schema.json`, known module payload schemas, ratio-only policy, ResearchFirst policy, and duplicate `snapshot_id`. Successful import writes append-only records to `research_snapshot` and `event_log`.
+
+## Decision Proposal
+
+The decision proposal layer is read-only and explanatory.
+
+- `GET /decision/proposal` returns a structured proposal JSON.
+- `GET /decision/explain` returns the explanation chain.
+- `GET /decision/view` renders the same proposal in the unified portal shell.
+
+Allowed proposal actions are:
+
+- `observe`
+- `research_first`
+- `rebalance_candidate`
+- `no_action`
+
+The layer derives from existing market, research, risk, macro, portfolio, and guidance state. It does not write `decision_record`, does not mutate the shadow portfolio, does not change replay, and does not create external execution output.
 
 ## Entry Layer
 

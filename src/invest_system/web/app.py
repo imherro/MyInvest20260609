@@ -7,6 +7,7 @@ from fastapi import Body, FastAPI, Query
 from fastapi.responses import HTMLResponse
 
 from invest_system.comparison import compute_comparison_history, compute_comparison_state
+from invest_system.decision import build_decision_explain, build_decision_proposal
 from invest_system.entry import build_home_state
 from invest_system.guidance import compute_guidance_state
 from invest_system.macro import compute_macro_history, compute_macro_state, compute_model_consensus
@@ -45,6 +46,8 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/usability/state",
                     "POST /research/import/validate",
                     "POST /research/import",
+                    "/decision/proposal",
+                    "/decision/explain",
                     "/research/latest",
                     "/market/latest",
                     "/target-pool/latest",
@@ -72,6 +75,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/risk/view",
                     "/macro/view",
                     "/comparison/view",
+                    "/decision/view",
                     "/portfolio/view",
                     "/research/view",
                     "/research/import/view",
@@ -139,6 +143,14 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     def decision_latest() -> dict[str, Any]:
         payload = repo.latest_decision()
         return _json_result(payload)
+
+    @app.get("/decision/proposal")
+    def decision_proposal_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return {"status": "ok", "data": build_decision_proposal(repo, as_of)}
+
+    @app.get("/decision/explain")
+    def decision_explain_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return build_decision_explain(repo, as_of)
 
     @app.get("/portfolio/state")
     def portfolio_state() -> dict[str, Any]:
@@ -222,6 +234,10 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/comparison/view", response_class=HTMLResponse)
     def comparison_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
         return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "comparison"))
+
+    @app.get("/decision/view", response_class=HTMLResponse)
+    def decision_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "decision"))
 
     @app.get("/portfolio/view", response_class=HTMLResponse)
     def portfolio_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:

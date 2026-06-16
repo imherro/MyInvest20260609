@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from invest_system.decision import build_decision_proposal
 from invest_system.guidance import compute_guidance_state
 from invest_system.repositories import SQLiteRepository
 from invest_system.validators.policies import assert_no_sensitive_content
@@ -15,12 +16,14 @@ def build_daily_workflow_state(repo: SQLiteRepository, as_of: str | None = None)
     timeline = repo.timeline(as_of)
     dashboard = build_dashboard_state(repo, as_of)["data"]
     guidance = compute_guidance_state(repo, as_of)
+    decision_proposal = build_decision_proposal(repo, as_of)
     reference_date = _reference_date(as_of, replay, timeline)
     latest_mainline = _latest_research_by_module(timeline, "theme_research")
     steps = [
         _market_step(replay.get("market"), reference_date),
         _mainline_step(latest_mainline, reference_date),
         _guidance_step(guidance),
+        _decision_step(decision_proposal),
         _portfolio_step(replay.get("portfolio"), replay.get("decision"), reference_date),
         _report_step(dashboard["report"]),
     ]
@@ -32,6 +35,12 @@ def build_daily_workflow_state(repo: SQLiteRepository, as_of: str | None = None)
         "reference_date": reference_date,
         "generated_at": _utc_now(),
         "primary_next_action": primary,
+        "decision_preview": {
+            "recommended_action": decision_proposal["recommended_action"],
+            "review_state": decision_proposal["review_state"],
+            "confidence": decision_proposal["confidence"],
+            "endpoint": "/decision/proposal",
+        },
         "steps": steps,
         "source_ids": _source_ids(replay, latest_mainline),
         "safe_operations": [
@@ -130,6 +139,31 @@ def _guidance_step(guidance: dict[str, Any]) -> dict[str, Any]:
         status = "missing"
         detail = "今日行动边界缺少可用回放状态。"
     return _step("guidance_boundary", "今日行动边界", status, detail, "/guidance/view", "/guidance/state")
+
+
+def _decision_step(proposal: dict[str, Any]) -> dict[str, Any]:
+    if proposal["status"] == "empty":
+        status = "missing"
+        detail = "缺少可解释决策草案来源，先补齐研究、风险和组合状态。"
+    elif proposal["review_state"] == "blocked":
+        status = "block"
+        detail = f"今日决策预览为 {proposal['recommended_action']}，但门槛仍有阻断。"
+    elif proposal["review_state"] == "review_required":
+        status = "warn"
+        detail = f"今日决策预览为 {proposal['recommended_action']}，需要人工复核。"
+    else:
+        status = "pass"
+        detail = f"今日决策预览为 {proposal['recommended_action']}，可进入解释链查看。"
+    return _step(
+        "decision_proposal",
+        "决策预览",
+        status,
+        detail,
+        "/decision/view",
+        "/decision/proposal",
+        proposal["basis_date"],
+        proposal["proposal_id"],
+    )
 
 
 def _portfolio_step(

@@ -45,9 +45,11 @@ def test_daily_workflow_state_reports_next_action(tmp_path) -> None:
         "market_snapshot",
         "mainline_research",
         "guidance_boundary",
+        "decision_proposal",
         "shadow_portfolio",
         "report_preview",
     }
+    assert payload["data"]["decision_preview"]["endpoint"] == "/decision/proposal"
     _assert_no_forbidden_terms(payload)
 
 

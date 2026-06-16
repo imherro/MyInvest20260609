@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
+from invest_system.decision import build_decision_proposal
 from invest_system.entry import build_home_state
 from invest_system.guidance import compute_guidance_state
 from invest_system.repositories import SQLiteRepository
@@ -19,6 +20,7 @@ NAV_ITEMS = [
     {"label": "风险", "href": "/risk/view", "page": "risk"},
     {"label": "宏观", "href": "/macro/view", "page": "macro"},
     {"label": "对比", "href": "/comparison/view", "page": "comparison"},
+    {"label": "决策", "href": "/decision/view", "page": "decision"},
     {"label": "组合", "href": "/portfolio/view", "page": "portfolio"},
     {"label": "研究", "href": "/research/view", "page": "research"},
     {"label": "报告", "href": "/report/view", "page": "report"},
@@ -36,6 +38,7 @@ PAGE_TITLES = {
     "risk": "风险状态",
     "macro": "宏观状态",
     "comparison": "对比分析",
+    "decision": "决策预览",
     "portfolio": "影子组合",
     "research": "研究队列",
     "research_import": "研究 JSON 导入",
@@ -52,6 +55,7 @@ USABILITY_ENDPOINTS = [
     "/risk/view",
     "/macro/view",
     "/comparison/view",
+    "/decision/view",
     "/portfolio/view",
     "/research/view",
     "/research/import/view",
@@ -65,6 +69,7 @@ def build_portal_state(repo: SQLiteRepository, as_of: str | None = None) -> dict
     dashboard = build_dashboard_state(repo, as_of)["data"]
     home = build_home_state(repo, as_of)
     guidance = compute_guidance_state(repo, as_of)
+    decision_proposal = build_decision_proposal(repo, as_of)
     daily_workflow = build_daily_workflow_state(repo, as_of)
     usability = _build_usability_payload(dashboard, home, guidance)
     state = {
@@ -77,6 +82,7 @@ def build_portal_state(repo: SQLiteRepository, as_of: str | None = None) -> dict
             "dashboard": dashboard,
             "home": home,
             "daily_workflow": daily_workflow,
+            "decision_proposal": decision_proposal,
             "guidance": guidance,
             "usability": usability,
         },
@@ -118,6 +124,9 @@ def render_portal_page(state: dict[str, Any], page: str) -> str:
     elif page == "comparison":
         content = _comparison_content(data)
         active = "comparison"
+    elif page == "decision":
+        content = _decision_content(data)
+        active = "decision"
     elif page == "portfolio":
         content = _portfolio_content(data)
         active = "portfolio"
@@ -191,6 +200,13 @@ def _build_usability_payload(
             "/research/import/view",
         ),
         _usability_check(
+            "decision_proposal_visible",
+            "pass",
+            "决策预览",
+            "可解释决策草案有独立入口，并保持只读。",
+            "/decision/view",
+        ),
+        _usability_check(
             "next_action_visible",
             "pass" if home.get("next_action", {}).get("recommended_endpoint") else "warn",
             "下一步引导",
@@ -229,6 +245,7 @@ def _build_usability_payload(
         "human_flow": [
             {"step": "打开首页", "endpoint": "/app"},
             {"step": "查看每日工作流", "endpoint": "/workflow/daily/view"},
+            {"step": "查看决策预览", "endpoint": "/decision/view"},
             {"step": "查看今日边界", "endpoint": "/guidance/view"},
             {"step": "按下一步引导进入模块", "endpoint": home["next_action"]["recommended_endpoint"]},
             {"step": "查看组合、风险、研究或报告", "endpoint": "/dashboard"},
@@ -390,6 +407,7 @@ def _home_content(data: dict[str, Any]) -> str:
         ("风险状态", "/risk/view", "查看风控分数、暴露提示、集中度和风险警告。"),
         ("宏观状态", "/macro/view", "查看流动性、利率压力、风险周期和模型共识。"),
         ("对比分析", "/comparison/view", "比较影子组合、真实代理和基准的比例表现。"),
+        ("决策预览", "/decision/view", "查看只读建议、门槛状态和解释追溯链。"),
         ("影子组合", "/portfolio/view", "查看纸面模拟组合比例、偏离和回放来源。"),
         ("研究队列", "/research/view", "查看最新研究快照和 ResearchFirst 队列。"),
         ("研究导入", "/research/import/view", "粘贴研究 JSON，先校验，再追加写入系统。"),
@@ -691,6 +709,66 @@ def _comparison_content(data: dict[str, Any]) -> str:
 """
 
 
+def _decision_content(data: dict[str, Any]) -> str:
+    proposal = data["decision_proposal"]
+    if proposal["status"] == "empty":
+        return _empty_section("决策预览", "缺少研究、风险或组合来源，暂时无法生成决策预览。")
+    gate_rows = [[key, _workflow_status_label(value)] for key, value in proposal["gate_summary"].items()]
+    preview_rows = [
+        [
+            item["symbol"],
+            _endpoint_action_label(item["proposal"]),
+            _percent(item["current_weight"]),
+            _percent(item["target_weight"]),
+            f"{item['delta_weight_pp']} pp",
+            _gate_summary_text(item["gates"]),
+        ]
+        for item in proposal["decision_preview"]
+    ]
+    why_rows = [
+        [item["stage"], item["source_id"] or "derived", item["finding"]]
+        for item in proposal["explanation"]["why"]
+    ]
+    return f"""
+<section>
+  <h2>今日决策预览</h2>
+  <div class="grid-4">
+    {_metric_card("建议", _endpoint_action_label(proposal["recommended_action"]))}
+    {_metric_card("复核状态", _workflow_status_label(proposal["review_state"]))}
+    {_metric_card("置信度", _percent(proposal["confidence"]))}
+    {_metric_card("人工复核", _need_label(proposal["requires_human_review"]))}
+  </div>
+</section>
+<section>
+  <h2>门槛状态</h2>
+  {_table(["门槛", "状态"], gate_rows)}
+</section>
+<section>
+  <h2>标的级预览</h2>
+  {_table(["标的", "建议", "当前比例", "目标比例", "变化", "门槛"], preview_rows)}
+</section>
+<section>
+  <h2>为什么这么建议</h2>
+  {_table(["环节", "来源", "说明"], why_rows)}
+</section>
+<section class="grid-2">
+  <div class="panel">
+    <h2>阻断原因</h2>
+    {_list_items(proposal["explanation"]["blocked_reasons"], "当前没有阻断原因。")}
+  </div>
+  <div class="panel">
+    <h2>失效条件</h2>
+    {_list_items(proposal["invalidation_conditions"], "暂无失效条件。")}
+  </div>
+</section>
+<section class="panel">
+  <h2>JSON 追溯</h2>
+  <p><a href="/decision/proposal">查看决策预览 JSON</a></p>
+  <p class="detail"><a href="/decision/explain">查看解释链 JSON</a></p>
+</section>
+"""
+
+
 def _portfolio_content(data: dict[str, Any]) -> str:
     portfolio = data["dashboard"]["portfolio"]
     market = data["dashboard"]["market"]
@@ -883,6 +961,8 @@ def _system_content(data: dict[str, Any]) -> str:
         ["/guidance/state", "今日行动边界 JSON"],
         ["POST /research/import/validate", "研究导入校验 JSON"],
         ["POST /research/import", "研究追加导入 JSON"],
+        ["/decision/proposal", "决策预览 JSON"],
+        ["/decision/explain", "决策解释 JSON"],
         ["/system/dashboard_state", "综合看板 JSON"],
         ["/usability/state", "易用性检查 JSON"],
         ["/timeline/replay", "历史回放 JSON"],
@@ -1047,6 +1127,9 @@ def _endpoint_label(endpoint: str) -> str:
         "/macro/state": "宏观 JSON",
         "/comparison/view": "对比分析",
         "/comparison/state": "对比 JSON",
+        "/decision/view": "决策预览",
+        "/decision/proposal": "决策预览 JSON",
+        "/decision/explain": "决策解释 JSON",
         "/portfolio/view": "影子组合",
         "/portfolio/state": "组合 JSON",
         "/research/view": "研究队列",
@@ -1128,6 +1211,29 @@ def _workflow_status_label(value: str) -> str:
         "review_required": "需要复核",
         "action_required": "需要处理",
     }.get(value, value)
+
+
+def _endpoint_action_label(value: str) -> str:
+    return {
+        "observe": "观察",
+        "research_first": "先补研究",
+        "rebalance_candidate": "再平衡候选",
+        "no_action": "不行动",
+        "ready": "已就绪",
+        "blocked": "阻断",
+        "empty": "暂无状态",
+    }.get(value, value)
+
+
+def _gate_summary_text(gates: dict[str, Any]) -> str:
+    items = [
+        f"profile={gates['profile']}",
+        f"valuation={gates['valuation']}",
+        f"liquidity={gates['liquidity']}",
+        f"research_first={gates['research_first']}",
+        f"risk={gates['risk_boundary']}",
+    ]
+    return "; ".join(items)
 
 
 def _readiness_label(value: str) -> str:
