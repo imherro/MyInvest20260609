@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0",
+  "snapshot_id": "stock-valuation-2026-06-15-688603.SH-completed-research",
+  "basis_date": "2026-06-15",
+  "generated_at": "2026-06-16T06:30:02.151605Z",
+  "module": "stock_valuation",
+  "data_sources": [
+    "tushare:stock_basic",
+    "tushare:stock_company",
+    "tushare:daily",
+    "tushare:daily_basic",
+    "tushare:fina_indicator"
+  ],
+  "data_gaps": [
+    "Forward earnings forecast is unavailable in the local structured source.",
+    "Intraday spread and order-book depth were not available in the local structured source.",
+    "Longer-cycle valuation percentile beyond the current peer snapshot remains unavailable."
+  ],
+  "conflicts": [],
+  "executive_summary": "688603.SH is completed as 天承科技, a STAR Market electronic circuit chemical materials company. Profile and liquidity gates pass, but valuation fails because PE, PB, and PS are all in very high peer percentiles; ResearchFirst remains required.",
+  "key_facts": [
+    "Company profile completed: 天承科技 is based in 上海市 and its main business is electronic circuit specialty chemical R&D, production, and sales.",
+    "Industry peer set completed: Tushare classifies it as 化工原料 with 256 listed peers in the current comparison set.",
+    "Relative valuation completed: PE peer percentile is 0.9247, PB percentile is 0.9843, and PS percentile is 1.0000.",
+    "Liquidity check completed: turnover-rate peer percentile is 0.9608, so liquidity gate passes for research-review purposes.",
+    "Financial quality check completed: latest sampled ROE is 2.3262%, net margin is 20.5655%, debt-to-assets is 9.3416%, and growth ratios are positive."
+  ],
+  "reasoning": [
+    "Profile gate passes because Tushare confirms security identity, board, industry, location, and main business.",
+    "Liquidity gate passes for research-review purposes because recent turnover-rate evidence is active versus industry peers.",
+    "Valuation gate fails because peer percentile pressure, profitability quality, or negative earnings evidence is not acceptable for approval.",
+    "Risk disclosure passes because valuation, volatility, profitability, and data-gap risks are explicit.",
+    "ResearchFirst remains required; this completed research does not change target_pool or decision records."
+  ],
+  "risks": [
+    "Top-end peer valuation percentiles create severe repricing risk.",
+    "High recent turnover can indicate crowding pressure.",
+    "Electronic chemical demand is exposed to PCB and semiconductor cycle volatility."
+  ],
+  "conclusion_strength": "medium",
+  "actionability": "research_first",
+  "confidence": 0.79,
+  "invalidation_conditions": [
+    "A newer complete-day valuation record materially lowers peer-relative pressure.",
+    "A refreshed financial report changes profitability, growth, or leverage quality.",
+    "Liquidity records become stale or conflicting.",
+    "Company business profile or industry classification changes."
+  ],
+  "next_review_date": "2026-06-23",
+  "must_not_do": [
+    "Do not use this snapshot as external execution output.",
+    "Do not move this symbol into an approved target pool while valuation gate fails.",
+    "Do not infer a price target from the normalized pressure ratio."
+  ],
+  "required_human_review": true,
+  "status": "blocked",
+  "trace": {
+    "fact_pack_id": "completed-stock-research-688603.SH-2026-06-15-tushare",
+    "source_market_snapshot_id": "market-2026-06-15-mixed-adapter"
+  },
+  "payload": {
+    "symbol": "688603.SH",
+    "valuation_score": 10.0,
+    "fair_value_band_pct": {
+      "low": -0.1,
+      "mid": 0,
+      "high": 0.1
+    },
+    "observed_to_fair_value_ratio": 2.1,
+    "deviation": 1.1,
+    "risk_flag": "high",
+    "confidence": 0.79,
+    "method": "industry_peer_percentile_and_financial_quality_pressure_score_no_price_target",
+    "rating": "Watch"
+  }
+}

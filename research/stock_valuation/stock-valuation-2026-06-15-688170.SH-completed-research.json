@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0",
+  "snapshot_id": "stock-valuation-2026-06-15-688170.SH-completed-research",
+  "basis_date": "2026-06-15",
+  "generated_at": "2026-06-16T06:30:02.151605Z",
+  "module": "stock_valuation",
+  "data_sources": [
+    "tushare:stock_basic",
+    "tushare:stock_company",
+    "tushare:daily",
+    "tushare:daily_basic",
+    "tushare:fina_indicator"
+  ],
+  "data_gaps": [
+    "Forward earnings forecast is unavailable in the local structured source.",
+    "Intraday spread and order-book depth were not available in the local structured source.",
+    "Longer-cycle valuation percentile beyond the current peer snapshot remains unavailable."
+  ],
+  "conflicts": [],
+  "executive_summary": "688170.SH is completed as 德龙激光, a STAR Market precision laser equipment company. Profile and liquidity gates pass, but valuation fails because PE percentile is extreme and latest profitability ratios are negative; ResearchFirst remains required.",
+  "key_facts": [
+    "Company profile completed: 德龙激光 is based in 苏州市 and focuses on precision laser processing equipment, lasers, equipment leasing, and laser processing services.",
+    "Industry peer set completed: Tushare classifies it as 专用机械 with 291 listed peers in the current comparison set.",
+    "Relative valuation completed: PE peer percentile is 0.9585, PB percentile is 0.7292, and PS percentile is 0.7569.",
+    "Liquidity check completed: turnover-rate peer percentile is 0.9444, so liquidity gate passes for research-review purposes.",
+    "Financial quality check completed: latest sampled ROE is -2.3055%, net margin is -29.2348%, revenue growth is negative, and profit growth is negative."
+  ],
+  "reasoning": [
+    "Profile gate passes because Tushare confirms security identity, board, industry, location, and main business.",
+    "Liquidity gate passes for research-review purposes because recent turnover-rate evidence is active versus industry peers.",
+    "Valuation gate fails because peer percentile pressure, profitability quality, or negative earnings evidence is not acceptable for approval.",
+    "Risk disclosure passes because valuation, volatility, profitability, and data-gap risks are explicit.",
+    "ResearchFirst remains required; this completed research does not change target_pool or decision records."
+  ],
+  "risks": [
+    "Loss-making latest-period ratios block valuation approval.",
+    "Extreme PE percentile raises repricing risk.",
+    "Precision equipment demand can be capex-cycle sensitive."
+  ],
+  "conclusion_strength": "medium",
+  "actionability": "research_first",
+  "confidence": 0.76,
+  "invalidation_conditions": [
+    "A newer complete-day valuation record materially lowers peer-relative pressure.",
+    "A refreshed financial report changes profitability, growth, or leverage quality.",
+    "Liquidity records become stale or conflicting.",
+    "Company business profile or industry classification changes."
+  ],
+  "next_review_date": "2026-06-23",
+  "must_not_do": [
+    "Do not use this snapshot as external execution output.",
+    "Do not move this symbol into an approved target pool while valuation gate fails.",
+    "Do not infer a price target from the normalized pressure ratio."
+  ],
+  "required_human_review": true,
+  "status": "blocked",
+  "trace": {
+    "fact_pack_id": "completed-stock-research-688170.SH-2026-06-15-tushare",
+    "source_market_snapshot_id": "market-2026-06-15-mixed-adapter"
+  },
+  "payload": {
+    "symbol": "688170.SH",
+    "valuation_score": 8.0,
+    "fair_value_band_pct": {
+      "low": -0.1,
+      "mid": 0,
+      "high": 0.1
+    },
+    "observed_to_fair_value_ratio": 1.95,
+    "deviation": 0.95,
+    "risk_flag": "high",
+    "confidence": 0.76,
+    "method": "industry_peer_percentile_and_financial_quality_pressure_score_no_price_target",
+    "rating": "Watch"
+  }
+}
