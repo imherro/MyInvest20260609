@@ -15,21 +15,24 @@ The command creates a temporary validation database, seeds a three-day replay fi
 ## Run API
 
 ```powershell
-python -m uvicorn invest_system.web.app:app --app-dir src
+python -m uvicorn invest_system.web.app:app --app-dir src --host 127.0.0.1 --port 8008
 ```
 
 Open:
 
 ```text
-http://127.0.0.1:8000/
-http://127.0.0.1:8000/system/status
-http://127.0.0.1:8000/timeline/replay
-http://127.0.0.1:8000/dashboard
+http://127.0.0.1:8008/
+http://127.0.0.1:8008/home
+http://127.0.0.1:8008/system/status
+http://127.0.0.1:8008/timeline/replay
+http://127.0.0.1:8008/dashboard
 ```
 
 ## API
 
 - `GET /`
+- `GET /home`
+- `GET /entry/home_state`
 - `GET /market/latest`
 - `GET /research/latest`
 - `GET /target-pool/latest`
@@ -155,6 +158,19 @@ P1 read-only dashboard pages include:
 - report preview
 
 The shared JSON state is available at `GET /system/dashboard_state`. Pages render from SQLite and JSON state only, do not write to the database, and do not include trade controls.
+
+## Entry Layer
+
+P1 entry layer is read-only and JSON-only. It computes:
+
+- market status card
+- main theme card
+- portfolio summary card
+- risk snapshot card
+- next action guidance
+- navigation plan
+
+Entry APIs are `GET /home` and `GET /entry/home_state`. They derive guidance from existing dashboard, risk, macro, comparison, portfolio, and research state without writing to SQLite or changing core replay behavior.
 
 ## Risk Monitoring
 

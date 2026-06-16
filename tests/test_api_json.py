@@ -16,6 +16,8 @@ def test_required_api_endpoints_return_json(tmp_path) -> None:
 
     for path in [
         "/",
+        "/home",
+        "/entry/home_state",
         "/research/latest",
         "/market/latest",
         "/target-pool/latest",

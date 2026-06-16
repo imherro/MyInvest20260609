@@ -27,6 +27,8 @@ from invest_system.web import create_app  # noqa: E402
 DEFAULT_CHECK_DB = Path("temp/full_system_check.sqlite")
 API_ENDPOINTS = [
     "/",
+    "/home",
+    "/entry/home_state",
     "/market/latest",
     "/research/latest",
     "/target-pool/latest",

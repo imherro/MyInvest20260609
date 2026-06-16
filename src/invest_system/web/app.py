@@ -7,6 +7,7 @@ from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse
 
 from invest_system.comparison import compute_comparison_history, compute_comparison_state
+from invest_system.entry import build_home_state
 from invest_system.macro import compute_macro_history, compute_macro_state, compute_model_consensus
 from invest_system.repositories import DEFAULT_DB_PATH, SQLiteRepository
 from invest_system.risk import compute_risk_history, compute_risk_state
@@ -32,6 +33,8 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                 "service": "MyInvest JSON API",
                 "json_only": True,
                 "endpoints": [
+                    "/home",
+                    "/entry/home_state",
                     "/research/latest",
                     "/market/latest",
                     "/target-pool/latest",
@@ -57,6 +60,14 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                 ],
             },
         }
+
+    @app.get("/home")
+    def home_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return {"status": "ok", "data": build_home_state(repo, as_of)}
+
+    @app.get("/entry/home_state")
+    def entry_home_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return {"status": "ok", "data": build_home_state(repo, as_of)}
 
     @app.get("/research/latest")
     def research_latest() -> dict[str, Any]:

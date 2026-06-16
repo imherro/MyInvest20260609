@@ -1,0 +1,116 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "as_of",
+    "generated_at",
+    "source_endpoints",
+    "cards",
+    "next_action",
+    "navigation_plan"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "status": { "type": "string", "enum": ["ok", "empty"] },
+    "as_of": { "type": ["string", "null"] },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source_endpoints": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "cards": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["market_status", "main_theme", "portfolio_summary", "risk_snapshot"],
+      "properties": {
+        "market_status": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["overall_market_state", "liquidity_index", "risk_level"],
+          "properties": {
+            "overall_market_state": { "type": "string" },
+            "liquidity_index": { "type": "number", "minimum": 0, "maximum": 1 },
+            "risk_level": { "type": "string" }
+          }
+        },
+        "main_theme": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["current_theme", "strength_score", "leading_symbols", "clarity_state"],
+          "properties": {
+            "current_theme": { "type": ["string", "null"] },
+            "strength_score": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+            "leading_symbols": { "type": "array", "items": { "type": "string" } },
+            "clarity_state": { "type": "string", "enum": ["strong", "medium", "weak", "unavailable"] }
+          }
+        },
+        "portfolio_summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["shadow_return", "benchmark_return", "drawdown"],
+          "properties": {
+            "shadow_return": { "type": "number" },
+            "benchmark_return": { "type": "number" },
+            "drawdown": { "type": "number" }
+          }
+        },
+        "risk_snapshot": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["overall_risk_score", "risk_level", "exposure_warning"],
+          "properties": {
+            "overall_risk_score": { "type": "number", "minimum": 0, "maximum": 100 },
+            "risk_level": { "type": "string" },
+            "exposure_warning": { "type": "string" }
+          }
+        }
+      }
+    },
+    "next_action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recommended_next_view", "recommended_endpoint", "reason_code", "reasoning", "priority"],
+      "properties": {
+        "recommended_next_view": { "type": "string", "minLength": 1 },
+        "recommended_endpoint": { "type": "string", "minLength": 1 },
+        "reason_code": { "type": "string", "minLength": 1 },
+        "reasoning": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] }
+      }
+    },
+    "navigation_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path_id", "steps", "shortcuts"],
+      "properties": {
+        "path_id": { "type": "string", "minLength": 1 },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "view", "endpoint"],
+            "properties": {
+              "label": { "type": "string", "minLength": 1 },
+              "view": { "type": "string", "minLength": 1 },
+              "endpoint": { "type": "string", "minLength": 1 }
+            }
+          },
+          "minItems": 1
+        },
+        "shortcuts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "endpoint"],
+            "properties": {
+              "label": { "type": "string", "minLength": 1 },
+              "endpoint": { "type": "string", "minLength": 1 }
+            }
+          },
+          "minItems": 1
+        }
+      }
+    }
+  }
+}

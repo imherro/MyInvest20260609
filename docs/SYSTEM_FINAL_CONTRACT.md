@@ -88,6 +88,7 @@ Schema files:
 - `schemas/comparison_state.schema.json`
 - `schemas/macro_state.schema.json`
 - `schemas/model_consensus.schema.json`
+- `schemas/entry_home_state.schema.json`
 
 Repository append methods validate schema and policy before writing.
 
@@ -138,12 +139,14 @@ Report generation:
 Start the API:
 
 ```powershell
-python -m uvicorn invest_system.web.app:app --app-dir src
+python -m uvicorn invest_system.web.app:app --app-dir src --host 127.0.0.1 --port 8008
 ```
 
 Read-only JSON endpoints:
 
 - `GET /`
+- `GET /home`
+- `GET /entry/home_state`
 - `GET /market/latest`
 - `GET /research/latest`
 - `GET /target-pool/latest`
@@ -265,6 +268,43 @@ Dashboard rules:
 - no trading forms or order controls
 - no replay, shadow engine, or `event_log` changes
 - no sensitive account, amount, share, order, fill, or local absolute path exposure
+
+## Entry Layer Contract
+
+The P1 entry layer is a read-only user guidance layer above the existing analytical system.
+
+Entry APIs:
+
+- `GET /home`
+- `GET /entry/home_state`
+
+Entry input sources:
+
+- `/system/dashboard_state`
+- `/risk/state`
+- `/macro/state`
+- `/comparison/state`
+- `/portfolio/state`
+- `/research/latest`
+
+Entry output includes:
+
+- market status card
+- main theme card
+- portfolio summary card
+- risk snapshot card
+- `next_action`
+- `navigation_plan`
+
+Entry rules:
+
+- JSON output only
+- read-only computation only
+- no SQLite writes
+- no trading or execution output
+- no replay, shadow engine, risk engine, comparison system, macro system, or `event_log` changes
+- schema validation through `entry_home_state.schema.json`
+- `next_action` may point only to existing read-only JSON endpoints
 
 ## Risk Monitoring Contract
 
