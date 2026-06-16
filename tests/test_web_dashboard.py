@@ -160,6 +160,11 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "/timeline/replay?as_of=2026-06-15" in body
             assert ">159915.SZ<" not in body
         if path == "/market/view":
+            assert "市场结论" in body
+            assert "市场分数怎么读" in body
+            assert "权益目标区间" in body
+            assert "行动边界" in body
+            assert "查看今日边界" in body
             assert "永赢中证500ETF（退市）（159999.SZ）" in body
             assert "科创50ETF华夏（588000.SH）" in body
             assert "刷新市场快照" in body
@@ -167,6 +172,12 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert 'id="market-refresh"' in body
             assert 'id="market-refresh-button"' in body
             assert "/market/refresh" in body
+        if path == "/risk/view":
+            assert "风险结论" in body
+            assert "风险分数怎么读" in body
+            assert "分数和警告的关系" in body
+            assert "风险警告怎么读" in body
+            assert "今日边界" in body
         if path == "/macro/view":
             assert "宏观结论" in body
             assert "共识分数是宏观周期、市场位置、组合匹配度和研究质量四类模型分数的平均" in body

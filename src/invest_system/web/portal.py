@@ -712,6 +712,7 @@ def _guidance_content(data: dict[str, Any]) -> str:
 
 def _market_content(data: dict[str, Any]) -> str:
     market = data["dashboard"]["market"]
+    guidance = data["guidance"]
     target_pool = data["dashboard"]["target_pool"]
     if not market["available"]:
         return _empty_section("市场状态", "市场快照暂不可用，请先查看系统状态。")
@@ -720,13 +721,41 @@ def _market_content(data: dict[str, Any]) -> str:
         for entry in target_pool["entries"]
     ]
     return f"""
+<section class="two-pane">
+  <div class="panel highlight">
+    <h2>市场结论</h2>
+    <p class="value">{html.escape(_market_conclusion_label(market))}</p>
+    <p class="detail">{html.escape(_market_conclusion_detail(market, guidance))}</p>
+    <div class="badge-row">
+      <a class="step" href="/guidance/view">查看今日边界</a>
+      <a class="step" href="/decision/view">查看决策预览</a>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>行动边界</h2>
+    <p>{html.escape(_market_boundary_text(guidance))}</p>
+    <p class="detail">市场页只回答“环境如何”和“目标暴露区间在哪里”，不直接给出单一标的操作。</p>
+  </div>
+</section>
 <section>
   <h2>市场状态</h2>
   <div class="grid-4">
-    {_metric_card("市场评分", market["market_score"])}
-    {_metric_card("风险等级", market["risk_level"])}
+    {_metric_card("市场评分", _score_out_of_100(market["market_score"]))}
+    {_metric_card("风险等级", _market_risk_label(market["risk_level"]), _risk_class(market["risk_level"]))}
     {_metric_card("权益下限", _percent(market["equity_min"]))}
     {_metric_card("权益上限", _percent(market["equity_max"]))}
+  </div>
+</section>
+<section class="grid-2">
+  <div class="panel">
+    <h2>市场分数怎么读</h2>
+    <p>市场评分是 0 到 100 的环境分数，来自只读市场快照；分数越高，环境越偏积极，分数越低，越偏防守。</p>
+    <p class="detail">风险等级会把评分、数据质量、拥挤度和市场宽度一起压缩成低、中、高三档。</p>
+  </div>
+  <div class="panel">
+    <h2>权益目标区间</h2>
+    <p>{html.escape(_market_equity_range_text(market))}</p>
+    <p class="detail">这个区间是组合复核的参照边界，具体比例仍要经过 ResearchFirst、风险页和决策预览。</p>
   </div>
 </section>
 <section class="panel" id="market-refresh">
@@ -789,27 +818,62 @@ def _market_content(data: dict[str, Any]) -> str:
 
 def _risk_content(data: dict[str, Any]) -> str:
     risk = data["dashboard"]["risk"]
+    guidance = data["guidance"]
     if not risk["available"]:
         return _empty_section("风险状态", "风险状态暂不可用，请先查看系统状态。")
     warning_rows = [
-        [item["code"], item["severity"], item["message"], item["source"]]
+        [
+            _risk_warning_label(item["code"]),
+            _severity_label(item["severity"]),
+            item["message"],
+            _risk_warning_meaning(item),
+            _risk_source_label(item["source"]),
+        ]
         for item in risk["warnings"]
     ]
     if not warning_rows:
-        warning_rows = [["none", "low", "当前没有风险警告。", "risk_state"]]
+        warning_rows = [["无", "低", "当前没有风险警告。", "无需处理。", "风险状态"]]
     return f"""
+<section class="two-pane">
+  <div class="panel highlight">
+    <h2>风险结论</h2>
+    <p class="value">{html.escape(_risk_conclusion_label(risk))}</p>
+    <p class="detail">{html.escape(_risk_conclusion_detail(risk, guidance))}</p>
+    <div class="badge-row">
+      <a class="step" href="/guidance/view">查看今日边界</a>
+      <a class="step" href="/portfolio/view">查看组合</a>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>今日边界</h2>
+    <p>{html.escape(_risk_boundary_text(risk, guidance))}</p>
+    <p class="detail">风险页只说明阻断或复核原因，不能绕过研究门槛和决策记录。</p>
+  </div>
+</section>
 <section>
   <h2>风险状态</h2>
   <div class="grid-4">
-    {_metric_card("风险分数", risk["overall_risk_score"])}
-    {_metric_card("风险等级", risk["risk_level"], _risk_class(risk["risk_level"]))}
+    {_metric_card("风险分数", _score_out_of_100(risk["overall_risk_score"]))}
+    {_metric_card("风险等级", _risk_level_label(risk["risk_level"]), _risk_class(risk["risk_level"]))}
     {_metric_card("暴露提示", _exposure_label(risk["exposure_warning"]))}
     {_metric_card("影子差距", f"{risk['shadow_vs_market_gap']} pp")}
   </div>
 </section>
+<section class="grid-2">
+  <div class="panel">
+    <h2>风险分数怎么读</h2>
+    <p>风险分数是 0 到 100 的综合压力分数，越高越需要先处理风险。65 以上为高风险，30 到 65 为中等风险，30 以下为低风险。</p>
+    <p class="detail">它由暴露偏离、集中度、研究与决策差距、影子组合差距、拥挤度和警告数量共同生成。</p>
+  </div>
+  <div class="panel">
+    <h2>分数和警告的关系</h2>
+    <p>风险警告说明“分数为什么上升”，风险分数说明“整体压力有多大”。两者要一起看。</p>
+    <p class="detail">如果警告存在，先处理警告来源；如果没有警告，再看组合和决策是否匹配。</p>
+  </div>
+</section>
 <section>
-  <h2>风险警告</h2>
-  {_table(["代码", "等级", "说明", "来源"], warning_rows)}
+  <h2>风险警告怎么读</h2>
+  {_table(["风险项", "等级", "说明", "代表含义", "来源"], warning_rows)}
 </section>
 <section class="grid-3">
   {_metric_card("集中度风险", risk["concentration_risk"])}
@@ -817,6 +881,132 @@ def _risk_content(data: dict[str, Any]) -> str:
   {_metric_card("暴露状态", _exposure_label(risk["exposure_warning"]))}
 </section>
 """
+
+
+def _market_conclusion_label(market: dict[str, Any]) -> str:
+    score = float(market["market_score"])
+    risk_level = market["risk_level"]
+    if risk_level == "high" or score < 40:
+        return "市场偏防守"
+    if score >= 60 and risk_level == "low":
+        return "市场偏积极"
+    if score >= 60:
+        return "评分偏积极，风险仍需复核"
+    return "市场均衡偏观察"
+
+
+def _market_conclusion_detail(market: dict[str, Any], guidance: dict[str, Any]) -> str:
+    score = _score_out_of_100(market["market_score"])
+    risk = _market_risk_label(market["risk_level"])
+    range_text = _market_equity_range_text(market)
+    base = f"市场评分 {score}，市场风险等级为{risk}，{range_text}"
+    readiness = guidance.get("readiness", {})
+    if not readiness.get("can_increase_risk", False):
+        return base + " 今日边界未允许提高风险，先处理研究、风险或数据缺口。"
+    return base + " 可以进入只读复核，但仍要以今日边界和决策预览为准。"
+
+
+def _market_boundary_text(guidance: dict[str, Any]) -> str:
+    readiness = guidance.get("readiness", {})
+    if not readiness.get("can_increase_risk", False):
+        return "今日边界没有放行提高风险；市场页只能提示环境，不改变影子组合目标。"
+    return "今日边界允许进入下一步复核；仍需要风险页、研究页和决策预览共同确认。"
+
+
+def _market_equity_range_text(market: dict[str, Any]) -> str:
+    return f"权益目标区间为 {_percent(market['equity_min'])} 到 {_percent(market['equity_max'])}。"
+
+
+def _market_risk_label(value: str) -> str:
+    return {
+        "low": "低",
+        "medium": "中等",
+        "high": "高",
+    }.get(value, value)
+
+
+def _risk_conclusion_label(risk: dict[str, Any]) -> str:
+    level = risk["risk_level"]
+    warning_count = len(risk["warnings"])
+    if level == "high":
+        return "风险偏高，先处理边界"
+    if warning_count:
+        return "存在风险警告，先复核来源"
+    if level == "medium":
+        return "风险中等，需要观察"
+    return "风险较低，保持复核"
+
+
+def _risk_conclusion_detail(risk: dict[str, Any], guidance: dict[str, Any]) -> str:
+    score = _score_out_of_100(risk["overall_risk_score"])
+    level = _risk_level_label(risk["risk_level"])
+    warnings = len(risk["warnings"])
+    exposure = _exposure_label(risk["exposure_warning"])
+    base = f"风险分数 {score}，等级为{level}，暴露提示为{exposure}，当前有 {warnings} 条风险警告。"
+    readiness = guidance.get("readiness", {})
+    if not readiness.get("can_increase_risk", False):
+        return base + " 今日边界未允许提高风险，先按警告来源复核。"
+    return base + " 可以继续进入组合和决策复核。"
+
+
+def _risk_boundary_text(risk: dict[str, Any], guidance: dict[str, Any]) -> str:
+    readiness = guidance.get("readiness", {})
+    if risk["risk_level"] == "high":
+        return "风险等级为高，先处理风险警告和组合暴露，再看后续决策。"
+    if risk["warnings"]:
+        return "存在风险警告，先确认警告来源是否已经被研究或市场快照解释。"
+    if not readiness.get("can_increase_risk", False):
+        return "风险页没有高风险警告，但今日边界仍未放行提高风险。"
+    return "风险页没有形成阻断，可继续查看决策预览和影子组合。"
+
+
+def _risk_level_label(value: str) -> str:
+    return {
+        "low": "低",
+        "medium": "中等",
+        "high": "高",
+    }.get(value, value)
+
+
+def _severity_label(value: str) -> str:
+    return {
+        "low": "低",
+        "medium": "中等",
+        "high": "高",
+    }.get(value, value)
+
+
+def _risk_warning_label(value: str) -> str:
+    return {
+        "exposure_deviation": "权益暴露偏离",
+        "concentration_risk": "集中度偏高",
+        "research_execution_mismatch": "研究与组合偏离",
+        "shadow_vs_market_gap": "影子组合偏离市场",
+        "market_risk": "市场风险抬升",
+        "data_gap": "数据缺口",
+    }.get(value, value)
+
+
+def _risk_warning_meaning(item: dict[str, str]) -> str:
+    return {
+        "exposure_deviation": "当前权益比例偏离市场目标中枢，需要回到组合页核对。",
+        "concentration_risk": "最大单项比例偏高，组合分散度需要复核。",
+        "research_execution_mismatch": "组合状态和决策目标不一致，需要看决策预览。",
+        "shadow_vs_market_gap": "影子组合相对基准偏离，需要看对比分析。",
+        "market_risk": "市场拥挤度或风险等级偏高，需要先看市场页。",
+        "data_gap": "研究或市场输入不完整，需要先补数据。",
+    }.get(item["code"], "该风险项需要人工复核来源。")
+
+
+def _risk_source_label(value: str) -> str:
+    return {
+        "portfolio_vs_market": "组合与市场目标",
+        "portfolio_snapshot": "组合快照",
+        "decision_record": "决策记录",
+        "market_snapshot": "市场快照",
+        "research_or_market": "研究或市场数据",
+        "risk_state": "风险状态",
+    }.get(value, value)
 
 
 def _macro_content(data: dict[str, Any]) -> str:
