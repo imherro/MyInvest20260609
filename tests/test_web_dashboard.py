@@ -294,6 +294,20 @@ def test_market_view_refresh_date_matches_reference_date(tmp_path) -> None:
     assert "默认日期跟首页今日刷新状态一致" in body
 
 
+def test_daily_refresh_counts_research_written_today_with_prior_basis_date(tmp_path) -> None:
+    db_path = tmp_path / "dashboard_research_activity.sqlite"
+    repo = SQLiteRepository(db_path)
+    seed_multiday_repository(repo)
+    repo.append_research_snapshot(_symbol_research("588000.SH", "observe"))
+
+    state = build_dashboard_state(repo, "2026-06-16")["data"]["daily_refresh"]
+    research_item = next(item for item in state["items"] if item["item_id"] == "research")
+
+    assert research_item["status"] == "done"
+    assert research_item["last_basis_date"] == "2026-06-16"
+    assert research_item["detail"] == "今天已有研究快照写入。"
+
+
 def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
     db_path = tmp_path / "theme_view.sqlite"
     repo = SQLiteRepository(db_path)

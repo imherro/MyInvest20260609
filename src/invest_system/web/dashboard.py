@@ -210,7 +210,7 @@ def _daily_refresh_state(
 ) -> dict[str, Any]:
     reference_date = _reference_date(as_of)
     market_event = _latest_event_for_date(timeline, reference_date, "market")
-    research_event = _latest_event_for_date(timeline, reference_date, "research")
+    research_event = _latest_research_event_for_date(timeline, reference_date)
     qmt_status = actual_vs_shadow["qmt_read_status"]
     qmt_done = qmt_status["status"] == "success" and qmt_status["last_basis_date"] == reference_date
     items = [
@@ -228,11 +228,15 @@ def _daily_refresh_state(
             item_id="research",
             label="研究快照",
             done=research_event is not None,
-            last_basis_date=research_event["basis_date"] if research_event else _latest_basis_date(timeline, "research"),
+            last_basis_date=(
+                _research_refresh_display_date(research_event, reference_date)
+                if research_event
+                else _latest_research_refresh_display_date(timeline)
+            ),
             endpoint="/research/import/view",
             action_label="导入研究 JSON",
-            done_detail="今天已有研究快照。",
-            pending_detail="今天还没有研究快照。",
+            done_detail="今天已有研究快照写入。",
+            pending_detail="今天还没有研究快照写入。",
         ),
         _daily_refresh_item(
             item_id="qmt",
@@ -292,6 +296,38 @@ def _latest_event_for_date(
     for event in reversed(timeline):
         if event["type"] == event_type and event["basis_date"] == basis_date:
             return event
+    return None
+
+
+def _latest_research_event_for_date(timeline: list[dict[str, Any]], reference_date: str) -> dict[str, Any] | None:
+    for event in reversed(timeline):
+        if event["type"] != "research":
+            continue
+        if event["basis_date"] == reference_date or _research_activity_date(event) == reference_date:
+            return event
+    return None
+
+
+def _research_activity_date(event: dict[str, Any]) -> str | None:
+    timestamp = str(event.get("timestamp") or "")
+    if len(timestamp) >= 10:
+        return timestamp[:10]
+    generated_at = str(event.get("payload", {}).get("generated_at") or "")
+    if len(generated_at) >= 10:
+        return generated_at[:10]
+    return None
+
+
+def _research_refresh_display_date(event: dict[str, Any], reference_date: str) -> str:
+    if event["basis_date"] == reference_date:
+        return event["basis_date"]
+    return _research_activity_date(event) or event["basis_date"]
+
+
+def _latest_research_refresh_display_date(timeline: list[dict[str, Any]]) -> str | None:
+    for event in reversed(timeline):
+        if event["type"] == "research":
+            return _research_activity_date(event) or event["basis_date"]
     return None
 
 
