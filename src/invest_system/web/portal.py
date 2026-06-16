@@ -436,19 +436,27 @@ def _page_shell(title: str, active: str, content: str, data: dict[str, Any]) -> 
     .grid-2 {{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }}
     .grid-3 {{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; }}
     .grid-4 {{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; }}
-    .feature-grid {{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; }}
-    .feature {{ display:flex; flex-direction:column; gap:8px; min-height:96px; }}
-    .feature a {{ font-weight:800; color:var(--ink); }}
+    .entry-groups {{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:10px; }}
+    .entry-group {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; min-width:0; }}
+    .entry-group h3 {{ color:#344054; font-size:14px; margin-bottom:8px; }}
+    .entry-list {{ display:flex; flex-direction:column; gap:4px; }}
+    .entry-link {{ display:block; border-radius:6px; padding:7px 8px; color:var(--ink); }}
+    .entry-link:hover {{ background:#f0f4f8; text-decoration:none; }}
+    .entry-link.priority {{ margin-left:12px; border-left:3px solid var(--accent); background:var(--soft); padding-left:9px; }}
+    .entry-title {{ display:flex; align-items:center; justify-content:space-between; gap:8px; font-weight:800; }}
+    .entry-status {{ display:block; margin-top:2px; color:var(--muted); font-size:12px; line-height:1.35; }}
+    .entry-flag {{ border:1px solid #8ec8c1; border-radius:999px; padding:1px 6px; color:var(--accent-ink); font-size:11px; font-weight:800; white-space:nowrap; }}
     .detail {{ color:var(--muted); margin-top:8px; }}
     .small {{ color:var(--muted); font-size:13px; }}
     .label {{ color:var(--muted); font-size:13px; margin-bottom:4px; }}
     .value {{ font-size:22px; font-weight:800; overflow-wrap:anywhere; }}
     .badge-row {{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }}
     .badge {{ border:1px solid var(--line); border-radius:6px; padding:5px 8px; background:#fff; color:var(--muted); font-size:13px; }}
-    .help-row {{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }}
-    .help-tip {{ position:relative; display:inline-flex; align-items:center; justify-content:center; gap:4px; border:1px solid #b7c3d0; border-radius:999px; min-width:24px; min-height:24px; padding:3px 8px; background:#fff; color:#344054; font-size:12px; font-weight:800; cursor:help; outline:none; }}
-    .help-tip::after {{ content:attr(data-tip); position:absolute; left:0; top:calc(100% + 8px); width:min(360px, 80vw); padding:10px 12px; border:1px solid #b7c3d0; border-radius:8px; background:#101828; color:#fff; font-weight:400; line-height:1.5; box-shadow:0 10px 24px rgba(16,24,40,0.18); opacity:0; transform:translateY(-4px); pointer-events:none; transition:opacity .12s ease, transform .12s ease; z-index:30; white-space:normal; }}
-    .help-tip:hover::after, .help-tip:focus::after {{ opacity:1; transform:translateY(0); }}
+    .help-row {{ display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; color:var(--muted); font-size:13px; }}
+    .has-tip, .help-tip {{ position:relative; cursor:help; outline:none; text-decoration:underline dotted #98a2b3; text-underline-offset:3px; }}
+    .help-tip {{ display:inline; border:0; padding:0; background:transparent; color:var(--accent-ink); font-size:13px; font-weight:700; }}
+    .has-tip::after, .help-tip::after {{ content:attr(data-tip); position:absolute; left:0; top:calc(100% + 8px); width:min(360px, 80vw); padding:10px 12px; border:1px solid #b7c3d0; border-radius:8px; background:#101828; color:#fff; font-weight:400; font-size:13px; line-height:1.5; box-shadow:0 10px 24px rgba(16,24,40,0.18); opacity:0; transform:translateY(-4px); pointer-events:none; transition:opacity .12s ease, transform .12s ease; z-index:30; white-space:normal; text-decoration:none; }}
+    .has-tip:hover::after, .has-tip:focus::after, .help-tip:hover::after, .help-tip:focus::after {{ opacity:1; transform:translateY(0); }}
     .compact-boundary {{ display:flex; flex-direction:column; justify-content:center; }}
     .compact-boundary .badge-row {{ margin-top:8px; }}
     .compact-details {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; margin:0 0 18px; overflow:visible; }}
@@ -483,8 +491,8 @@ def _page_shell(title: str, active: str, content: str, data: dict[str, Any]) -> 
     .prompt-textarea {{ min-height:120px; max-height:220px; margin-top:8px; resize:vertical; }}
     .prompt-actions {{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px; }}
     .copy-status {{ color:var(--muted); font-size:13px; }}
-    @media (max-width:900px) {{ .top {{ align-items:flex-start; flex-direction:column; }} nav {{ justify-content:flex-start; }} .hero, .two-pane, .footer-grid {{ grid-template-columns:1fr; }} .footer-links {{ justify-content:flex-start; }} .feature-grid, .grid-4 {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} .grid-3 {{ grid-template-columns:1fr; }} }}
-    @media (max-width:560px) {{ .wrap, main {{ padding-left:12px; padding-right:12px; }} .feature-grid, .grid-4, .grid-2 {{ grid-template-columns:1fr; }} h1 {{ font-size:22px; }} }}
+    @media (max-width:900px) {{ .top {{ align-items:flex-start; flex-direction:column; }} nav {{ justify-content:flex-start; }} .hero, .two-pane, .footer-grid {{ grid-template-columns:1fr; }} .footer-links {{ justify-content:flex-start; }} .entry-groups, .grid-4 {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} .grid-3 {{ grid-template-columns:1fr; }} }}
+    @media (max-width:560px) {{ .wrap, main {{ padding-left:12px; padding-right:12px; }} .entry-groups, .grid-4, .grid-2 {{ grid-template-columns:1fr; }} h1 {{ font-size:22px; }} }}
   </style>
 </head>
 <body data-page-shell="portal">
@@ -504,7 +512,7 @@ def _page_shell(title: str, active: str, content: str, data: dict[str, Any]) -> 
         <p class="detail">{today}</p>
       </div>
       <div class="panel compact-boundary">
-        <h2>使用边界 {_tip("所有页面只读取 JSON 与 SQLite 回放结果。研究、决策、影子组合分层显示；浏览器界面只允许受控追加快照，不触发交易。")}</h2>
+        <h2>{_with_tip("使用边界", "所有页面只读取 JSON 与 SQLite 回放结果。研究、决策、影子组合分层显示；浏览器界面只允许受控追加快照，不触发交易。")}</h2>
         <div class="badge-row">
           <span class="badge">JSON 事实源</span>
           <span class="badge">只读展示</span>
@@ -557,6 +565,15 @@ def _tip(text: str, label: str = "说明") -> str:
     )
 
 
+def _with_tip(text: str, tip: str, class_name: str = "") -> str:
+    classes = " ".join(part for part in ["has-tip", class_name] if part)
+    escaped_tip = html.escape(tip, quote=True)
+    return (
+        f'<span class="{classes}" tabindex="0" aria-label="{escaped_tip}" '
+        f'data-tip="{escaped_tip}">{html.escape(text)}</span>'
+    )
+
+
 def _help_row(items: list[tuple[str, str]]) -> str:
     if not items:
         return ""
@@ -566,61 +583,119 @@ def _help_row(items: list[tuple[str, str]]) -> str:
 
 def _compact_details(title: str, body: str, tip: str | None = None, open_by_default: bool = False) -> str:
     open_attr = " open" if open_by_default else ""
-    tip_html = _tip(tip) if tip else ""
+    summary_title = _with_tip(title, tip) if tip else html.escape(title)
     return f"""
 <details class="compact-details"{open_attr}>
-  <summary>{html.escape(title)} {tip_html}</summary>
+  <summary>{summary_title}</summary>
   <div class="details-body">{body}</div>
 </details>
 """
 
 
-def _home_priority_cards(data: dict[str, Any]) -> str:
+def _home_priority_map(data: dict[str, Any]) -> dict[str, dict[str, str]]:
     dashboard = data["dashboard"]
     guidance = data["guidance"]
     queue = guidance["research_first"]["queue"]
     valuation_review = data["research_valuation_review"]
     theme = dashboard["research"]["theme"]
-    cards = [
-        (
-            "每日报告",
-            "/report/view",
-            _report_headline(data),
-            "先看今天总摘要、阅读顺序和来源编号。",
-        ),
-        (
-            "主线状态",
-            "/theme/view#theme-representative-scope",
-            _theme_scope_headline(theme),
-            _theme_scope_detail(theme),
-        ),
-        (
-            "研究工作台",
-            "/research/view#research-workbench",
-            _research_workbench_title(queue, valuation_review),
-            "处理 ResearchFirst 队列、估值复核和补充研究提示词。",
-        ),
-        (
-            "组合核对",
-            "/portfolio/view",
-            _portfolio_conclusion_label(
+    return {
+        "每日报告": {
+            "href": "/report/view",
+            "status": _report_headline(data),
+            "detail": "先看今天总摘要、阅读顺序和来源编号。",
+        },
+        "主线状态": {
+            "href": "/theme/view#theme-representative-scope",
+            "status": _theme_scope_headline(theme),
+            "detail": _theme_scope_detail(theme),
+        },
+        "研究工作台": {
+            "href": "/research/view#research-workbench",
+            "status": _research_workbench_title(queue, valuation_review),
+            "detail": "处理 ResearchFirst 队列、估值复核和补充研究提示词。",
+        },
+        "组合核对": {
+            "href": "/portfolio/view",
+            "status": _portfolio_conclusion_label(
                 dashboard["portfolio"],
                 dashboard["actual_vs_shadow"],
                 dashboard["market"],
             ),
-            "核对影子组合、实际持仓比例、纸面调仓和历史快照。",
+            "detail": "核对影子组合、实际持仓比例、纸面调仓和历史快照。",
+        },
+    }
+
+
+def _home_entry_groups(data: dict[str, Any]) -> str:
+    priorities = _home_priority_map(data)
+    groups = [
+        (
+            "今日先看",
+            [
+                ("每日报告", "/report/view", "查看今天的结论摘要、阅读顺序和来源编号。"),
+                ("每日工作流", "/workflow/daily/view", "检查今天市场、主线、边界、组合和报告是否形成闭环。"),
+                ("今日行动边界", "/guidance/view", "先判断今天能不能提高风险、新增标的或只读复核。"),
+            ],
+        ),
+        (
+            "研究与市场",
+            [
+                ("市场状态", "/market/view", "查看市场评分、风险等级、权益比例边界和数据缺口。"),
+                ("主线状态", "/theme/view#theme-representative-scope", "查看 AI、半导体、电力设备、机器人等方向是否进入当前主线。"),
+                ("研究工作台", "/research/view#research-workbench", "查看最新研究快照和 ResearchFirst 队列。"),
+                ("研究导入", "/research/import/view", "粘贴研究 JSON，先校验，再追加写入系统。"),
+            ],
+        ),
+        (
+            "决策与组合",
+            [
+                ("决策预览", "/decision/view", "查看只读建议、门槛状态和解释追溯链。"),
+                ("组合核对", "/portfolio/view", "查看纸面模拟组合比例、偏离和回放来源。"),
+                ("策略目标池", "/target-pool/view", "区分系统策略候选、ResearchFirst 范围和 QMT 实际持仓对照。"),
+                ("对比分析", "/comparison/view", "比较影子组合、真实代理和基准的比例表现。"),
+            ],
+        ),
+        (
+            "风险与系统",
+            [
+                ("风险状态", "/risk/view", "查看风控分数、暴露提示、集中度和风险警告。"),
+                ("宏观状态", "/macro/view", "查看流动性、利率压力、风险周期和模型共识。"),
+                ("系统状态", "/system/view", "查看自检、回放、记录数量和 JSON 入口。"),
+                ("易用性检查", "/usability/view", "检查入口、页头、页脚、引导和执行边界。"),
+            ],
         ),
     ]
-    return "".join(_priority_entry_card(title, href, status, detail) for title, href, status, detail in cards)
-
-
-def _priority_entry_card(title: str, href: str, status: str, detail: str) -> str:
-    return f"""
-<div class="panel feature">
-  <a href="{html.escape(href)}">{html.escape(title)}</a>
-  <p class="value">{html.escape(status)}</p>
-  <p class="small">{_tip(detail, "悬停说明")}</p>
+    group_html = []
+    for group_title, items in groups:
+        links = "".join(_home_entry_link(title, href, detail, priorities.get(title)) for title, href, detail in items)
+        group_html.append(
+            f"""
+<div class="entry-group">
+  <h3>{html.escape(group_title)}</h3>
+  <div class="entry-list">{links}</div>
 </div>
+"""
+        )
+    return f'<div class="entry-groups">{"".join(group_html)}</div>'
+
+
+def _home_entry_link(
+    title: str,
+    href: str,
+    detail: str,
+    priority: dict[str, str] | None,
+) -> str:
+    effective_href = priority["href"] if priority else href
+    effective_detail = priority["detail"] if priority else detail
+    class_name = "entry-link has-tip priority" if priority else "entry-link has-tip"
+    status = f'<span class="entry-status">{html.escape(priority["status"])}</span>' if priority else ""
+    flag = '<span class="entry-flag">重点</span>' if priority else ""
+    escaped_tip = html.escape(effective_detail, quote=True)
+    return f"""
+<a class="{class_name}" href="{html.escape(effective_href)}" tabindex="0" aria-label="{escaped_tip}" data-tip="{escaped_tip}">
+  <span class="entry-title">{html.escape(title)}{flag}</span>
+  {status}
+</a>
 """
 
 
@@ -661,25 +736,7 @@ def _home_content(data: dict[str, Any]) -> str:
     dashboard = data["dashboard"]
     next_action = home["next_action"]
     next_endpoint = _human_endpoint(next_action["recommended_endpoint"])
-    features = [
-        ("每日工作流", "/workflow/daily/view", "检查今天市场、主线、边界、组合和报告是否形成闭环。"),
-        ("今日行动边界", "/guidance/view", "先判断今天能不能提高风险、新增标的或只读复核。"),
-        ("市场状态", "/market/view", "查看市场评分、风险等级、权益比例边界和数据缺口。"),
-        ("主线研究", "/theme/view", "查看 AI、半导体、电力设备、机器人等方向是否进入当前主线。"),
-        ("风险状态", "/risk/view", "查看风控分数、暴露提示、集中度和风险警告。"),
-        ("宏观状态", "/macro/view", "查看流动性、利率压力、风险周期和模型共识。"),
-        ("对比分析", "/comparison/view", "比较影子组合、真实代理和基准的比例表现。"),
-        ("决策预览", "/decision/view", "查看只读建议、门槛状态和解释追溯链。"),
-        ("策略目标池", "/target-pool/view", "区分系统策略候选、ResearchFirst 范围和 QMT 实际持仓对照。"),
-        ("影子组合", "/portfolio/view", "查看纸面模拟组合比例、偏离和回放来源。"),
-        ("研究队列", "/research/view", "查看最新研究快照和 ResearchFirst 队列。"),
-        ("研究导入", "/research/import/view", "粘贴研究 JSON，先校验，再追加写入系统。"),
-        ("每日报告", "/report/view", "查看今天的结论摘要、阅读顺序和来源编号。"),
-        ("系统状态", "/system/view", "查看自检、回放、记录数量和 JSON 入口。"),
-        ("易用性检查", "/usability/view", "检查入口、页头、页脚、引导和执行边界。"),
-    ]
-    feature_cards = "".join(_feature_card(title, href, detail) for title, href, detail in features)
-    priority_cards = _home_priority_cards(data)
+    feature_groups = _home_entry_groups(data)
     flow = data["usability"]["human_flow"]
     flow_steps = _linked_flow(flow)
     readiness = guidance["readiness"]
@@ -708,13 +765,8 @@ def _home_content(data: dict[str, Any]) -> str:
 </section>
 {_daily_refresh_strip(daily_refresh)}
 <section>
-  <h2>优先入口</h2>
-  {_help_row([("怎么用", "打开系统后先看这三处：先读结论，再处理研究卡点，最后核对组合。")])}
-  <div class="feature-grid">{priority_cards}</div>
-</section>
-<section>
-  <h2>全部功能入口</h2>
-  <div class="feature-grid">{feature_cards}</div>
+  <h2>{_with_tip("全部功能入口", "重点入口已经缩进并标记为重点；日常从每日报告、主线状态、研究工作台和组合核对开始。鼠标移到入口名称上可看用途说明。")}</h2>
+  {feature_groups}
 </section>
 <section class="panel">
   <h2>导航路径</h2>
@@ -2869,16 +2921,7 @@ def _usability_content(data: dict[str, Any]) -> str:
   <div class="path">{flow}</div>
 </section>
 {_compact_details("检查项", checks_body, "完整易用性检查默认收起，保留给排查入口和边界问题使用。")}
-{_compact_details("全部入口", entry_body, "完整页面入口默认收起，日常从顶部导航或首页优先入口进入。")}
-"""
-
-
-def _feature_card(title: str, href: str, detail: str) -> str:
-    return f"""
-<div class="panel feature">
-  <a href="{html.escape(href)}">{html.escape(title)}</a>
-  <p class="small">{_tip(detail, "悬停说明")}</p>
-</div>
+{_compact_details("全部入口", entry_body, "完整页面入口默认收起，日常从顶部导航或首页重点入口进入。")}
 """
 
 

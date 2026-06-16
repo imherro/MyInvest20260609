@@ -122,7 +122,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
         assert "MyInvest" in body
         assert "data-page-shell=\"portal\"" in body
         assert "统一页脚" in body
-        assert "help-tip" in body
+        assert "has-tip" in body
         assert "/app" in body
         assert "/guidance/view" in body
         if path == "/dashboard":
@@ -142,8 +142,12 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert 'href="/research/view"' in body
             assert 'href="/research/latest"' not in body
         if path == "/app":
-            assert "优先入口" in body
-            assert "打开系统后先看这三处" in body
+            assert "优先入口" not in body
+            assert "全部功能入口" in body
+            assert "entry-groups" in body
+            assert "entry-link has-tip priority" in body
+            assert "重点" in body
+            assert "日常从每日报告、主线状态、研究工作台和组合核对开始" in body
             assert "compact-details" in body
             assert 'href="/report/view"' in body
             assert "主线状态" in body
