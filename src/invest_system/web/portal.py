@@ -1225,7 +1225,7 @@ def _endpoint_label(endpoint: str) -> str:
         "/decision/explain": "决策解释 JSON",
         "/portfolio/view": "影子组合",
         "/portfolio/state": "组合 JSON",
-        "/research/view": "研究队列",
+        "/research/view": "研究结论",
         "/research/import/view": "研究导入",
         "/research/import/validate": "研究导入校验 JSON",
         "/research/import": "研究追加导入 JSON",

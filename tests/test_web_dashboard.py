@@ -120,6 +120,8 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
         if path in {"/app", "/home_human"}:
             assert 'href="/portfolio/view"' in body
             assert 'href="/portfolio/state"' not in body
+            assert 'href="/research/view"' in body
+            assert 'href="/research/latest"' not in body
         if path == "/portfolio/view":
             assert "创业板ETF易方达（159915.SZ）" in body
             assert "沪深300ETF华泰柏瑞（510300.SH）" in body

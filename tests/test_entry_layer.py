@@ -7,6 +7,7 @@ import httpx
 
 from invest_system.adapters import append_market_snapshot_from_adapters, build_p0c_price_data_from_bundle
 from invest_system.entry import build_home_state
+from invest_system.entry.human import render_home_human_page
 from invest_system.golden import seed_multiday_repository
 from invest_system.repositories import SQLiteRepository
 from invest_system.research import generate_p0c_research
@@ -96,6 +97,26 @@ def test_home_human_view_is_read_only_plain_language(tmp_path) -> None:
     assert repo.table_counts() == before_counts
     for forbidden in FORBIDDEN_TERMS:
         assert forbidden not in body
+
+
+def test_legacy_human_entry_maps_research_action_to_human_view(tmp_path) -> None:
+    repo = _prepare_entry_repo(tmp_path)
+    home_state = build_home_state(repo, "2026-06-15")
+    home_state["next_action"]["recommended_endpoint"] = "/research/latest"
+    home_state["navigation_plan"]["steps"] = [
+        {"label": "Home", "endpoint": "/home"},
+        {"label": "Research", "endpoint": "/research/latest"},
+        {"label": "Portfolio", "endpoint": "/portfolio/state"},
+    ]
+
+    body = render_home_human_page(home_state)
+
+    assert "建议下一步" in body
+    assert "研究结论" in body
+    assert 'href="/research/view"' in body
+    assert 'href="/research/latest"' not in body
+    assert 'href="/portfolio/view"' in body
+    assert 'href="/portfolio/state"' not in body
 
 
 def _prepare_entry_repo(tmp_path) -> SQLiteRepository:

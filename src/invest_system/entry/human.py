@@ -9,14 +9,34 @@ from invest_system.web.symbol_display import display_symbol
 
 ENDPOINT_LABELS = {
     "/home": "首页状态",
+    "/app": "首页",
     "/market/latest": "市场状态",
+    "/market/view": "市场状态",
     "/research/latest": "研究结论",
+    "/research/view": "研究结论",
     "/portfolio/state": "组合状态",
+    "/portfolio/view": "组合状态",
     "/risk/state": "风险状态",
+    "/risk/view": "风险状态",
     "/macro/state": "宏观状态",
+    "/macro/view": "宏观状态",
     "/comparison/state": "对比分析",
+    "/comparison/view": "对比分析",
     "/system/dashboard_state": "完整看板",
+    "/dashboard": "完整看板",
     "/guidance/view": "今日行动边界",
+}
+
+HUMAN_ENDPOINTS = {
+    "/home": "/app",
+    "/entry/home_state": "/app",
+    "/market/latest": "/market/view",
+    "/research/latest": "/research/view",
+    "/portfolio/state": "/portfolio/view",
+    "/risk/state": "/risk/view",
+    "/macro/state": "/macro/view",
+    "/comparison/state": "/comparison/view",
+    "/system/dashboard_state": "/dashboard",
 }
 
 STEP_LABELS = {
@@ -155,8 +175,8 @@ def _next_action_interpretation(action: dict[str, Any]) -> dict[str, Any]:
         "stable_market": "主要信号没有触发高优先级风险，可以先看组合状态。",
     }.get(reason_code, "系统建议先查看下一步模块。")
     return {
-        "label": ENDPOINT_LABELS.get(endpoint, endpoint),
-        "endpoint": endpoint,
+        "label": _endpoint_label(endpoint),
+        "endpoint": _human_endpoint(endpoint),
         "priority": _priority_label(action["priority"]),
         "reason": reason,
     }
@@ -167,8 +187,8 @@ def _active_path_interpretation(navigation_plan: dict[str, Any]) -> dict[str, An
     steps = [
         {
             "label": STEP_LABELS.get(step["label"], step["label"]),
-            "endpoint": step["endpoint"],
-            "view": ENDPOINT_LABELS.get(step["endpoint"], step["endpoint"]),
+            "endpoint": _human_endpoint(step["endpoint"]),
+            "view": _endpoint_label(step["endpoint"]),
         }
         for step in navigation_plan["steps"]
     ]
@@ -187,6 +207,14 @@ def _reference_paths() -> list[dict[str, Any]]:
         }
         for title, endpoints, detail in REFERENCE_PATHS
     ]
+
+
+def _human_endpoint(endpoint: str) -> str:
+    return HUMAN_ENDPOINTS.get(endpoint, endpoint)
+
+
+def _endpoint_label(endpoint: str) -> str:
+    return ENDPOINT_LABELS.get(endpoint, ENDPOINT_LABELS.get(_human_endpoint(endpoint), endpoint))
 
 
 def _page_shell(model: dict[str, Any]) -> str:
