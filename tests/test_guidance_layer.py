@@ -138,6 +138,9 @@ def test_research_first_queue_reports_current_blockers(tmp_path) -> None:
     assert "缺少可放行的估值分位" in view_response.text
     assert "补充研究提示词" in view_response.text
     assert "只输出一个合法 JSON 对象" in view_response.text
+    assert '<details class="prompt-details">' in view_response.text
+    assert '<textarea class="prompt-textarea" readonly rows="6">' in view_response.text
+    assert "复制提示词" in view_response.text
     assert review_response.status_code == 200
     assert review_response.headers["content-type"].startswith("application/json")
     assert review["status"] == "review_required"

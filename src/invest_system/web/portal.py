@@ -436,6 +436,11 @@ def _page_shell(title: str, active: str, content: str, data: dict[str, Any]) -> 
     button:disabled {{ opacity:0.6; cursor:wait; }}
     button.secondary {{ border-color:var(--line); background:#fff; color:var(--ink); }}
     pre {{ white-space:pre-wrap; overflow:auto; margin:0; border:1px solid var(--line); border-radius:8px; background:#fff; padding:12px; font:13px/1.45 Consolas, "Courier New", monospace; }}
+    .prompt-details {{ min-width:260px; }}
+    .prompt-details summary {{ cursor:pointer; font-weight:800; color:var(--accent-ink); }}
+    .prompt-textarea {{ min-height:120px; max-height:220px; margin-top:8px; resize:vertical; }}
+    .prompt-actions {{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px; }}
+    .copy-status {{ color:var(--muted); font-size:13px; }}
     @media (max-width:900px) {{ .top {{ align-items:flex-start; flex-direction:column; }} nav {{ justify-content:flex-start; }} .hero, .two-pane, .footer-grid {{ grid-template-columns:1fr; }} .footer-links {{ justify-content:flex-start; }} .feature-grid, .grid-4 {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} .grid-3 {{ grid-template-columns:1fr; }} }}
     @media (max-width:560px) {{ .wrap, main {{ padding-left:12px; padding-right:12px; }} .feature-grid, .grid-4, .grid-2 {{ grid-template-columns:1fr; }} h1 {{ font-size:22px; }} }}
   </style>
@@ -1211,7 +1216,7 @@ def _valuation_prompt_section(prompt_state: dict[str, Any]) -> str:
             item["display_name"],
             item["module"],
             item["source_snapshot_id"] or "无",
-            f"<pre>{html.escape(item['prompt_text'])}</pre>",
+            _prompt_text_control(item["prompt_text"]),
         ]
         for item in prompt_state["prompts"]
     ]
@@ -1227,7 +1232,42 @@ def _valuation_prompt_section(prompt_state: dict[str, Any]) -> str:
   <p class="detail"><a href="/research/valuation-prompts">查看提示词 JSON</a></p>
   {_table(["标的", "模块", "来源快照", "提示词"], rows, raw_columns=raw_columns)}
 </section>
+<script>
+(() => {{
+  document.querySelectorAll('[data-prompt-copy]').forEach((button) => {{
+    button.addEventListener('click', async () => {{
+      const wrapper = button.closest('.prompt-details');
+      const textarea = wrapper ? wrapper.querySelector('textarea') : null;
+      const status = wrapper ? wrapper.querySelector('[data-copy-status]') : null;
+      if (!textarea) return;
+      try {{
+        await navigator.clipboard.writeText(textarea.value);
+        if (status) status.textContent = '已复制';
+      }} catch (error) {{
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        if (status) status.textContent = '已复制';
+      }}
+    }});
+  }});
+}})();
+</script>
 """
+
+
+def _prompt_text_control(prompt_text: str) -> str:
+    escaped = html.escape(prompt_text)
+    return (
+        '<details class="prompt-details">'
+        "<summary>打开提示词</summary>"
+        f'<textarea class="prompt-textarea" readonly rows="6">{escaped}</textarea>'
+        '<div class="prompt-actions">'
+        '<button type="button" data-prompt-copy>复制提示词</button>'
+        '<span class="copy-status" data-copy-status></span>'
+        "</div>"
+        "</details>"
+    )
 
 
 def _valuation_prompt_item(row: dict[str, Any]) -> dict[str, Any]:
