@@ -19,6 +19,7 @@ NAV_ITEMS = [
     {"label": "每日", "href": "/workflow/daily/view", "page": "daily"},
     {"label": "今日边界", "href": "/guidance/view", "page": "guidance"},
     {"label": "市场", "href": "/market/view", "page": "market"},
+    {"label": "主线", "href": "/theme/view", "page": "theme"},
     {"label": "风险", "href": "/risk/view", "page": "risk"},
     {"label": "宏观", "href": "/macro/view", "page": "macro"},
     {"label": "对比", "href": "/comparison/view", "page": "comparison"},
@@ -38,6 +39,7 @@ PAGE_TITLES = {
     "daily": "每日研究工作流",
     "guidance": "今日行动边界",
     "market": "市场状态",
+    "theme": "主线研究",
     "risk": "风险状态",
     "macro": "宏观状态",
     "comparison": "对比分析",
@@ -56,6 +58,7 @@ USABILITY_ENDPOINTS = [
     "/workflow/daily/view",
     "/guidance/view",
     "/market/view",
+    "/theme/view",
     "/risk/view",
     "/macro/view",
     "/comparison/view",
@@ -75,6 +78,7 @@ HUMAN_ENDPOINT_MAP = {
     "/workflow/daily/state": "/workflow/daily/view",
     "/guidance/state": "/guidance/view",
     "/market/latest": "/market/view",
+    "/theme/state": "/theme/view",
     "/target-pool/latest": "/target-pool/view",
     "/research/latest": "/research/view",
     "/research/valuation-review": "/research/view#valuation-review",
@@ -219,6 +223,9 @@ def render_portal_page(state: dict[str, Any], page: str) -> str:
     elif page == "market":
         content = _market_content(data)
         active = "market"
+    elif page == "theme":
+        content = _theme_content(data)
+        active = "theme"
     elif page == "risk":
         content = _risk_content(data)
         active = "risk"
@@ -313,6 +320,13 @@ def _build_usability_payload(
             "决策预览",
             "可解释决策草案有独立入口，并保持只读。",
             "/decision/view",
+        ),
+        _usability_check(
+            "theme_research_visible",
+            "pass" if dashboard["research"]["theme"]["available"] else "warn",
+            "主线研究",
+            "主线研究有独立页面，展开当前主线、备选主线、代表板块和关注方向。",
+            "/theme/view",
         ),
         _usability_check(
             "target_pool_scope_visible",
@@ -570,6 +584,7 @@ def _home_content(data: dict[str, Any]) -> str:
         ("每日工作流", "/workflow/daily/view", "检查今天市场、主线、边界、组合和报告是否形成闭环。"),
         ("今日行动边界", "/guidance/view", "先判断今天能不能提高风险、新增标的或只读复核。"),
         ("市场状态", "/market/view", "查看市场评分、风险等级、权益比例边界和数据缺口。"),
+        ("主线研究", "/theme/view", "查看 AI、半导体、电力设备、机器人等方向是否进入当前主线。"),
         ("风险状态", "/risk/view", "查看风控分数、暴露提示、集中度和风险警告。"),
         ("宏观状态", "/macro/view", "查看流动性、利率压力、风险周期和模型共识。"),
         ("对比分析", "/comparison/view", "比较影子组合、真实代理和基准的比例表现。"),
@@ -810,6 +825,89 @@ def _guidance_research_first_scope(research_first: dict[str, Any]) -> str:
     <p class="detail">这里只看最新目标池和当前决策里的候选；历史或已排除候选只保留研究记录，不影响全局状态。</p>
     {_table(["标的", "原因", "当前卡点", "来源"], queue_rows)}
   </div>
+</section>
+"""
+
+
+def _theme_content(data: dict[str, Any]) -> str:
+    theme = data["dashboard"]["research"]["theme"]
+    if not theme["available"]:
+        return _empty_section("主线研究", "当前没有 theme_research 快照，请先导入或生成主线研究 JSON。")
+    primary = theme["primary"] or {}
+    mainline_rows = [
+        [
+            item["rank"],
+            item["display_theme"],
+            _theme_alias_text(item),
+            _theme_strength_text(item["strength_score"]),
+            _theme_phase_label(item.get("phase") or item.get("continuity")),
+            "、".join(item["plates"]) if item["plates"] else "暂无",
+            "、".join(item["display_symbols"]) if item["display_symbols"] else "暂无",
+            _theme_research_first_label(item.get("research_first")),
+        ]
+        for item in theme["mainlines"]
+    ]
+    if not mainline_rows:
+        mainline_rows = [["暂无", "主线研究暂不可用", "无", "暂无", "暂无", "暂无", "暂无", "待研究"]]
+    watch_rows = [
+        [
+            item["theme"],
+            _theme_watch_status_label(item["status"]),
+            "、".join(item["matched_mainlines"]) if item["matched_mainlines"] else "未进入前三主线",
+            item["detail"],
+        ]
+        for item in theme["watchlist"]
+    ]
+    evidence_rows = [
+        [item["display_theme"], evidence]
+        for item in theme["mainlines"]
+        for evidence in item.get("evidence", [])
+    ]
+    if not evidence_rows:
+        evidence_rows = [["暂无", theme["summary"]]]
+    return f"""
+<section class="two-pane">
+  <div class="panel highlight">
+    <h2>当前第一主线</h2>
+    <p class="value">{html.escape(str(primary.get("display_theme", "暂无主线")))}</p>
+    <p class="detail">{html.escape(_theme_primary_detail(theme, primary))}</p>
+    <div class="badge-row">
+      <span class="badge">强度 {html.escape(_theme_strength_text(primary.get("strength_score")))}</span>
+      <span class="badge">置信度 {_percent(theme["confidence"])}</span>
+      <span class="badge">下次复核 {html.escape(str(theme["next_review_date"]))}</span>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>怎么读</h2>
+    <p>主线研究回答“现在市场最强的方向是什么”，不回答“应该买哪个标的”。</p>
+    <p class="detail">代表标的只是研究对象，必须继续经过画像、估值、流动性和 ResearchFirst 门槛。</p>
+  </div>
+</section>
+<section class="grid-2">
+  <div class="panel">
+    <h2>为什么之前看不到</h2>
+    <p>之前页面只展示 theme_research 的压缩摘要，AI、半导体等方向藏在 key_facts 和 payload.evidence 里。</p>
+    <p class="detail">现在本页把这些字段展开成主线、板块、代表标的和关注方向。</p>
+  </div>
+  <div class="panel">
+    <h2>来源追溯</h2>
+    <p>快照：{html.escape(str(theme["snapshot_id"]))}</p>
+    <p class="detail">基准日：{html.escape(str(theme["basis_date"]))}；行动性：{html.escape(str(theme["actionability"]))}。</p>
+    <p class="detail"><a href="/theme/state">主线研究 JSON</a>　<a href="/research/view">研究工作台</a></p>
+  </div>
+</section>
+<section>
+  <h2>当前主线排序</h2>
+  {_table(["排序", "主线", "你熟悉的说法", "强度", "阶段", "包含板块", "代表标的", "门槛状态"], mainline_rows)}
+</section>
+<section>
+  <h2>你关心的方向</h2>
+  <p class="detail">这张表专门回答 AI、半导体、电力设备、机器人是否进入当前主线。</p>
+  {_table(["方向", "状态", "对应主线", "说明"], watch_rows)}
+</section>
+<section>
+  <h2>证据摘录</h2>
+  {_table(["主线", "证据"], evidence_rows)}
 </section>
 """
 
@@ -1908,6 +2006,7 @@ def _research_content(data: dict[str, Any]) -> str:
   <p><a href="/research/import/view">导入新的研究 JSON</a>　<a href="#valuation-review">查看估值证据复核</a>　<a href="#valuation-prompts">生成补充研究提示词</a></p>
   <p class="detail">适合导入市场研究、主线研究或其它已校验研究快照。</p>
 </section>
+{_theme_summary_section(research["theme"])}
 <section>
   <h2>最新研究快照</h2>
   {_table(["模块", "摘要", "置信度", "行动性", "下次复核"], rows)}
@@ -1918,6 +2017,30 @@ def _research_content(data: dict[str, Any]) -> str:
 </section>
 {_valuation_review_section(valuation_review)}
 {_valuation_prompt_section(valuation_prompts)}
+"""
+
+
+def _theme_summary_section(theme: dict[str, Any]) -> str:
+    if not theme["available"]:
+        return """
+<section class="panel">
+  <h2>主线研究摘要</h2>
+  <p>当前没有 theme_research 快照。</p>
+</section>
+"""
+    primary = theme["primary"] or {}
+    watch = [
+        f"{item['theme']}：{_theme_watch_status_label(item['status'])}"
+        for item in theme["watchlist"]
+    ]
+    return f"""
+<section class="panel">
+  <h2>主线研究摘要</h2>
+  <p class="value">{html.escape(str(primary.get("display_theme", "暂无主线")))}</p>
+  <p class="detail">{html.escape(_theme_primary_detail(theme, primary))}</p>
+  <p class="detail">关注方向：{html.escape("；".join(watch))}</p>
+  <p class="detail"><a href="/theme/view">打开主线研究页</a>　<a href="/theme/state">查看主线 JSON</a></p>
+</section>
 """
 
 
@@ -2423,6 +2546,7 @@ def _report_summary_rows(data: dict[str, Any]) -> list[list[Any]]:
     dashboard = data["dashboard"]
     guidance = data["guidance"]
     market = dashboard["market"]
+    theme = dashboard["research"]["theme"]
     risk = dashboard["risk"]
     macro = dashboard["macro"]
     portfolio = dashboard["portfolio"]
@@ -2447,6 +2571,16 @@ def _report_summary_rows(data: dict[str, Any]) -> list[list[Any]]:
                 _market_conclusion_label(market),
                 _market_equity_range_text(market),
                 _link("/market/view"),
+            ]
+        )
+    if theme["available"]:
+        primary = theme["primary"] or {}
+        rows.append(
+            [
+                "主线",
+                str(primary.get("display_theme", "暂无主线")),
+                _theme_report_basis(theme),
+                _link("/theme/view"),
             ]
         )
     if macro["available"]:
@@ -2532,6 +2666,7 @@ def _system_content(data: dict[str, Any]) -> str:
         ["/home", "自然人入口 JSON"],
         ["/workflow/daily/state", "每日工作流 JSON"],
         ["/guidance/state", "今日行动边界 JSON"],
+        ["/theme/state", "主线研究 JSON"],
         ["/target-pool/latest", "策略目标池 JSON"],
         ["POST /research/import/validate", "研究导入校验 JSON"],
         ["POST /research/import", "研究追加导入 JSON"],
@@ -2717,6 +2852,8 @@ def _endpoint_label(endpoint: str) -> str:
         "/guidance/state": "今日边界 JSON",
         "/market/view": "市场状态",
         "/market/latest": "市场 JSON",
+        "/theme/view": "主线研究",
+        "/theme/state": "主线研究 JSON",
         "/target-pool/view": "策略目标池",
         "/target-pool/latest": "策略目标池 JSON",
         "/risk/view": "风险状态",
@@ -2845,6 +2982,69 @@ def _qmt_reason_label(value: str | None) -> str:
         "qmt_total_asset_unavailable": "QMT 比例基准不可用",
         "qmt_position_missing": "未读到持仓比例",
         "qmt_weight_total_invalid": "持仓比例合计异常",
+    }.get(value, value)
+
+
+def _theme_primary_detail(theme: dict[str, Any], primary: dict[str, Any]) -> str:
+    if not primary:
+        return "当前没有可展示的主线。"
+    plates = "、".join(primary.get("plates", [])) or "暂无板块明细"
+    aliases = _theme_alias_text(primary)
+    return (
+        f"强度 {_theme_strength_text(primary.get('strength_score'))}，"
+        f"阶段 {_theme_phase_label(primary.get('phase') or primary.get('continuity'))}，"
+        f"包含 {plates}。你熟悉的说法：{aliases}。"
+    )
+
+
+def _theme_report_basis(theme: dict[str, Any]) -> str:
+    primary = theme.get("primary") or {}
+    watch = [
+        f"{item['theme']}={_theme_watch_status_label(item['status'])}"
+        for item in theme.get("watchlist", [])
+    ]
+    return (
+        f"强度 {_theme_strength_text(primary.get('strength_score'))}；"
+        f"关注方向 {'；'.join(watch) if watch else '暂无'}。"
+    )
+
+
+def _theme_alias_text(item: dict[str, Any]) -> str:
+    aliases = item.get("aliases", [])
+    return "、".join(aliases) if aliases else "暂无别名"
+
+
+def _theme_strength_text(value: Any) -> str:
+    if value is None:
+        return "暂无"
+    return _score_out_of_100(value)
+
+
+def _theme_phase_label(value: Any) -> str:
+    if value is None:
+        return "暂无"
+    return {
+        "early": "早期",
+        "mid": "中段",
+        "late": "后段",
+        "strong_continuation": "强延续",
+        "continuation_watch": "延续观察",
+        "new": "新出现",
+    }.get(str(value), str(value))
+
+
+def _theme_research_first_label(value: Any) -> str:
+    if value is True:
+        return "代表标的先 ResearchFirst"
+    if value is False:
+        return "未标记 ResearchFirst"
+    return "待确认"
+
+
+def _theme_watch_status_label(value: str) -> str:
+    return {
+        "included": "已进入当前主线",
+        "not_in_top_mainlines": "未进入前三主线",
     }.get(value, value)
 
 

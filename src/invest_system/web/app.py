@@ -67,6 +67,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/decision/explain",
                     "/research/latest",
                     "/market/latest",
+                    "/theme/state",
                     "/target-pool/latest",
                     "/decision/latest",
                     "/portfolio/state",
@@ -91,6 +92,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/dashboard",
                     "/overview",
                     "/market/view",
+                    "/theme/view",
                     "/target-pool/view",
                     "/risk/view",
                     "/macro/view",
@@ -217,6 +219,10 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
         payload = repo.latest_market()
         return _json_result(payload)
 
+    @app.get("/theme/state")
+    def theme_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return {"status": "ok", "data": build_dashboard_state(repo, as_of)["data"]["research"]["theme"]}
+
     @app.get("/target-pool/latest")
     def target_pool_latest() -> dict[str, Any]:
         payload = repo.latest_target_pool()
@@ -318,6 +324,10 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/market/view", response_class=HTMLResponse)
     def market_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
         return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "market"))
+
+    @app.get("/theme/view", response_class=HTMLResponse)
+    def theme_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "theme"))
 
     @app.get("/target-pool/view", response_class=HTMLResponse)
     def target_pool_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:

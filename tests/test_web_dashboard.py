@@ -62,6 +62,8 @@ def test_dashboard_state_endpoint_returns_json_without_sensitive_fields(tmp_path
     assert "沪深300ETF华泰柏瑞（510300.SH）" in payload["data"]["target_pool"]["entries"][0]["display_symbols"]
     assert payload["data"]["target_pool"]["source"] == "seed"
     assert payload["data"]["research"]["available"] is True
+    assert payload["data"]["research"]["theme"]["available"] is True
+    assert payload["data"]["research"]["theme"]["primary"]["display_theme"] == "市场宽度主题"
     assert payload["data"]["risk"]["available"] is True
     assert payload["data"]["comparison"]["available"] is True
     assert payload["data"]["macro"]["available"] is True
@@ -99,6 +101,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
         "/dashboard",
         "/overview",
         "/market/view",
+        "/theme/view",
         "/target-pool/view",
         "/risk/view",
         "/macro/view",
@@ -187,6 +190,18 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert 'id="market-refresh"' in body
             assert 'id="market-refresh-button"' in body
             assert "/market/refresh" in body
+        if path == "/theme/view":
+            assert "主线研究" in body
+            assert "当前第一主线" in body
+            assert "当前主线排序" in body
+            assert "你关心的方向" in body
+            assert "AI" in body
+            assert "半导体" in body
+            assert "电力设备" in body
+            assert "机器人" in body
+            assert "市场宽度主题" in body
+            assert "/theme/state" in body
+            assert "ResearchFirst" in body
         if path == "/target-pool/view":
             assert "策略目标池" in body
             assert "当前策略目标池" in body
@@ -214,6 +229,8 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "今日边界" in body
         if path == "/research/view":
             assert "研究工作台" in body
+            assert "主线研究摘要" in body
+            assert "/theme/view" in body
             assert "下一项该研究什么" in body
             assert "为什么还没放行" in body
             assert "放行规则" in body
@@ -252,10 +269,49 @@ def test_usability_state_describes_human_entrypoints(tmp_path) -> None:
     assert response.headers["content-type"].startswith("application/json")
     assert payload["status"] == "ok"
     assert payload["data"]["primary_home"] == "/app"
+    assert "/theme/view" in payload["data"]["feature_entrypoints"]
     assert "/target-pool/view" in payload["data"]["feature_entrypoints"]
     assert "/usability/view" in payload["data"]["feature_entrypoints"]
     assert all(item["status"] == "pass" for item in payload["data"]["checks"])
     _assert_no_forbidden_terms(payload)
+
+
+def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
+    db_path = tmp_path / "theme_view.sqlite"
+    repo = SQLiteRepository(db_path)
+    seed_multiday_repository(repo)
+    repo.append_research_snapshot(_mainline_theme_research())
+    app = create_app(db_path)
+
+    state_response = _get(app, "/theme/state?as_of=2026-06-15")
+    state = state_response.json()["data"]
+
+    assert state_response.status_code == 200
+    assert state["primary"]["display_theme"] == "先进电子制造链"
+    assert [item["display_theme"] for item in state["mainlines"]] == [
+        "先进电子制造链",
+        "战略金属和铜箔材料",
+        "AI 基础设施硬件链",
+    ]
+    watch = {item["theme"]: item for item in state["watchlist"]}
+    assert watch["AI"]["status"] == "included"
+    assert watch["半导体"]["status"] == "included"
+    assert watch["电力设备"]["status"] == "not_in_top_mainlines"
+    assert watch["机器人"]["status"] == "not_in_top_mainlines"
+
+    response = _get(app, "/theme/view?as_of=2026-06-15")
+    body = response.text
+
+    assert response.status_code == 200
+    assert "先进电子制造链" in body
+    assert "AI 基础设施硬件链" in body
+    assert "半导体" in body
+    assert "电力设备" in body
+    assert "机器人" in body
+    assert "未进入前三主线" in body
+    assert "达利凯普（301566.SZ）" in body
+    assert "代表标的只是研究对象" in body
+    _assert_no_forbidden_terms(body)
 
 
 def _prepare_dashboard_db(tmp_path) -> str:
@@ -301,6 +357,50 @@ def _symbol_research(symbol: str, actionability: str) -> dict[str, Any]:
             "method": "fixture",
             "tracking_target": "fixture",
             "rating": "Fair",
+        },
+    }
+
+
+def _mainline_theme_research() -> dict[str, Any]:
+    return {
+        "schema_version": "1.0",
+        "snapshot_id": "theme-research-2026-06-15-mainline-test",
+        "basis_date": "2026-06-15",
+        "generated_at": "2026-06-15T12:00:00Z",
+        "module": "theme_research",
+        "data_sources": ["fixture:mainline"],
+        "data_gaps": [],
+        "conflicts": [],
+        "executive_summary": "Mainline research identifies advanced electronics, materials, and AI hardware chains.",
+        "key_facts": [
+            "Mainline 1: advanced electronics manufacturing chain strength_score=88.26 continuity=continuation_watch research_first_queue=yes.",
+            "Representative plates/themes: 先进封装; 被动元件; 分立器件; MiniLED; 柔性屏(折叠屏); 电子. Representative symbols are research objects only: 301566.SZ, 688603.SH, 688167.SH, 688170.SH, 688757.SH.",
+            "Mainline 2: strategic metal and copper-foil materials strength_score=86.22 continuity=strong_continuation research_first_queue=yes.",
+            "Representative plates/themes: 钨; PET铜箔; 有色金属. Representative symbols are research objects only: 688813.SH, 301217.SZ, 688170.SH, 688020.SH, 301511.SZ.",
+            "Mainline 3: AI infrastructure hardware chain strength_score=83.68 continuity=continuation_watch research_first_queue=yes.",
+            "Representative plates/themes: PCB概念; 共封装光学(CPO); F5G概念; 光纤概念; 铜缆高速连接; 电子; 通信. Representative symbols are research objects only: 301526.SZ, 300726.SZ, 300570.SZ, 300548.SZ, 688813.SH.",
+        ],
+        "reasoning": ["Theme ranking is expanded for human-readable display."],
+        "risks": ["Theme signal can reverse after a newer complete trading day."],
+        "conclusion_strength": "strong",
+        "actionability": "research_first",
+        "confidence": 0.815,
+        "invalidation_conditions": ["A newer complete trading day changes theme ranking."],
+        "next_review_date": "2026-06-16",
+        "must_not_do": ["Do not create buy, add, reduce, or sell instructions from this theme snapshot."],
+        "required_human_review": True,
+        "status": "json_validated",
+        "trace": {"fact_pack_id": "fixture-mainline-theme", "source_market_snapshot_id": "market-2026-06-15-golden"},
+        "payload": {
+            "theme": "advanced electronics manufacturing chain",
+            "strength_score": 88.26,
+            "leading_symbols": ["301566.SZ", "688603.SH", "688167.SH", "688170.SH", "688757.SH"],
+            "phase": "mid",
+            "related_etfs": [],
+            "evidence": [
+                "advanced electronics manufacturing chain: score=88.26; plates=先进封装, 被动元件, 分立器件, MiniLED, 柔性屏(折叠屏); next_review_date=2026-06-16.",
+                "AI infrastructure hardware chain: score=83.68; plates=PCB概念, 共封装光学(CPO), F5G概念, 光纤概念, 铜缆高速连接; next_review_date=2026-06-16.",
+            ],
         },
     }
 

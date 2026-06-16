@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import re
 from datetime import date
 from typing import Any
 
@@ -15,6 +16,7 @@ from invest_system.web.symbol_display import display_symbol, symbol_name
 
 VIEW_ROUTES = [
     {"label": "Overview", "href": "/overview"},
+    {"label": "Theme", "href": "/theme/view"},
     {"label": "Target Pool", "href": "/target-pool/view"},
     {"label": "Portfolio", "href": "/portfolio/view"},
     {"label": "Research", "href": "/research/view"},
@@ -571,6 +573,7 @@ def _max_abs_delta(rows: list[dict[str, Any]]) -> float | None:
 def _research_state(research_items: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "available": bool(research_items),
+        "theme": _theme_research_state(research_items),
         "items": [
             {
                 "module": item["module"],
@@ -586,6 +589,231 @@ def _research_state(research_items: list[dict[str, Any]]) -> dict[str, Any]:
             for item in research_items
         ],
     }
+
+
+MAINLINE_RE = re.compile(
+    r"^Mainline\s+(?P<rank>\d+):\s+"
+    r"(?P<theme>.+?)\s+strength_score=(?P<score>\d+(?:\.\d+)?)"
+    r"(?:\s+continuity=(?P<continuity>[^\s.]+))?"
+    r"(?:\s+research_first_queue=(?P<research_first>[^\s.]+))?"
+)
+
+THEME_LABELS = {
+    "advanced electronics manufacturing chain": "先进电子制造链",
+    "strategic metal and copper-foil materials": "战略金属和铜箔材料",
+    "AI infrastructure hardware chain": "AI 基础设施硬件链",
+    "adapter_market_breadth": "市场宽度主题",
+    "broad_market_recovery": "宽基修复主线",
+    "manual import mainline": "人工导入主线",
+}
+
+THEME_ALIASES = {
+    "advanced electronics manufacturing chain": ["半导体/先进封装", "电子制造", "MiniLED", "分立器件"],
+    "strategic metal and copper-foil materials": ["有色金属", "PET 铜箔", "钨"],
+    "AI infrastructure hardware chain": ["AI", "算力硬件", "PCB/CPO", "光通信", "铜缆高速连接"],
+    "adapter_market_breadth": ["市场宽度", "适配器市场强度"],
+    "broad_market_recovery": ["宽基修复", "市场修复"],
+}
+
+WATCH_THEME_KEYWORDS = [
+    ("AI", ["AI", "算力", "CPO", "PCB", "光通信", "铜缆"]),
+    ("半导体", ["半导体", "先进封装", "分立器件", "电子制造", "元件", "芯片"]),
+    ("电力设备", ["电力设备", "储能", "光伏", "风电", "新能源设备"]),
+    ("机器人", ["机器人", "减速器", "伺服", "人形机器人"]),
+]
+
+
+def _theme_research_state(research_items: list[dict[str, Any]]) -> dict[str, Any]:
+    item = _theme_research_item(research_items)
+    if item is None:
+        return {
+            "available": False,
+            "snapshot_id": None,
+            "basis_date": None,
+            "primary": None,
+            "mainlines": [],
+            "watchlist": _theme_watchlist([]),
+            "data_gaps": [],
+            "notes": ["当前没有 theme_research 快照。"],
+        }
+
+    mainlines = _theme_mainlines(item)
+    primary = mainlines[0] if mainlines else None
+    return {
+        "available": True,
+        "snapshot_id": item["snapshot_id"],
+        "basis_date": item["basis_date"],
+        "summary": item["executive_summary"],
+        "confidence": item["confidence"],
+        "actionability": item["actionability"],
+        "next_review_date": item["next_review_date"],
+        "primary": primary,
+        "mainlines": mainlines,
+        "watchlist": _theme_watchlist(mainlines),
+        "data_gaps": item.get("data_gaps", []),
+        "conflicts": item.get("conflicts", []),
+        "notes": [
+            "主线研究只用于研究层观察和候选筛选。",
+            "代表标的必须继续经过画像、估值和流动性门槛；这里不产生买卖指令。",
+        ],
+    }
+
+
+def _theme_research_item(items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for item in items:
+        if item.get("module") == "theme_research":
+            return item
+    return None
+
+
+def _theme_mainlines(item: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = _theme_mainlines_from_key_facts(item.get("key_facts", []))
+    if not rows:
+        rows = [_theme_mainline_from_payload(item)]
+    _fill_theme_rows_from_evidence(rows, item.get("payload", {}).get("evidence", []))
+    return rows
+
+
+def _theme_mainlines_from_key_facts(key_facts: list[str]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for fact in key_facts:
+        mainline_match = MAINLINE_RE.match(str(fact))
+        if mainline_match:
+            theme = mainline_match.group("theme").strip()
+            research_first = mainline_match.group("research_first")
+            rows.append(
+                _theme_row(
+                    rank=int(mainline_match.group("rank")),
+                    theme=theme,
+                    strength_score=float(mainline_match.group("score")),
+                    continuity=mainline_match.group("continuity"),
+                    research_first=research_first == "yes" if research_first is not None else None,
+                )
+            )
+            continue
+        if rows and str(fact).startswith("Representative plates/themes:"):
+            plates, symbols = _representative_parts(str(fact))
+            rows[-1]["plates"] = plates
+            rows[-1]["symbols"] = symbols
+            rows[-1]["display_symbols"] = [display_symbol(symbol) for symbol in symbols]
+    return rows
+
+
+def _theme_mainline_from_payload(item: dict[str, Any]) -> dict[str, Any]:
+    payload = item.get("payload", {})
+    symbols = [str(symbol) for symbol in payload.get("leading_symbols", [])]
+    row = _theme_row(
+        rank=1,
+        theme=str(payload.get("theme") or item.get("snapshot_id") or "unknown"),
+        strength_score=_optional_float(payload.get("strength_score")),
+        phase=payload.get("phase"),
+        research_first=item.get("actionability") == "research_first",
+    )
+    row["symbols"] = symbols
+    row["display_symbols"] = [display_symbol(symbol) for symbol in symbols]
+    row["related_etfs"] = [display_symbol(str(symbol)) for symbol in payload.get("related_etfs", [])]
+    return row
+
+
+def _theme_row(
+    *,
+    rank: int,
+    theme: str,
+    strength_score: float | None,
+    continuity: str | None = None,
+    phase: str | None = None,
+    research_first: bool | None = None,
+) -> dict[str, Any]:
+    aliases = THEME_ALIASES.get(theme, [])
+    return {
+        "rank": rank,
+        "theme": theme,
+        "display_theme": THEME_LABELS.get(theme, theme),
+        "aliases": aliases,
+        "strength_score": strength_score,
+        "phase": phase,
+        "continuity": continuity,
+        "research_first": research_first,
+        "plates": [],
+        "symbols": [],
+        "display_symbols": [],
+        "related_etfs": [],
+        "evidence": [],
+    }
+
+
+def _fill_theme_rows_from_evidence(rows: list[dict[str, Any]], evidence: list[str]) -> None:
+    for row in rows:
+        theme = row["theme"]
+        for item in evidence:
+            text = str(item)
+            if text.startswith(f"{theme}:"):
+                row["evidence"].append(text)
+                if not row["plates"] and "plates=" in text:
+                    row["plates"] = _split_theme_list(text.split("plates=", 1)[1].split(";", 1)[0])
+
+
+def _representative_parts(text: str) -> tuple[list[str], list[str]]:
+    prefix = "Representative plates/themes:"
+    body = text[len(prefix):].strip()
+    plates_part, _, symbols_part = body.partition("Representative symbols are research objects only:")
+    plates = _split_theme_list(plates_part.rstrip(". "))
+    symbols = [
+        item.strip().rstrip(".")
+        for item in symbols_part.split(",")
+        if item.strip()
+    ]
+    return plates, symbols
+
+
+def _split_theme_list(value: str) -> list[str]:
+    normalized = value.replace(";", ",")
+    return [item.strip() for item in normalized.split(",") if item.strip()]
+
+
+def _theme_watchlist(mainlines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for theme, keywords in WATCH_THEME_KEYWORDS:
+        matches = [
+            row
+            for row in mainlines
+            if any(keyword in _theme_search_text(row) for keyword in keywords)
+        ]
+        rows.append(
+            {
+                "theme": theme,
+                "status": "included" if matches else "not_in_top_mainlines",
+                "matched_mainlines": [row["display_theme"] for row in matches],
+                "detail": _theme_watchlist_detail(theme, matches),
+            }
+        )
+    return rows
+
+
+def _theme_search_text(row: dict[str, Any]) -> str:
+    parts = [
+        row.get("theme", ""),
+        row.get("display_theme", ""),
+        " ".join(row.get("aliases", [])),
+        " ".join(row.get("plates", [])),
+    ]
+    return " ".join(str(part) for part in parts)
+
+
+def _theme_watchlist_detail(theme: str, matches: list[dict[str, Any]]) -> str:
+    if matches:
+        names = "、".join(row["display_theme"] for row in matches)
+        return f"已出现在当前主线：{names}。"
+    return f"{theme} 未进入当前快照的前三条主线；这不是长期否定，只表示本次主线研究没有把它列为当前主线。"
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _report_state(replay: dict[str, Any], research_items: list[dict[str, Any]]) -> dict[str, Any]:
