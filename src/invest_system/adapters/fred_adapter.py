@@ -27,8 +27,8 @@ def collect_fred(request: dict[str, Any]) -> dict[str, Any]:
             "data_gaps": [],
             "conflicts": [],
         }
-    except Exception as exc:  # noqa: BLE001
-        return _failed(str(exc))
+    except Exception:  # noqa: BLE001
+        return _failed("fred_request_failed")
 
 
 def _fetch_observation(api_key: str, series_id: str, basis_date: str) -> float | None:

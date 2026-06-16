@@ -90,6 +90,10 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "风险" in body
             assert "对比" in body
             assert "宏观" in body
+        if path in {"/app", "/market/view"}:
+            assert "处理方式" in body
+            assert "长期估值分位数据不足" in body
+            assert "valuation_metrics_limited" not in body
         if path in {"/app", "/home_human"}:
             assert 'href="/portfolio/view"' in body
             assert 'href="/portfolio/state"' not in body

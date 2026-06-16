@@ -8,6 +8,7 @@ from invest_system.adapters.fred_adapter import collect_fred
 from invest_system.adapters.mock_adapter import collect_mock
 from invest_system.adapters.tushare_adapter import collect_tushare
 from invest_system.adapters.yfinance_adapter import collect_yfinance
+from invest_system.local_env import load_local_env
 from invest_system.repositories import SQLiteRepository
 from invest_system.validators.schema_validator import validate_or_raise
 
@@ -25,6 +26,7 @@ def collect_market_data_bundle(
     symbols: list[str] | None = None,
     indices: list[str] | None = None,
 ) -> dict[str, Any]:
+    load_local_env()
     request = {
         "basis_date": basis_date,
         "symbols": symbols or list(DEFAULT_SYMBOLS),

@@ -12,6 +12,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from invest_system.local_env import load_local_env  # noqa: E402
 from invest_system.repositories import DEFAULT_DB_PATH, SQLiteRepository  # noqa: E402
 from invest_system.validators.schema_validator import validate_or_raise  # noqa: E402
 
@@ -54,7 +55,7 @@ def main() -> None:
     parser.add_argument("--no-append", action="store_true")
     args = parser.parse_args()
 
-    _load_dotenv(Path(".env"))
+    load_local_env()
     result = generate_snapshot(as_of=date.fromisoformat(args.as_of))
     output_path = Path(args.output) if args.output else _default_output_path(result["basis_date"])
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -612,20 +613,6 @@ def _tushare_unavailable_reason() -> str | None:
     if importlib.util.find_spec("tushare") is None:
         return "python_package_missing:tushare"
     return None
-
-
-def _load_dotenv(path: Path) -> None:
-    if not path.exists():
-        return
-    for line in path.read_text(encoding="utf-8-sig").splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            continue
-        key, value = stripped.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
 
 
 if __name__ == "__main__":

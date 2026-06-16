@@ -9,6 +9,7 @@ from invest_system.guidance import compute_guidance_state
 from invest_system.repositories import SQLiteRepository
 from invest_system.validators.policies import assert_no_sensitive_content
 from invest_system.web.dashboard import build_dashboard_state
+from invest_system.web.data_gap_display import unique_data_gap_descriptions
 from invest_system.web.symbol_display import display_symbol
 from invest_system.workflow import build_daily_workflow_state
 
@@ -482,7 +483,7 @@ def _overview_content(data: dict[str, Any]) -> str:
     overview = data["dashboard"]["overview"]
     counts = overview["record_counts"]
     count_cards = "".join(_metric_card(name, value) for name, value in counts.items())
-    gaps = _list_items(overview["data_gaps"], "当前没有数据缺口。")
+    gaps = _data_gap_table(overview["data_gaps"])
     conflicts = _list_items(overview["conflicts"], "当前没有冲突提示。")
     return f"""
 <section>
@@ -611,7 +612,7 @@ def _market_content(data: dict[str, Any]) -> str:
   <div class="panel">
     <h2>来源与缺口</h2>
     <p>来源：{html.escape("、".join(market["data_sources"]))}</p>
-    <div class="detail">{_list_items(market["data_gaps"], "当前没有市场数据缺口。")}</div>
+    <div class="detail">{_data_gap_table(market["data_gaps"])}</div>
   </div>
   <div class="panel">
     <h2>冲突提示</h2>
@@ -1124,6 +1125,16 @@ def _list_items(items: list[Any], empty_text: str) -> str:
         return f"<p class=\"detail\">{html.escape(empty_text)}</p>"
     rows = "".join(f"<li>{html.escape(str(item))}</li>" for item in items)
     return f"<ul>{rows}</ul>"
+
+
+def _data_gap_table(gaps: list[str]) -> str:
+    rows = [
+        [item["title"], item["impact"], item["next_step"]]
+        for item in unique_data_gap_descriptions(gaps)
+    ]
+    if not rows:
+        return "<p class=\"detail\">当前没有数据缺口。</p>"
+    return _table(["缺口", "影响", "处理方式"], rows)
 
 
 def _empty_section(title: str, detail: str) -> str:

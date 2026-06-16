@@ -10,6 +10,7 @@ from invest_system.adapters import (
     build_p0c_price_data_from_bundle,
     collect_market_data_bundle,
 )
+from invest_system.adapters import market_data
 from invest_system.repositories import SQLiteRepository
 from invest_system.validators.schema_validator import validate_or_raise
 
@@ -46,6 +47,15 @@ def test_auto_market_data_uses_mock_fallback_when_network_disabled() -> None:
     snapshot = build_market_snapshot_from_bundle(bundle)
     assert snapshot["status"] == "json_validated"
     assert "adapter:mock" in snapshot["data_sources"]
+
+
+def test_market_data_collection_loads_local_env(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(market_data, "load_local_env", lambda: calls.append("loaded"))
+
+    collect_market_data_bundle(basis_date="2026-06-15", source="mock")
+
+    assert calls == ["loaded"]
 
 
 def test_market_snapshot_contains_research_coverage_and_data_gaps() -> None:
