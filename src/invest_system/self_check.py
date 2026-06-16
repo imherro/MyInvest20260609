@@ -10,6 +10,7 @@ from invest_system.validators.policies import (
     assert_research_policy,
     assert_target_pool_policy,
 )
+from invest_system.validators.cross_layer_integrity import validate_cross_layer_integrity
 from invest_system.validators.module_contracts import validate_module_contract
 from invest_system.validators.research_schemas import RESEARCH_PAYLOAD_SCHEMA_BY_MODULE
 from invest_system.validators.schema_validator import validate_or_raise
@@ -48,6 +49,7 @@ def _check_json_valid(rows: list[dict[str, Any]]) -> dict[str, Any]:
         payload = row["payload"]
         try:
             validate_or_raise(payload, SCHEMA_BY_TYPE[row["type"]])
+            validate_cross_layer_integrity(payload)
             if row["type"] in {"market", "research"}:
                 assert_research_policy(payload)
                 validate_module_contract(payload)

@@ -205,6 +205,6 @@ def _research_snapshot(module: str, payload: dict) -> dict:
         "must_not_do": ["Do not use this fixture as execution output."],
         "required_human_review": True,
         "status": "blocked" if module == "stock_valuation" else "json_validated",
-        "trace": {"fact_pack_id": f"{module}-schema-gate"},
+        "trace": {"fact_pack_id": "schema-gate"},
         "payload": payload,
     }

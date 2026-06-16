@@ -13,6 +13,7 @@ from invest_system.validators.policies import (
     assert_no_sensitive_content,
     assert_research_policy,
 )
+from invest_system.validators.cross_layer_integrity import validate_cross_layer_integrity
 from invest_system.validators.module_contracts import validate_module_contract
 from invest_system.validators.research_schemas import RESEARCH_PAYLOAD_SCHEMA_BY_MODULE
 from invest_system.validators.schema_validator import validate_or_raise
@@ -72,6 +73,7 @@ def _append_schema_checks(checks: list[dict[str, Any]], payload: dict[str, Any])
         return
     try:
         validate_module_contract(payload)
+        validate_cross_layer_integrity(payload)
         checks.append(_check("module_contract", "pass", "模块分层合同校验通过。"))
     except Exception as exc:  # noqa: BLE001
         checks.append(_check("module_contract", "failed", _safe_error(exc)))

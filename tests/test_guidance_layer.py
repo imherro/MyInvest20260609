@@ -246,7 +246,7 @@ def _symbol_research(symbol: str, actionability: str, status: str) -> dict[str, 
         "must_not_do": ["Do not use fixture research as external execution output."],
         "required_human_review": True,
         "status": status,
-        "trace": {"fact_pack_id": f"fixture-{symbol}", "source_market_snapshot_id": "market-2026-06-15-golden"},
+        "trace": {"fact_pack_id": "fixture-research", "source_market_snapshot_id": "market-2026-06-15-golden"},
         "payload": {
             "symbol": symbol,
             "valuation_score": 0,

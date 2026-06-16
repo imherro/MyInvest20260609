@@ -14,6 +14,7 @@ from invest_system.validators.policies import (
     assert_target_pool_policy,
     assert_no_sensitive_content,
 )
+from invest_system.validators.cross_layer_integrity import validate_cross_layer_integrity
 from invest_system.validators.module_contracts import validate_module_contract
 from invest_system.validators.research_schemas import RESEARCH_PAYLOAD_SCHEMA_BY_MODULE
 from invest_system.validators.schema_validator import validate_or_raise
@@ -120,6 +121,7 @@ class SQLiteRepository:
         validate_or_raise(payload, "market_snapshot.schema.json")
         assert_research_policy(payload)
         validate_module_contract(payload)
+        validate_cross_layer_integrity(payload)
         return self._insert_snapshot(
             table="market_snapshot",
             id_column="snapshot_id",
@@ -139,6 +141,7 @@ class SQLiteRepository:
         validate_or_raise(payload["payload"], payload_schema)
         assert_research_policy(payload)
         validate_module_contract(payload)
+        validate_cross_layer_integrity(payload)
         return self._insert_snapshot(
             table="research_snapshot",
             id_column="snapshot_id",
@@ -153,6 +156,7 @@ class SQLiteRepository:
     def append_decision_record(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_or_raise(payload, "decision.schema.json")
         assert_decision_policy(payload)
+        validate_cross_layer_integrity(payload)
         return self._insert_snapshot(
             table="decision_record",
             id_column="decision_id",
@@ -166,6 +170,7 @@ class SQLiteRepository:
     def append_target_pool_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_or_raise(payload, "target_pool.schema.json")
         assert_target_pool_policy(payload)
+        validate_cross_layer_integrity(payload)
         return self._insert_snapshot(
             table="target_pool_snapshot",
             id_column="target_pool_id",
@@ -180,6 +185,7 @@ class SQLiteRepository:
     def append_portfolio_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_or_raise(payload, "portfolio.schema.json")
         assert_portfolio_policy(payload)
+        validate_cross_layer_integrity(payload)
         return self._insert_snapshot(
             table="portfolio_snapshot",
             id_column="portfolio_id",

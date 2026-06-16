@@ -6,6 +6,7 @@ from typing import Any
 from invest_system.guidance.engine import DEFAULT_POLICY
 from invest_system.repositories import SQLiteRepository
 from invest_system.shadow.engine import ShadowPortfolioEngine
+from invest_system.validators.cross_layer_integrity import is_stock_reference_text
 from invest_system.validators.module_contracts import ModuleContractViolation, validate_module_contract
 from invest_system.validators.policies import assert_no_sensitive_content
 from invest_system.validators.research_schemas import RESEARCH_PAYLOAD_SCHEMA_BY_MODULE
@@ -205,6 +206,8 @@ def _source_research_ids(
             continue
         symbol = payload.get("payload", {}).get("symbol")
         if symbol and current_scope and symbol not in current_scope:
+            continue
+        if is_stock_reference_text(event["object_id"]):
             continue
         key = f"{module}:{symbol}" if symbol else str(module)
         latest[key] = event

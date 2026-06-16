@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from invest_system.repositories import SQLiteRepository
+from invest_system.validators.cross_layer_integrity import validate_cross_layer_integrity
 from invest_system.validators.module_contracts import validate_module_contract
 from invest_system.validators.schema_validator import validate_or_raise
 
@@ -64,6 +65,7 @@ def generate_p0c_research(
         validate_or_raise(snapshot["payload"], payload_schema)
         validate_or_raise(snapshot, "research.schema.json")
         validate_module_contract(snapshot)
+        validate_cross_layer_integrity(snapshot)
         inserted.append(repo.append_research_snapshot(snapshot))
     return {"status": "ok", "inserted": inserted}
 

@@ -186,7 +186,7 @@ def _cleanup_research(symbol: str) -> dict[str, Any]:
         "must_not_do": ["Do not use fixture research as external execution output."],
         "required_human_review": True,
         "status": "finalized",
-        "trace": {"fact_pack_id": f"fixture-{symbol}", "source_market_snapshot_id": "market-2026-06-15-golden"},
+        "trace": {"fact_pack_id": "fixture-research", "source_market_snapshot_id": "market-2026-06-15-golden"},
         "payload": {
             "symbol": symbol,
             "valuation_score": 0,
@@ -232,7 +232,7 @@ def _symbol_research(symbol: str, confidence: float) -> dict[str, Any]:
         "must_not_do": ["Do not use this snapshot as external execution output."],
         "required_human_review": True,
         "status": "blocked",
-        "trace": {"fact_pack_id": f"test-{symbol}"},
+        "trace": {"fact_pack_id": "test-research"},
         "payload": {
             "symbol": symbol,
             "valuation_state": "fail",

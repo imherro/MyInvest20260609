@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from invest_system.local_env import load_local_env  # noqa: E402
 from invest_system.repositories import DEFAULT_DB_PATH, SQLiteRepository  # noqa: E402
+from invest_system.validators.cross_layer_integrity import validate_cross_layer_integrity  # noqa: E402
 from invest_system.validators.module_contracts import validate_module_contract  # noqa: E402
 from invest_system.validators.schema_validator import validate_or_raise  # noqa: E402
 
@@ -621,6 +622,7 @@ def _validate_snapshot_before_publish(snapshot: dict[str, Any]) -> None:
     validate_or_raise(snapshot["payload"], "theme_research_payload.schema.json")
     validate_or_raise(snapshot, "research.schema.json")
     validate_module_contract(snapshot)
+    validate_cross_layer_integrity(snapshot)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
