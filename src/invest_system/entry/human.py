@@ -15,6 +15,7 @@ ENDPOINT_LABELS = {
     "/macro/state": "宏观状态",
     "/comparison/state": "对比分析",
     "/system/dashboard_state": "完整看板",
+    "/guidance/view": "今日行动边界",
 }
 
 STEP_LABELS = {
@@ -191,6 +192,7 @@ def _page_shell(model: dict[str, Any]) -> str:
     content = (
         _hero(model)
         + _status_grid(model)
+        + _guidance_entry_section()
         + _next_action_section(model["next_action"])
         + _navigation_section(model["active_path"], model["reference_paths"])
     )
@@ -296,6 +298,16 @@ def _next_action_section(next_action: dict[str, Any]) -> str:
   <p>建议下一步：<a href="{html.escape(next_action["endpoint"])}">{html.escape(next_action["label"])}</a></p>
   <p class="detail">原因：{html.escape(next_action["reason"])}</p>
   <p class="detail">优先级：{html.escape(next_action["priority"])}</p>
+</section>
+"""
+
+
+def _guidance_entry_section() -> str:
+    return """
+<section class="panel action">
+  <h2>今天能不能动</h2>
+  <p>先打开：<a href="/guidance/view">今日行动边界</a></p>
+  <p class="detail">这里会检查个人风控边界、数据新鲜度、ResearchFirst 覆盖和只读行动限制。</p>
 </section>
 """
 

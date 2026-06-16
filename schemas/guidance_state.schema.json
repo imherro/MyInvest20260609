@@ -1,0 +1,201 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "as_of",
+    "generated_at",
+    "policy",
+    "readiness",
+    "checks",
+    "data_freshness",
+    "research_first",
+    "risk_boundaries",
+    "today_action",
+    "source_ids"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "status": { "type": "string", "enum": ["ok", "empty"] },
+    "as_of": { "type": ["string", "null"] },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile_id", "configuration_status", "source", "summary"],
+      "properties": {
+        "profile_id": { "type": "string" },
+        "configuration_status": { "type": "string" },
+        "source": { "type": "string" },
+        "summary": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number", "boolean"] }
+        }
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "overall_state",
+        "can_increase_risk",
+        "can_add_new_subject",
+        "requires_human_review",
+        "primary_blocker"
+      ],
+      "properties": {
+        "overall_state": { "type": "string", "enum": ["ready", "review_required", "blocked", "empty"] },
+        "can_increase_risk": { "type": "boolean" },
+        "can_add_new_subject": { "type": "boolean" },
+        "requires_human_review": { "type": "boolean" },
+        "primary_blocker": { "type": ["string", "null"] }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["check_id", "status", "title", "detail", "source", "next_endpoint"],
+        "properties": {
+          "check_id": { "type": "string" },
+          "status": { "type": "string", "enum": ["pass", "warn", "block", "missing"] },
+          "title": { "type": "string" },
+          "detail": { "type": "string" },
+          "source": { "type": "string" },
+          "next_endpoint": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "data_freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reference_date", "items"],
+      "properties": {
+        "reference_date": { "type": ["string", "null"] },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "status", "basis_date", "age_days", "next_review_date", "detail"],
+            "properties": {
+              "name": { "type": "string" },
+              "status": { "type": "string", "enum": ["pass", "warn", "block", "missing"] },
+              "basis_date": { "type": ["string", "null"] },
+              "age_days": { "type": ["integer", "null"] },
+              "next_review_date": { "type": ["string", "null"] },
+              "detail": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "research_first": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "queue",
+        "covered_symbols",
+        "active_holdings_without_passed_gates"
+      ],
+      "properties": {
+        "status": { "type": "string", "enum": ["pass", "warn", "block", "missing"] },
+        "queue": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["symbol", "reason", "source"],
+            "properties": {
+              "symbol": { "type": "string" },
+              "reason": { "type": "string" },
+              "source": { "type": "string" }
+            }
+          }
+        },
+        "covered_symbols": { "type": "array", "items": { "type": "string" } },
+        "active_holdings_without_passed_gates": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "risk_boundaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "items"],
+      "properties": {
+        "status": { "type": "string", "enum": ["pass", "warn", "block", "missing"] },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "status", "current", "limit", "detail"],
+            "properties": {
+              "name": { "type": "string" },
+              "status": { "type": "string", "enum": ["pass", "warn", "block", "missing"] },
+              "current": { "type": ["number", "null"] },
+              "limit": { "type": ["number", "null"] },
+              "detail": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "today_action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["headline", "allowed_operations", "next_required_steps", "do_not_do"],
+      "properties": {
+        "headline": { "type": "string" },
+        "allowed_operations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["operation", "status", "reason", "endpoint"],
+            "properties": {
+              "operation": { "type": "string" },
+              "status": { "type": "string", "enum": ["allowed", "review_required", "blocked"] },
+              "reason": { "type": "string" },
+              "endpoint": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "next_required_steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["step", "endpoint", "reason"],
+            "properties": {
+              "step": { "type": "string" },
+              "endpoint": { "type": "string" },
+              "reason": { "type": "string" }
+            }
+          }
+        },
+        "do_not_do": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "source_ids": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "market_snapshot_id",
+        "decision_id",
+        "portfolio_id",
+        "target_pool_id",
+        "research_snapshot_ids"
+      ],
+      "properties": {
+        "market_snapshot_id": { "type": ["string", "null"] },
+        "decision_id": { "type": ["string", "null"] },
+        "portfolio_id": { "type": ["string", "null"] },
+        "target_pool_id": { "type": ["string", "null"] },
+        "research_snapshot_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

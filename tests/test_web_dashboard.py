@@ -55,7 +55,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
     db_path = _prepare_dashboard_db(tmp_path)
     app = create_app(db_path)
 
-    for path in ["/dashboard", "/overview", "/portfolio/view", "/research/view", "/report/view"]:
+    for path in ["/home_human", "/guidance/view", "/dashboard", "/overview", "/portfolio/view", "/research/view", "/report/view"]:
         response = _get(app, f"{path}?as_of=2026-06-15")
         body = response.text
         assert response.status_code == 200

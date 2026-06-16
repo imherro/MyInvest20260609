@@ -1,0 +1,68 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "profile_id",
+    "configuration_status",
+    "status",
+    "risk_bounds",
+    "freshness",
+    "research_first",
+    "execution"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "profile_id": { "type": "string", "minLength": 1 },
+    "configuration_status": { "type": "string", "enum": ["default", "custom"] },
+    "status": { "type": "string", "enum": ["active", "inactive"] },
+    "risk_bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_overall_risk_score",
+        "max_equity_weight",
+        "min_cash_weight",
+        "max_single_holding_weight",
+        "max_drawdown"
+      ],
+      "properties": {
+        "max_overall_risk_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "max_equity_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+        "min_cash_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+        "max_single_holding_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+        "max_drawdown": { "type": "number", "minimum": -1, "maximum": 0 }
+      }
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_snapshot_age_days", "require_next_review_not_overdue"],
+      "properties": {
+        "max_snapshot_age_days": { "type": "integer", "minimum": 0 },
+        "require_next_review_not_overdue": { "type": "boolean" }
+      }
+    },
+    "research_first": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "block_new_subject_when_queue_exists",
+        "block_increase_when_active_holding_lacks_passed_gates"
+      ],
+      "properties": {
+        "block_new_subject_when_queue_exists": { "type": "boolean" },
+        "block_increase_when_active_holding_lacks_passed_gates": { "type": "boolean" }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["paper_only", "real_execution_enabled"],
+      "properties": {
+        "paper_only": { "type": "boolean" },
+        "real_execution_enabled": { "type": "boolean" }
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "default_ratio_only_policy",
+  "configuration_status": "default",
+  "status": "active",
+  "risk_bounds": {
+    "max_overall_risk_score": 65,
+    "max_equity_weight": 0.75,
+    "min_cash_weight": 0.05,
+    "max_single_holding_weight": 0.45,
+    "max_drawdown": -0.08
+  },
+  "freshness": {
+    "max_snapshot_age_days": 1,
+    "require_next_review_not_overdue": true
+  },
+  "research_first": {
+    "block_new_subject_when_queue_exists": true,
+    "block_increase_when_active_holding_lacks_passed_gates": true
+  },
+  "execution": {
+    "paper_only": true,
+    "real_execution_enabled": false
+  }
+}

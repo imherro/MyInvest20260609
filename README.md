@@ -24,6 +24,7 @@ Open:
 http://127.0.0.1:8008/
 http://127.0.0.1:8008/home
 http://127.0.0.1:8008/home_human
+http://127.0.0.1:8008/guidance/view
 http://127.0.0.1:8008/system/status
 http://127.0.0.1:8008/timeline/replay
 http://127.0.0.1:8008/dashboard
@@ -34,6 +35,7 @@ http://127.0.0.1:8008/dashboard
 - `GET /`
 - `GET /home`
 - `GET /entry/home_state`
+- `GET /guidance/state`
 - `GET /market/latest`
 - `GET /research/latest`
 - `GET /target-pool/latest`
@@ -55,6 +57,7 @@ API responses are JSON. Read-only dashboard pages are view-layer HTML. FastAPI H
 Read-only view endpoints:
 
 - `GET /home_human`
+- `GET /guidance/view`
 - `GET /dashboard`
 - `GET /overview`
 - `GET /portfolio/view`
@@ -175,6 +178,25 @@ P1 entry layer JSON APIs are read-only and JSON-only. They compute:
 Entry APIs are `GET /home` and `GET /entry/home_state`. They derive guidance from existing dashboard, risk, macro, comparison, portfolio, and research state without writing to SQLite or changing core replay behavior.
 
 The human entry view is `GET /home_human`. It is a derived HTML presentation of the same `/home` state. It does not add analysis logic, write SQLite, change replay, or create execution output.
+
+## Guidance Layer
+
+The guidance layer is the first page to check before considering any action.
+
+- `GET /guidance/state` returns stable JSON.
+- `GET /guidance/view` renders a plain-language "today action boundary" page.
+- `config/investor_policy.json` stores ratio-only risk boundaries, data freshness limits, ResearchFirst behavior, and paper-only execution policy.
+
+The layer checks:
+
+- personal risk boundaries
+- daily data freshness
+- ResearchFirst queue and gate coverage
+- portfolio risk limits
+- replay availability
+- paper-only execution boundary
+
+It does not place orders, write SQLite, change replay, change the shadow engine, or produce external execution instructions.
 
 ## Risk Monitoring
 

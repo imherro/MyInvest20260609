@@ -29,6 +29,7 @@ API_ENDPOINTS = [
     "/",
     "/home",
     "/entry/home_state",
+    "/guidance/state",
     "/market/latest",
     "/research/latest",
     "/target-pool/latest",
@@ -47,6 +48,7 @@ API_ENDPOINTS = [
 ]
 VIEW_ENDPOINTS = [
     "/home_human",
+    "/guidance/view",
     "/dashboard",
     "/overview",
     "/portfolio/view",

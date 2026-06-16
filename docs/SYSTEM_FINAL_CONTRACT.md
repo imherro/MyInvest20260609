@@ -13,6 +13,7 @@ The delivered MVP supports:
 - Multi-day replay by `basis_date`
 - JSON-only read APIs
 - Read-only HTML dashboard and human-entry views
+- Read-only investment guidance boundary layer
 - JSON-only CLI validation and append workflows
 
 ## Hard Boundaries
@@ -89,6 +90,8 @@ Schema files:
 - `schemas/macro_state.schema.json`
 - `schemas/model_consensus.schema.json`
 - `schemas/entry_home_state.schema.json`
+- `schemas/investor_policy.schema.json`
+- `schemas/guidance_state.schema.json`
 
 Repository append methods validate schema and policy before writing.
 
@@ -147,6 +150,7 @@ Read-only JSON endpoints:
 - `GET /`
 - `GET /home`
 - `GET /entry/home_state`
+- `GET /guidance/state`
 - `GET /market/latest`
 - `GET /research/latest`
 - `GET /target-pool/latest`
@@ -170,6 +174,7 @@ HTML docs are intentionally disabled.
 Read-only view endpoints:
 
 - `GET /home_human`
+- `GET /guidance/view`
 - `GET /dashboard`
 - `GET /overview`
 - `GET /portfolio/view`
@@ -257,6 +262,7 @@ Dashboard JSON:
 Dashboard views:
 
 - `/home_human`
+- `/guidance/view`
 - `/dashboard`
 - `/overview`
 - `/portfolio/view`
@@ -312,6 +318,49 @@ Entry rules:
 - no replay, shadow engine, risk engine, comparison system, macro system, or `event_log` changes
 - schema validation through `entry_home_state.schema.json`
 - `next_action` may point only to existing read-only JSON endpoints
+
+## Guidance Layer Contract
+
+The guidance layer is a read-only action-boundary layer above the existing analytical system.
+
+Guidance JSON:
+
+- `GET /guidance/state`
+
+Guidance view:
+
+- `GET /guidance/view`
+
+Guidance inputs:
+
+- `config/investor_policy.json`
+- `/timeline/replay`
+- `/risk/state`
+- `/research/latest`
+- `/target-pool/latest`
+- `/portfolio/state`
+- `/decision/latest`
+
+Guidance output includes:
+
+- personal ratio-only risk boundary status
+- daily data freshness status
+- ResearchFirst queue and gate coverage
+- today's allowed, review-required, and blocked operations
+- next required read-only steps
+- source trace IDs
+
+Guidance rules:
+
+- JSON endpoint output remains JSON only
+- view endpoint is derived HTML only
+- read-only computation only
+- no SQLite writes
+- no external execution
+- no broker integration
+- no replay, shadow engine, risk engine, macro engine, comparison system, research system, or `event_log` changes
+- no sensitive account, amount, share, order, fill, trade amount, profit amount, or local absolute path exposure
+- ratio-only policy values only
 
 ## Risk Monitoring Contract
 
