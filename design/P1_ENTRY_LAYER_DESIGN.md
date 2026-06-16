@@ -57,8 +57,10 @@ Must display:
 
 2. Main Theme Card
 - current_theme
-- strength_score
-- leading_symbols
+- theme_state
+- signal_type
+- leading_indicators
+- strength_score（仅辅助，不用于选股或排序）
 
 3. Portfolio Summary Card
 - shadow return

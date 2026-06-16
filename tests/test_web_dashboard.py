@@ -342,14 +342,12 @@ def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
     assert [item["display_theme"] for item in state["mainlines"]] == ["先进电子制造链"]
     assert state["primary"]["theme_state"] == "strengthening"
     assert "momentum" in state["primary"]["signal_type"]
-    assert not state["representative_scope"]["available"]
-    assert state["representative_scope"]["rows"] == []
+    assert "representative_scope" not in state
     watch = {item["theme"]: item for item in state["watchlist"]}
     assert watch["AI"]["status"] == "included"
     assert watch["半导体"]["status"] == "included"
     assert watch["电力设备"]["status"] == "not_in_top_mainlines"
     assert watch["机器人"]["status"] == "not_in_top_mainlines"
-    assert state["representative_scope"]["source_target_pool_id"] == "target-pool-2026-06-15-theme-scope-test"
 
     history_response = _get(app, "/theme/history?as_of=2026-06-15")
     history = history_response.json()["data"]

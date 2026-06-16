@@ -77,7 +77,7 @@ AI 写 Markdown → 从 Markdown 解析 JSON → 入库
 | 模块 | 必填字段 |
 |---|---|
 | 市场仓位 | market_score、equity_min、equity_max、risk_level、reason、crowding_penalty、invalidation_conditions。 |
-| 主线研究 | theme、strength_score、phase、leading_symbols、related_etfs、risk、invalidation_conditions。 |
+| 主线研究 | theme_id、theme_name、sector、theme_state、signal_type、leading_indicators、strength_score（仅辅助）、risk、invalidation_conditions；禁止输出股票代码、ETF 代码、leading_symbols、related_etfs 或任何可交易资产集合。 |
 | 龙头研究 | symbol、theme、leader_score、liquidity_status、valuation_status、risk、next_review_date。 |
 | ETF 研究 | symbol、theme、role、tracking_target、valuation_status、liquidity_status、rating、data_gaps。 |
 | 个股估值 | symbol、fair_value_low、fair_value_mid、fair_value_high、method、confidence、rating、next_review_date。 |
@@ -376,7 +376,7 @@ created_at
 1. 结论强度从 weak 变 strong，必须 `requires_human_review`。
 2. `actionability` 从 observe / research_first 变 rebalance_candidate，必须 `requires_human_review`。
 3. 市场仓位区间上下限变化超过 10 个百分点，必须 `requires_human_review`。
-4. 主题 phase 发生变化，必须记录新证据。
+4. 主题 theme_state 发生变化，必须记录新证据。
 5. 没有新增证据却发生重大结论变化，必须 blocked 或 human_review。
 
 提示文案：
@@ -441,7 +441,7 @@ created_at
 
 ### P0c 验收
 
-1. 主线研究能输出 `strength_score`、`phase`、`leading_symbols`、`related_etfs` 和失效条件。
+1. 主线研究能输出 `theme_state`、`signal_type`、`leading_indicators`、辅助 `strength_score` 和失效条件；禁止输出 `leading_symbols`、`related_etfs` 或任何股票/ETF 代码。
 2. ETF / 个股估值能输出合理区间、方法、置信度和 `next_review_date`。
 3. 结论漂移检测能识别重大变化并要求人工复核。
 4. AI 不能把 weak 结论写成可操作建议。

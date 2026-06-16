@@ -308,8 +308,8 @@ schemas/leader_research.schema.json
 
 ### 验收
 
-1. 主线研究包含 theme、strength_score、phase、leading_symbols、related_etfs、risk、invalidation_conditions。
-2. 龙头研究包含 symbol、theme、leader_score、liquidity_status、valuation_status、risk、next_review_date。
+1. 主线研究只包含 theme_id、theme_name、sector、theme_state、signal_type、leading_indicators、strength_score（仅辅助）和 invalidation_conditions；禁止输出股票代码、ETF 代码、leading_symbols、related_etfs 或任何可交易资产集合。
+2. 个股研究独立输出 symbol、valuation_state、research_first_status、risk_score、signal_type、gates、next_review_date；不得反向改写主线强度。
 3. 重大结论变化必须写入 decision_change_log。
 4. 缺少新增证据时，不得大幅改变结论。
 

@@ -36,6 +36,7 @@ MARKET_MODULES = {"market_position"}
 
 _A_SHARE_CODE = re.compile(r"\b(?:[036]\d{5}|[15]\d{5})\.(?:SH|SZ)\b", re.IGNORECASE)
 _THEME_FORBIDDEN_KEYS = {
+    "representative_symbols",
     "symbol",
     "symbols",
     "stock",
@@ -46,9 +47,21 @@ _THEME_FORBIDDEN_KEYS = {
     "individual_security_list",
     "leading_symbols",
     "related_etfs",
+    "representative_etfs",
+    "tradable_etfs",
+    "etf_mapping",
     "tradable_baskets",
     "ticker_mapping",
     "display_symbols",
+}
+_THEME_ALLOWED_PAYLOAD_KEYS = {
+    "theme_id",
+    "theme_name",
+    "sector",
+    "theme_state",
+    "signal_type",
+    "leading_indicators",
+    "strength_score",
 }
 _STOCK_FORBIDDEN_KEYS = {"theme_list", "theme_strength", "macro_view"}
 _MARKET_FORBIDDEN_KEYS = {"symbols", "themes", "theme_list"}
@@ -59,6 +72,7 @@ def validate_module_contract(output: dict[str, Any]) -> None:
     if module in THEME_MODULES:
         validate_no_cross_layer_leak(output, "theme")
         payload = output.get("payload", {})
+        validate_theme_hard_rules(payload)
         assert_signal_type(payload.get("signal_type"), "$.payload.signal_type")
         _assert_theme_state(payload)
     elif module in STOCK_MODULES:
@@ -75,6 +89,7 @@ def validate_module_contract(output: dict[str, Any]) -> None:
 def validate_payload_contract(module: str, payload: dict[str, Any]) -> None:
     if module in THEME_MODULES:
         validate_no_cross_layer_leak(payload, "theme")
+        validate_theme_hard_rules(payload)
     elif module in STOCK_MODULES:
         validate_no_cross_layer_leak(payload, "stock")
     elif module in MARKET_MODULES:
@@ -84,14 +99,37 @@ def validate_payload_contract(module: str, payload: dict[str, Any]) -> None:
 def validate_no_cross_layer_leak(output: Any, layer: str) -> None:
     forbidden = _forbidden_keys(layer)
     for path, key, value in _walk(output):
+        if layer == "theme" and key and _A_SHARE_CODE.search(key):
+            raise ThemeValidationError("theme层禁止出现任何股票代码（包括representative_symbols）")
         if key and _key_is_forbidden(layer, key, forbidden):
             if layer == "theme":
-                raise ThemeValidationError(f"{path}: theme层禁止包含任何股票代码或股票字段")
+                raise ThemeValidationError(f"{path}: theme层禁止出现任何股票代码（包括representative_symbols）")
             raise ModuleContractViolation(f"{path}: {layer} layer forbids {key}")
         if layer == "theme" and isinstance(value, str) and _A_SHARE_CODE.search(value):
-            raise ThemeValidationError("theme层禁止包含任何股票代码")
+            raise ThemeValidationError("theme层禁止出现任何股票代码（包括representative_symbols）")
         if layer == "market" and key and key.lower() == "symbol":
             raise ModuleContractViolation(f"{path}: market layer forbids symbol output")
+
+
+def validate_theme_hard_rules(output: Any) -> None:
+    if not isinstance(output, dict):
+        raise ThemeValidationError("$.payload: theme payload must be an object")
+    if "representative_symbols" in str(output):
+        raise ThemeValidationError("FORBIDDEN_FIELD_DETECTED")
+    extra_keys = sorted(set(output) - _THEME_ALLOWED_PAYLOAD_KEYS)
+    if extra_keys:
+        raise ThemeValidationError(f"extra fields detected: {extra_keys}")
+    if contains_any_stock_code(output):
+        raise ThemeValidationError("theme层禁止出现任何股票代码（包括representative_symbols）")
+
+
+def contains_any_stock_code(output: Any) -> bool:
+    for _path, key, value in _walk(output):
+        if key and _A_SHARE_CODE.search(key):
+            return True
+        if isinstance(value, str) and _A_SHARE_CODE.search(value):
+            return True
+    return False
 
 
 def assert_signal_type(values: Any, path: str = "$.signal_type") -> None:

@@ -107,9 +107,7 @@ def generate_snapshot(as_of: date) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         snapshot = _fallback_snapshot(as_of, f"tushare_runtime_failure:{type(exc).__name__}")
 
-    validate_or_raise(snapshot["payload"], "theme_research_payload.schema.json")
-    validate_or_raise(snapshot, "research.schema.json")
-    validate_module_contract(snapshot)
+    _validate_snapshot_before_publish(snapshot)
     return snapshot
 
 
@@ -136,9 +134,8 @@ def _latest_complete_trading_day(pro: Any, as_of: date) -> tuple[str, list[str]]
 
 
 def _has_complete_daily_records(pro: Any, trade_date: str) -> bool:
-    index_daily = pro.index_daily(ts_code="000001.SH", trade_date=trade_date)
-    stock_daily = pro.daily(ts_code="600519.SH", trade_date=trade_date)
-    return index_daily is not None and not index_daily.empty and stock_daily is not None and not stock_daily.empty
+    theme_history = _safe_ths_history(pro, THEME_CLUSTERS[0].ths_codes[0], trade_date, trade_date)
+    return bool(theme_history)
 
 
 def _collect_theme_evidence(pro: Any, basis_date: str) -> dict[str, Any]:
@@ -386,8 +383,6 @@ def _snapshot_from_evidence(
         "module": "theme_research",
         "data_sources": [
             "tushare:trade_cal",
-            "tushare:index_daily",
-            "tushare:daily",
             "tushare:ths_index",
             "tushare:ths_daily",
             "tushare:sw_daily",
@@ -424,6 +419,7 @@ def _snapshot_from_evidence(
         },
         "payload": payload,
     }
+    _validate_snapshot_before_publish(snapshot)
     return snapshot
 
 
@@ -619,6 +615,12 @@ def _utc_now() -> str:
 
 def _default_output_path(basis_date: str) -> Path:
     return Path("research/theme_research") / f"theme-research-{basis_date}-mainline.json"
+
+
+def _validate_snapshot_before_publish(snapshot: dict[str, Any]) -> None:
+    validate_or_raise(snapshot["payload"], "theme_research_payload.schema.json")
+    validate_or_raise(snapshot, "research.schema.json")
+    validate_module_contract(snapshot)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:

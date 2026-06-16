@@ -61,7 +61,7 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
             "portfolio_history": build_portfolio_history_state(repo, as_of)["data"],
             "actual_vs_shadow": actual_vs_shadow,
             "daily_refresh": _daily_refresh_state(timeline, as_of, actual_vs_shadow),
-            "research": _research_state(research_items, timeline, target_pool, portfolio),
+            "research": _research_state(research_items, timeline),
             "risk": _risk_state(risk),
             "comparison": _comparison_state(comparison),
             "macro": _macro_state(macro),
@@ -611,12 +611,10 @@ def _max_abs_delta(rows: list[dict[str, Any]]) -> float | None:
 def _research_state(
     research_items: list[dict[str, Any]],
     timeline: list[dict[str, Any]],
-    target_pool: dict[str, Any] | None,
-    portfolio: dict[str, Any] | None,
 ) -> dict[str, Any]:
     return {
         "available": bool(research_items),
-        "theme": _theme_research_state(research_items, target_pool, portfolio),
+        "theme": _theme_research_state(research_items),
         "theme_history": _theme_history_state(timeline),
         "items": [
             {
@@ -780,11 +778,7 @@ WATCH_THEME_KEYWORDS = [
 ]
 
 
-def _theme_research_state(
-    research_items: list[dict[str, Any]],
-    target_pool: dict[str, Any] | None,
-    portfolio: dict[str, Any] | None,
-) -> dict[str, Any]:
+def _theme_research_state(research_items: list[dict[str, Any]]) -> dict[str, Any]:
     item = _theme_research_item(research_items)
     if item is None or not _valid_theme_snapshot(item):
         return {
@@ -794,13 +788,11 @@ def _theme_research_state(
             "primary": None,
             "mainlines": [],
             "watchlist": _theme_watchlist([]),
-            "representative_scope": _empty_theme_representative_scope(target_pool, portfolio),
             "data_gaps": [],
             "notes": ["当前没有满足主题层合同的 theme_research 快照。"],
         }
 
     mainlines = _theme_mainlines(item)
-    representative_scope = _theme_representative_scope(mainlines, target_pool, portfolio)
     primary = mainlines[0] if mainlines else None
     return {
         "available": True,
@@ -813,7 +805,6 @@ def _theme_research_state(
         "primary": primary,
         "mainlines": mainlines,
         "watchlist": _theme_watchlist(mainlines),
-        "representative_scope": representative_scope,
         "data_gaps": item.get("data_gaps", []),
         "conflicts": item.get("conflicts", []),
         "notes": [
@@ -832,43 +823,6 @@ def _theme_research_item(items: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 def _theme_mainlines(item: dict[str, Any]) -> list[dict[str, Any]]:
     return [_theme_mainline_from_payload(item)]
-
-
-def _empty_theme_representative_scope(
-    target_pool: dict[str, Any] | None,
-    portfolio: dict[str, Any] | None,
-) -> dict[str, Any]:
-    return {
-        "available": False,
-        "source_target_pool_id": target_pool["target_pool_id"] if target_pool else None,
-        "source_portfolio_id": portfolio["portfolio_id"] if portfolio else None,
-        "record_count": 0,
-        "status_counts": {},
-        "rows": [],
-        "notes": [
-            "主题层合同禁止输出股票代码。",
-            "标的状态请查看目标池、ResearchFirst 队列、决策预览或组合页。",
-        ],
-    }
-
-
-def _theme_representative_scope(
-    mainlines: list[dict[str, Any]],
-    target_pool: dict[str, Any] | None,
-    portfolio: dict[str, Any] | None,
-) -> dict[str, Any]:
-    return {
-        "available": False,
-        "source_target_pool_id": target_pool["target_pool_id"] if target_pool else None,
-        "source_portfolio_id": portfolio["portfolio_id"] if portfolio else None,
-        "record_count": 0,
-        "status_counts": {},
-        "rows": [],
-        "notes": [
-            "主题层合同禁止输出股票代码。",
-            "目标池、ResearchFirst 和影子组合只在各自页面展示，不由主题层下钻生成。",
-        ],
-    }
 
 
 def _theme_mainline_from_payload(item: dict[str, Any]) -> dict[str, Any]:
