@@ -431,12 +431,13 @@ def _page_shell(title: str, active: str, content: str, data: dict[str, Any]) -> 
     .footer-links {{ display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; }}
     .hero {{ display:grid; grid-template-columns:minmax(0, 1.6fr) minmax(280px, 0.9fr); gap:14px; align-items:stretch; }}
     .panel {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px; min-width:0; }}
+    .panel.tight {{ padding:12px; }}
     .highlight {{ background:var(--soft); border-color:#a3d2cc; }}
     .grid-2 {{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }}
     .grid-3 {{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; }}
     .grid-4 {{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; }}
     .feature-grid {{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; }}
-    .feature {{ display:flex; flex-direction:column; gap:8px; min-height:126px; }}
+    .feature {{ display:flex; flex-direction:column; gap:8px; min-height:96px; }}
     .feature a {{ font-weight:800; color:var(--ink); }}
     .detail {{ color:var(--muted); margin-top:8px; }}
     .small {{ color:var(--muted); font-size:13px; }}
@@ -444,6 +445,19 @@ def _page_shell(title: str, active: str, content: str, data: dict[str, Any]) -> 
     .value {{ font-size:22px; font-weight:800; overflow-wrap:anywhere; }}
     .badge-row {{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }}
     .badge {{ border:1px solid var(--line); border-radius:6px; padding:5px 8px; background:#fff; color:var(--muted); font-size:13px; }}
+    .help-row {{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }}
+    .help-tip {{ position:relative; display:inline-flex; align-items:center; justify-content:center; gap:4px; border:1px solid #b7c3d0; border-radius:999px; min-width:24px; min-height:24px; padding:3px 8px; background:#fff; color:#344054; font-size:12px; font-weight:800; cursor:help; outline:none; }}
+    .help-tip::after {{ content:attr(data-tip); position:absolute; left:0; top:calc(100% + 8px); width:min(360px, 80vw); padding:10px 12px; border:1px solid #b7c3d0; border-radius:8px; background:#101828; color:#fff; font-weight:400; line-height:1.5; box-shadow:0 10px 24px rgba(16,24,40,0.18); opacity:0; transform:translateY(-4px); pointer-events:none; transition:opacity .12s ease, transform .12s ease; z-index:30; white-space:normal; }}
+    .help-tip:hover::after, .help-tip:focus::after {{ opacity:1; transform:translateY(0); }}
+    .compact-boundary {{ display:flex; flex-direction:column; justify-content:center; }}
+    .compact-boundary .badge-row {{ margin-top:8px; }}
+    .compact-details {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; margin:0 0 18px; overflow:visible; }}
+    .compact-details > summary {{ cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 16px; font-weight:800; }}
+    .compact-details > summary::-webkit-details-marker {{ display:none; }}
+    .compact-details > summary::after {{ content:"展开"; color:var(--muted); font-size:13px; font-weight:700; }}
+    .compact-details[open] > summary::after {{ content:"收起"; }}
+    .details-body {{ padding:0 16px 16px; }}
+    .details-body > section:last-child {{ margin-bottom:0; }}
     .inline-control {{ display:inline-flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:6px; padding:7px 9px; background:#fff; color:var(--muted); }}
     .pass, .good {{ color:var(--good); font-weight:800; }}
     .warn {{ color:var(--warn); font-weight:800; }}
@@ -489,10 +503,13 @@ def _page_shell(title: str, active: str, content: str, data: dict[str, Any]) -> 
         <h1>{html.escape(title)}</h1>
         <p class="detail">{today}</p>
       </div>
-      <div class="panel">
-        <h2>使用边界</h2>
-        <p>所有页面只读取 JSON 与 SQLite 回放结果。</p>
-        <p class="detail">研究、决策、影子组合分层显示；浏览器界面只允许受控追加快照，不触发交易。</p>
+      <div class="panel compact-boundary">
+        <h2>使用边界 {_tip("所有页面只读取 JSON 与 SQLite 回放结果。研究、决策、影子组合分层显示；浏览器界面只允许受控追加快照，不触发交易。")}</h2>
+        <div class="badge-row">
+          <span class="badge">JSON 事实源</span>
+          <span class="badge">只读展示</span>
+          <span class="badge">纸面模拟</span>
+        </div>
       </div>
     </section>
     {content}
@@ -531,6 +548,31 @@ def _today_summary(data: dict[str, Any]) -> str:
             f"<a href=\"{html.escape(next_endpoint)}\">进入下一步</a>"
         )
     return "先看今日行动边界，再进入市场、风险、组合或研究页面。"
+
+
+def _tip(text: str, label: str = "说明") -> str:
+    return (
+        f'<span class="help-tip" tabindex="0" aria-label="{html.escape(text, quote=True)}" '
+        f'data-tip="{html.escape(text, quote=True)}">{html.escape(label)}</span>'
+    )
+
+
+def _help_row(items: list[tuple[str, str]]) -> str:
+    if not items:
+        return ""
+    tips = "".join(_tip(text, label) for label, text in items)
+    return f'<div class="help-row">{tips}</div>'
+
+
+def _compact_details(title: str, body: str, tip: str | None = None, open_by_default: bool = False) -> str:
+    open_attr = " open" if open_by_default else ""
+    tip_html = _tip(tip) if tip else ""
+    return f"""
+<details class="compact-details"{open_attr}>
+  <summary>{html.escape(title)} {tip_html}</summary>
+  <div class="details-body">{body}</div>
+</details>
+"""
 
 
 def _home_priority_cards(data: dict[str, Any]) -> str:
@@ -577,7 +619,7 @@ def _priority_entry_card(title: str, href: str, status: str, detail: str) -> str
 <div class="panel feature">
   <a href="{html.escape(href)}">{html.escape(title)}</a>
   <p class="value">{html.escape(status)}</p>
-  <p class="small">{html.escape(detail)}</p>
+  <p class="small">{_tip(detail, "悬停说明")}</p>
 </div>
 """
 
@@ -667,7 +709,7 @@ def _home_content(data: dict[str, Any]) -> str:
 {_daily_refresh_strip(daily_refresh)}
 <section>
   <h2>优先入口</h2>
-  <p class="detail">打开系统后先看这三处：先读结论，再处理研究卡点，最后核对组合。</p>
+  {_help_row([("怎么用", "打开系统后先看这三处：先读结论，再处理研究卡点，最后核对组合。")])}
   <div class="feature-grid">{priority_cards}</div>
 </section>
 <section>
@@ -678,7 +720,7 @@ def _home_content(data: dict[str, Any]) -> str:
   <h2>导航路径</h2>
   <div class="path">{flow_steps}</div>
 </section>
-{_overview_content(data)}
+{_compact_details("系统总览、数据缺口和记录数量", _overview_content(data), "这里保留完整总览、数据缺口、冲突提示和记录数量，但默认收起，避免首页过长。")}
 """
 
 
@@ -758,6 +800,23 @@ def _daily_workflow_content(data: dict[str, Any]) -> str:
         for item in workflow["steps"]
     ]
     source_rows = [[key, value or "暂无"] for key, value in workflow["source_ids"].items()]
+    loop_body = f"""
+<section>
+  {_table(["步骤", "状态", "说明", "日期", "页面", "JSON"], rows, raw_columns={4, 5})}
+</section>
+"""
+    source_body = f"""
+<section class="grid-2">
+  <div class="panel">
+    <h2>来源编号</h2>
+    {_table(["字段", "编号"], source_rows)}
+  </div>
+  <div class="panel">
+    <h2>不要做</h2>
+    {_list_items(workflow["blocked_operations"], "暂无额外限制。")}
+  </div>
+</section>
+"""
     return f"""
 <section class="two-pane">
   <div class="panel highlight">
@@ -774,20 +833,8 @@ def _daily_workflow_content(data: dict[str, Any]) -> str:
     {_list_items(workflow["safe_operations"], "暂无可用操作。")}
   </div>
 </section>
-<section>
-  <h2>每日闭环</h2>
-  {_table(["步骤", "状态", "说明", "日期", "页面", "JSON"], rows, raw_columns={4, 5})}
-</section>
-<section class="grid-2">
-  <div class="panel">
-    <h2>来源编号</h2>
-    {_table(["字段", "编号"], source_rows)}
-  </div>
-  <div class="panel">
-    <h2>不要做</h2>
-    {_list_items(workflow["blocked_operations"], "暂无额外限制。")}
-  </div>
-</section>
+{_compact_details("每日闭环明细", loop_body, "保留每一步的状态、日期、人看页面和 JSON 入口，需要核对时再展开。", open_by_default=True)}
+{_compact_details("来源编号和禁止事项", source_body, "来源编号用于追溯，禁止事项用于确认系统不会越过只读边界。")}
 """
 
 
@@ -797,6 +844,16 @@ def _guidance_content(data: dict[str, Any]) -> str:
     operations = guidance["today_action"]["allowed_operations"]
     checks = guidance["checks"]
     steps = guidance["today_action"]["next_required_steps"]
+    checks_body = f"""
+<section>
+  {_table(["检查", "状态", "说明", "入口"], [_check_row(item) for item in checks], raw_columns={3})}
+</section>
+"""
+    do_not_body = f"""
+<section class="panel">
+  {_list_items(guidance["today_action"]["do_not_do"], "暂无额外限制。")}
+</section>
+"""
     return f"""
 <section>
   <h2>今日行动边界</h2>
@@ -816,14 +873,8 @@ def _guidance_content(data: dict[str, Any]) -> str:
   <h2>下一步复核项</h2>
   {_table(["步骤", "原因", "入口"], [_next_step_row(item) for item in steps], raw_columns={2})}
 </section>
-<section>
-  <h2>边界检查</h2>
-  {_table(["检查", "状态", "说明", "入口"], [_check_row(item) for item in checks], raw_columns={3})}
-</section>
-<section class="panel">
-  <h2>今天不要做</h2>
-  {_list_items(guidance["today_action"]["do_not_do"], "暂无额外限制。")}
-</section>
+{_compact_details("边界检查", checks_body, "完整检查项保留在这里；日常先看上方结论和下一步复核项。")}
+{_compact_details("今天不要做", do_not_body, "这里列出只读系统不能越过的动作，默认收起减少干扰。")}
 """
 
 
@@ -856,12 +907,12 @@ def _guidance_research_first_scope(research_first: dict[str, Any]) -> str:
 <section class="grid-2">
   <div class="panel">
     <h2>当前持仓门槛</h2>
-    <p class="detail">这里只看已经持有的标的；未覆盖时阻断提高风险，但不代表历史候选仍要补研究。</p>
+    {_help_row([("范围", "这里只看已经持有的标的；未覆盖时阻断提高风险，但不代表历史候选仍要补研究。")])}
     {_table(["标的", "状态", "影响", "入口"], active_rows)}
   </div>
   <div class="panel">
     <h2>当前候选 ResearchFirst</h2>
-    <p class="detail">这里只看最新目标池和当前决策里的候选；历史或已排除候选只保留研究记录，不影响全局状态。</p>
+    {_help_row([("范围", "这里只看最新目标池和当前决策里的候选；历史或已排除候选只保留研究记录，不影响全局状态。")])}
     {_table(["标的", "原因", "当前卡点", "来源"], queue_rows)}
   </div>
 </section>
@@ -933,6 +984,31 @@ def _theme_content(data: dict[str, Any]) -> str:
     ]
     if not scope_rows:
         scope_rows = [["暂无", "暂无代表标的", "暂无", "暂无", "无", "当前没有可关联的代表标的。"]]
+    source_body = f"""
+<section class="grid-2">
+  <div class="panel">
+    <h2>为什么之前看不到</h2>
+    <p>之前页面只展示 theme_research 的压缩摘要，AI、半导体等方向藏在 key_facts 和 payload.evidence 里。</p>
+    <p class="detail">现在本页把这些字段展开成主线、板块、代表标的和关注方向。</p>
+  </div>
+  <div class="panel">
+    <h2>来源追溯</h2>
+    <p>快照：{html.escape(str(theme["snapshot_id"]))}</p>
+    <p class="detail">基准日：{html.escape(str(theme["basis_date"]))}；行动性：{html.escape(str(theme["actionability"]))}。</p>
+    <p class="detail"><a href="/theme/state">主线研究 JSON</a>　<a href="/theme/history">主线变化 JSON</a>　<a href="/research/view">研究工作台</a></p>
+  </div>
+</section>
+"""
+    history_body = f"""
+<section>
+  {_table(["日期", "第一主线", "强度", "变化", "强度差", "说明", "来源快照"], history_rows)}
+</section>
+"""
+    evidence_body = f"""
+<section>
+  {_table(["主线", "证据"], evidence_rows)}
+</section>
+"""
     return f"""
 <section class="two-pane">
   <div class="panel highlight">
@@ -947,46 +1023,29 @@ def _theme_content(data: dict[str, Any]) -> str:
   </div>
   <div class="panel">
     <h2>怎么读</h2>
-    <p>主线研究回答“现在市场最强的方向是什么”，不回答“应该买哪个标的”。</p>
-    <p class="detail">代表标的只是研究对象，必须继续经过画像、估值、流动性和 ResearchFirst 门槛。</p>
+    {_help_row([
+        ("主线含义", "主线研究回答“现在市场最强的方向是什么”，不回答“应该买哪个标的”。"),
+        ("标的边界", "代表标的只是研究对象，必须继续经过画像、估值、流动性和 ResearchFirst 门槛。"),
+    ])}
   </div>
 </section>
-<section class="grid-2">
-  <div class="panel">
-    <h2>为什么之前看不到</h2>
-    <p>之前页面只展示 theme_research 的压缩摘要，AI、半导体等方向藏在 key_facts 和 payload.evidence 里。</p>
-    <p class="detail">现在本页把这些字段展开成主线、板块、代表标的和关注方向。</p>
-  </div>
-  <div class="panel">
-    <h2>来源追溯</h2>
-    <p>快照：{html.escape(str(theme["snapshot_id"]))}</p>
-    <p class="detail">基准日：{html.escape(str(theme["basis_date"]))}；行动性：{html.escape(str(theme["actionability"]))}。</p>
-    <p class="detail"><a href="/theme/state">主线研究 JSON</a>　<a href="/theme/history">主线变化 JSON</a>　<a href="/research/view">研究工作台</a></p>
-  </div>
-</section>
+{_compact_details("说明和来源追溯", source_body, "解释为什么现在能看到 AI、半导体等方向，以及对应的快照和 JSON 来源。")}
 <section>
   <h2>当前主线排序</h2>
   {_table(["排序", "主线", "你熟悉的说法", "强度", "阶段", "包含板块", "代表标的", "门槛状态"], mainline_rows)}
 </section>
 <section>
   <h2>你关心的方向</h2>
-  <p class="detail">这张表专门回答 AI、半导体、电力设备、机器人是否进入当前主线。</p>
+  {_help_row([("用途", "这张表专门回答 AI、半导体、电力设备、机器人是否进入当前主线。")])}
   {_table(["方向", "状态", "对应主线", "说明"], watch_rows)}
 </section>
 <section id="theme-representative-scope">
   <h2>代表标的当前状态</h2>
-  <p class="detail">这张表把主线代表标的和当前策略目标池、影子组合对齐；ResearchFirst、阻断和观察档案都不会产生真实交易动作。</p>
+  {_help_row([("边界", "这张表把主线代表标的和当前策略目标池、影子组合对齐；ResearchFirst、阻断和观察档案都不会产生真实交易动作。")])}
   {_table(["主线", "标的", "当前状态", "目标池范围", "影子比例", "说明"], scope_rows)}
 </section>
-<section>
-  <h2>主线变化记录</h2>
-  <p class="detail">这里从历史 research_snapshot 追加记录推导，帮助你判断当前主线是延续、增强、减弱还是切换。</p>
-  {_table(["日期", "第一主线", "强度", "变化", "强度差", "说明", "来源快照"], history_rows)}
-</section>
-<section>
-  <h2>证据摘录</h2>
-  {_table(["主线", "证据"], evidence_rows)}
-</section>
+{_compact_details("主线变化记录", history_body, "这里从历史 research_snapshot 追加记录推导，帮助你判断当前主线是延续、增强、减弱还是切换。")}
+{_compact_details("证据摘录", evidence_body, "保留主线证据原文摘要；需要追溯时再展开。")}
 """
 
 
@@ -1004,6 +1063,19 @@ def _market_content(data: dict[str, Any]) -> str:
     ]
     if not pool_rows:
         pool_rows = [["暂无", "策略目标池暂不可用", "0"]]
+    source_body = f"""
+<section class="grid-2">
+  <div class="panel">
+    <h2>来源与缺口</h2>
+    <p>来源：{html.escape("、".join(market["data_sources"]))}</p>
+    <div class="detail">{_data_gap_table(market["data_gaps"])}</div>
+  </div>
+  <div class="panel">
+    <h2>冲突提示</h2>
+    {_list_items(market["conflicts"], "当前没有市场冲突提示。")}
+  </div>
+</section>
+"""
     return f"""
 <section class="two-pane">
   <div class="panel highlight">
@@ -1018,7 +1090,7 @@ def _market_content(data: dict[str, Any]) -> str:
   <div class="panel">
     <h2>行动边界</h2>
     <p>{html.escape(_market_boundary_text(guidance))}</p>
-    <p class="detail">市场页只回答“环境如何”和“目标暴露区间在哪里”，不直接给出单一标的操作。</p>
+    {_help_row([("边界", "市场页只回答“环境如何”和“目标暴露区间在哪里”，不直接给出单一标的操作。")])}
   </div>
 </section>
 <section>
@@ -1030,18 +1102,10 @@ def _market_content(data: dict[str, Any]) -> str:
     {_metric_card("权益上限", _percent(market["equity_max"]))}
   </div>
 </section>
-<section class="grid-2">
-  <div class="panel">
-    <h2>市场分数怎么读</h2>
-    <p>市场评分是 0 到 100 的环境分数，来自只读市场快照；分数越高，环境越偏积极，分数越低，越偏防守。</p>
-    <p class="detail">风险等级会把评分、数据质量、拥挤度和市场宽度一起压缩成低、中、高三档。</p>
-  </div>
-  <div class="panel">
-    <h2>权益目标区间</h2>
-    <p>{html.escape(_market_equity_range_text(market))}</p>
-    <p class="detail">这个区间是组合复核的参照边界，具体比例仍要经过 ResearchFirst、风险页和决策预览。</p>
-  </div>
-</section>
+{_help_row([
+    ("市场分数怎么读", "市场评分是 0 到 100 的环境分数，来自只读市场快照；分数越高，环境越偏积极，分数越低，越偏防守。风险等级会把评分、数据质量、拥挤度和市场宽度一起压缩成低、中、高三档。"),
+    ("权益目标区间", f"{_market_equity_range_text(market)}这个区间是组合复核的参照边界，具体比例仍要经过 ResearchFirst、风险页和决策预览。"),
+])}
 <section class="panel" id="market-refresh">
   <h2>刷新市场快照</h2>
   <p>追加写入新的市场快照，不覆盖历史记录。</p>
@@ -1050,23 +1114,13 @@ def _market_content(data: dict[str, Any]) -> str:
     <button type="button" id="market-refresh-button">刷新市场快照</button>
     <a class="step" href="/market/latest">查看市场 JSON</a>
   </div>
-  <p class="detail">默认日期跟首页今日刷新状态一致；最新市场快照日期仍保留在上方来源信息里。</p>
+  {_help_row([("日期口径", "默认日期跟首页今日刷新状态一致；最新市场快照日期仍保留在上方来源信息里。")])}
   <pre id="market-refresh-result">等待刷新。</pre>
 </section>
-<section class="grid-2">
-  <div class="panel">
-    <h2>来源与缺口</h2>
-    <p>来源：{html.escape("、".join(market["data_sources"]))}</p>
-    <div class="detail">{_data_gap_table(market["data_gaps"])}</div>
-  </div>
-  <div class="panel">
-    <h2>冲突提示</h2>
-    {_list_items(market["conflicts"], "当前没有市场冲突提示。")}
-  </div>
-</section>
+{_compact_details("来源、数据缺口和冲突提示", source_body, "数据缺口和冲突仍保留，但默认收起；需要排查数据时展开。")}
 <section>
   <h2>策略目标池</h2>
-  <p class="detail">这里是系统用于 ResearchFirst、决策预览和影子组合的策略候选范围。QMT 实际持仓只在组合页做对照，不会覆盖这里。</p>
+  {_help_row([("范围", "这里是系统用于 ResearchFirst、决策预览和影子组合的策略候选范围。QMT 实际持仓只在组合页做对照，不会覆盖这里。")])}
   <div class="badge-row">
     <a class="step" href="/target-pool/view">查看目标池说明</a>
     <a class="step" href="/target-pool/latest">策略目标池 JSON</a>
@@ -1137,7 +1191,7 @@ def _target_pool_content(data: dict[str, Any]) -> str:
   <div class="panel highlight">
     <h2>策略目标池</h2>
     <p class="value">{html.escape(source)}</p>
-    <p class="detail">策略目标池是系统当前承认的候选范围，用于 ResearchFirst、决策预览和影子组合生成。</p>
+    {_help_row([("定义", "策略目标池是系统当前承认的候选范围，用于 ResearchFirst、决策预览和影子组合生成。")])}
     <div class="badge-row">
       <span class="badge">目标池 {html.escape(pool_id)}</span>
       <span class="badge">日期 {html.escape(basis_date)}</span>
@@ -1147,32 +1201,24 @@ def _target_pool_content(data: dict[str, Any]) -> str:
   <div class="panel">
     <h2>QMT 实际持仓对照</h2>
     <p class="value">{html.escape(_qmt_read_status_label(qmt_status["status"]))}</p>
-    <p class="detail">QMT 实际持仓对照来自只读比例读取，只用于核对实际配置；它不是系统推荐池，也不会覆盖策略目标池。</p>
+    {_help_row([("边界", "QMT 实际持仓对照来自只读比例读取，只用于核对实际配置；它不是系统推荐池，也不会覆盖策略目标池。")])}
     <div class="badge-row">
       <a class="step" href="/portfolio/view">查看组合页</a>
       <a class="step" href="/portfolio/actual-vs-shadow">查看实际/影子对照 JSON</a>
     </div>
   </div>
 </section>
-<section class="grid-2">
-  <div class="panel">
-    <h2>怎么区分</h2>
-    <p>策略目标池回答“系统当前允许哪些候选进入研究、决策和影子组合”。</p>
-    <p class="detail">QMT 实际持仓回答“你现在实际配置比例和影子组合差在哪里”。两者都只展示比例，不包含金额、数量或账户细节。</p>
-  </div>
-  <div class="panel">
-    <h2>什么时候影响全局提示</h2>
-    <p>只有当前持仓、当前策略目标池、当前决策里的 ResearchFirst 会影响全局 readiness。</p>
-    <p class="detail">历史失败研究或已排除候选只作为研究档案保留，不应卡住全站提示。</p>
-  </div>
-</section>
+{_help_row([
+    ("怎么区分", "策略目标池回答“系统当前允许哪些候选进入研究、决策和影子组合”。QMT 实际持仓回答“你现在实际配置比例和影子组合差在哪里”。两者都只展示比例，不包含金额、数量或账户细节。"),
+    ("影响范围", "只有当前持仓、当前策略目标池、当前决策里的 ResearchFirst 会影响全局 readiness。历史失败研究或已排除候选只作为研究档案保留，不应卡住全站提示。"),
+])}
 <section>
   <h2>当前策略目标池</h2>
   {_table(["类型", "标的", "数量"], pool_rows)}
 </section>
 <section>
   <h2>QMT 实际持仓 vs 影子组合</h2>
-  <p class="detail">这一块是组合核对信息，实际持仓不是目标池来源；需要刷新实际持仓时请进入组合页。</p>
+  {_help_row([("用途", "这一块是组合核对信息，实际持仓不是目标池来源；需要刷新实际持仓时请进入组合页。")])}
   {_table(["标的", "QMT 实际比例", "影子比例", "影子-实际", "状态"], actual_rows)}
 </section>
 """
@@ -1209,7 +1255,7 @@ def _risk_content(data: dict[str, Any]) -> str:
   <div class="panel">
     <h2>今日边界</h2>
     <p>{html.escape(_risk_boundary_text(risk, guidance))}</p>
-    <p class="detail">风险页只说明阻断或复核原因，不能绕过研究门槛和决策记录。</p>
+    {_help_row([("边界", "风险页只说明阻断或复核原因，不能绕过研究门槛和决策记录。")])}
   </div>
 </section>
 <section>
@@ -1221,18 +1267,10 @@ def _risk_content(data: dict[str, Any]) -> str:
     {_metric_card("影子差距", f"{risk['shadow_vs_market_gap']} pp")}
   </div>
 </section>
-<section class="grid-2">
-  <div class="panel">
-    <h2>风险分数怎么读</h2>
-    <p>风险分数是 0 到 100 的综合压力分数，越高越需要先处理风险。65 以上为高风险，30 到 65 为中等风险，30 以下为低风险。</p>
-    <p class="detail">它由暴露偏离、集中度、研究与决策差距、影子组合差距、拥挤度和警告数量共同生成。</p>
-  </div>
-  <div class="panel">
-    <h2>分数和警告的关系</h2>
-    <p>风险警告说明“分数为什么上升”，风险分数说明“整体压力有多大”。两者要一起看。</p>
-    <p class="detail">如果警告存在，先处理警告来源；如果没有警告，再看组合和决策是否匹配。</p>
-  </div>
-</section>
+{_help_row([
+    ("风险分数怎么读", "风险分数是 0 到 100 的综合压力分数，越高越需要先处理风险。65 以上为高风险，30 到 65 为中等风险，30 以下为低风险。它由暴露偏离、集中度、研究与决策差距、影子组合差距、拥挤度和警告数量共同生成。"),
+    ("分数和警告的关系", "风险警告说明“分数为什么上升”，风险分数说明“整体压力有多大”。两者要一起看。如果警告存在，先处理警告来源；如果没有警告，再看组合和决策是否匹配。"),
+])}
 <section>
   <h2>风险警告怎么读</h2>
   {_table(["风险项", "等级", "说明", "代表含义", "来源"], warning_rows)}
@@ -1404,6 +1442,11 @@ def _macro_content(data: dict[str, Any]) -> str:
     ]
     if not factor_rows:
         factor_rows = [["none", "暂无", "0", "中性", "暂无解释。", "宏观状态"]]
+    model_body = f"""
+<section>
+  {_table(["模型", "分数", "置信度", "作用", "证据"], model_rows)}
+</section>
+"""
     return f"""
 <section class="two-pane">
   <div class="panel highlight">
@@ -1419,7 +1462,7 @@ def _macro_content(data: dict[str, Any]) -> str:
   <div class="panel">
     <h2>行动边界</h2>
     <p>{html.escape(_macro_boundary_text(guidance))}</p>
-    <p class="detail"><a href="/guidance/view">查看今日行动边界</a></p>
+    <div class="badge-row"><a class="step" href="/guidance/view">查看今日行动边界</a></div>
   </div>
 </section>
 <section>
@@ -1430,7 +1473,7 @@ def _macro_content(data: dict[str, Any]) -> str:
     {_metric_card("通胀状态", _inflation_label(snapshot["inflation_regime"]))}
     {_metric_card("风险周期", _macro_cycle_label(snapshot["risk_cycle_state"]))}
   </div>
-  <p class="detail">这些是宏观环境输入：流动性越高越友好，利率压力越高越偏谨慎。</p>
+  {_help_row([("怎么读", "这些是宏观环境输入：流动性越高越友好，利率压力越高越偏谨慎。")])}
 </section>
 <section>
   <h2>模型共识</h2>
@@ -1440,15 +1483,11 @@ def _macro_content(data: dict[str, Any]) -> str:
     {_metric_card("分歧", _percent(consensus["disagreement_score"]))}
     {_metric_card("置信度", _percent(consensus["calibrated_confidence"]))}
   </div>
-  <p class="detail">共识分数是宏观周期、市场位置、组合匹配度和研究质量四类模型分数的平均；它不是收益预测，也不是行动指令。</p>
+  {_help_row([("共识分数是总分吗", "共识分数是宏观周期、市场位置、组合匹配度和研究质量四类模型分数的平均；它不是收益预测，也不是行动指令。")])}
 </section>
-<section>
-  <h2>共识分数来源</h2>
-  {_table(["模型", "分数", "置信度", "作用", "证据"], model_rows)}
-</section>
-<section class="panel">
-  <h2>分数和因子的关系</h2>
-  <p>共识分数回答“当前环境偏积极还是偏谨慎”；因子分解回答“哪些信号在推动这个判断”。两者相关，但因子贡献不是简单相加成共识分数。</p>
+{_compact_details("共识分数来源", model_body, "展开后可以看到四类模型分数、置信度、作用和证据。")}
+<section class="panel tight">
+  <h2>分数和因子的关系 {_tip("共识分数回答“当前环境偏积极还是偏谨慎”；因子分解回答“哪些信号在推动这个判断”。两者相关，但因子贡献不是简单相加成共识分数。")}</h2>
   <div class="path">
     <span class="step">基础数据</span><span class="arrow">→</span>
     <span class="step">宏观状态</span><span class="arrow">→</span>
@@ -1459,7 +1498,7 @@ def _macro_content(data: dict[str, Any]) -> str:
 </section>
 <section>
   <h2>因子分解</h2>
-  <p class="detail">贡献值范围是 -1 到 +1：正数表示偏支持风险友好，负数表示偏谨慎，接近 0 表示影响较弱。</p>
+  {_help_row([("贡献值", "贡献值范围是 -1 到 +1：正数表示偏支持风险友好，负数表示偏谨慎，接近 0 表示影响较弱。")])}
   {_table(["因子", "中文含义", "贡献", "方向", "怎么读", "来源"], factor_rows)}
 </section>
 """
@@ -1645,6 +1684,28 @@ def _decision_content(data: dict[str, Any]) -> str:
         for item in proposal["explanation"]["why"]
     ]
     source_rows = _decision_source_rows(proposal["source_ids"])
+    gates_body = f"""
+<section>
+  {_table(["门槛", "状态"], gate_rows)}
+</section>
+"""
+    why_body = f"""
+<section>
+  {_table(["环节", "来源", "说明"], why_rows)}
+</section>
+"""
+    blocked_body = f"""
+<section class="grid-2">
+  <div class="panel">
+    <h2>阻断原因</h2>
+    {_list_items(proposal["explanation"]["blocked_reasons"], "当前没有阻断原因。")}
+  </div>
+  <div class="panel">
+    <h2>失效条件</h2>
+    {_list_items(proposal["invalidation_conditions"], "暂无失效条件。")}
+  </div>
+</section>
+"""
     return f"""
 <section class="two-pane">
   <div class="panel highlight">
@@ -1671,40 +1732,17 @@ def _decision_content(data: dict[str, Any]) -> str:
     {_metric_card("人工复核", _need_label(proposal["requires_human_review"]))}
   </div>
 </section>
-<section class="grid-2">
-  <div class="panel">
-    <h2>如何读标的预览</h2>
-    <p>当前比例是影子组合现在的比例，目标比例是本次只读预览给出的参照比例，变化使用百分点表示。</p>
-    <p class="detail">如果建议显示“先补研究”，说明 ResearchFirst 或门槛仍未放行，不进入纸面调仓参照。</p>
-  </div>
-  <div class="panel">
-    <h2>怎样影响影子组合</h2>
-    <p>影子组合只读取已经记录的决策和目标池，自动生成纸面组合快照。</p>
-    <p class="detail">本页是预览和解释；是否已经进入影子组合，以组合页的来源决策和纸面变化记录为准。</p>
-  </div>
-</section>
-<section>
-  <h2>门槛状态</h2>
-  {_table(["门槛", "状态"], gate_rows)}
-</section>
+{_help_row([
+    ("如何读标的预览", "当前比例是影子组合现在的比例，目标比例是本次只读预览给出的参照比例，变化使用百分点表示。如果建议显示“先补研究”，说明 ResearchFirst 或门槛仍未放行，不进入纸面调仓参照。"),
+    ("怎样影响影子组合", "影子组合只读取已经记录的决策和目标池，自动生成纸面组合快照。本页是预览和解释；是否已经进入影子组合，以组合页的来源决策和纸面变化记录为准。"),
+])}
+{_compact_details("门槛状态", gates_body, "展开查看 ResearchFirst、风险、宏观、组合和数据门槛是否通过。")}
 <section>
   <h2>标的级预览</h2>
   {_table(["标的", "建议", "当前比例", "目标比例", "变化", "门槛"], preview_rows)}
 </section>
-<section>
-  <h2>为什么这么建议</h2>
-  {_table(["环节", "来源", "说明"], why_rows)}
-</section>
-<section class="grid-2">
-  <div class="panel">
-    <h2>阻断原因</h2>
-    {_list_items(proposal["explanation"]["blocked_reasons"], "当前没有阻断原因。")}
-  </div>
-  <div class="panel">
-    <h2>失效条件</h2>
-    {_list_items(proposal["invalidation_conditions"], "暂无失效条件。")}
-  </div>
-</section>
+{_compact_details("为什么这么建议", why_body, "展开看研究、市场、风险、组合等环节如何形成这次只读预览。")}
+{_compact_details("阻断原因和失效条件", blocked_body, "有阻断时这里用于排查；没有阻断时默认收起。")}
 <section class="panel">
   <h2>JSON 追溯</h2>
   <p><a href="/decision/proposal">查看决策预览 JSON</a></p>
@@ -1845,6 +1883,35 @@ def _portfolio_content(data: dict[str, Any]) -> str:
     ]
     if not snapshot_rows:
         snapshot_rows = [["暂无", "无", "无", "无", 0, "无", "无"]]
+    auto_body = f"""
+<section class="grid-2">
+  <div class="panel">
+    <h2>自动模型对照</h2>
+    <p>影子组合由系统根据最新市场边界、研究门槛、标的池和风控约束自动维护。</p>
+    <p class="detail">它只生成纸面组合快照，用来和实际持仓对照；不会连接外部执行，也不需要你手动操作影子组合。</p>
+    <p class="detail">来源决策：{html.escape(str(portfolio["source_decision_id"]))}</p>
+  </div>
+  <div class="panel">
+    <h2>历史快照在哪里看</h2>
+    <p>人看的历史快照就在本页下方；系统原始回放在 <a href="/timeline/replay">历史回放 JSON</a>。</p>
+    <p class="detail">组合专用 JSON 在 <a href="/portfolio/history">组合历史 JSON</a>。输入历史日期时，也可以用 <a href="/portfolio/view?as_of=2026-06-15">按日期查看组合页</a>。</p>
+  </div>
+</section>
+"""
+    history_snapshot_body = f"""
+<section>
+  {_table(["日期", "现金", "换手", "收益率", "调仓数", "持仓摘要", "回放"], snapshot_rows, raw_columns={6})}
+</section>
+<section>
+  <h2>纸面表现</h2>
+  <div class="grid-4">
+    {_metric_card("收益率", _percent(portfolio["pnl_ratio"]))}
+    {_metric_card("换手", _percent(portfolio["turnover"]))}
+    {_metric_card("回撤", _percent(portfolio["drawdown"]))}
+    {_metric_card("现金比例", _percent(portfolio["cash_weight"]))}
+  </div>
+</section>
+"""
     return f"""
 <section class="two-pane">
   <div class="panel highlight">
@@ -1859,7 +1926,7 @@ def _portfolio_content(data: dict[str, Any]) -> str:
   <div class="panel">
     <h2>自动调仓依据</h2>
     <p>{html.escape(_portfolio_auto_rebalance_text(portfolio, history))}</p>
-    <p class="detail">来源决策：{html.escape(str(portfolio["source_decision_id"]))}；来源目标池：{html.escape(str(portfolio["source_target_pool_id"]))}。</p>
+    {_help_row([("来源", f"来源决策：{str(portfolio['source_decision_id'])}；来源目标池：{str(portfolio['source_target_pool_id'])}。")])}
   </div>
 </section>
 <section>
@@ -1871,29 +1938,11 @@ def _portfolio_content(data: dict[str, Any]) -> str:
     {_metric_card("偏离", "暂无" if portfolio["deviation_pp"] is None else f"{portfolio['deviation_pp']} pp")}
   </div>
 </section>
-<section class="grid-2">
-  <div class="panel">
-    <h2>怎么核对自动调仓</h2>
-    <p>先看“最近纸面变化”，确认本次每个标的的原比例、目标比例和变化；再看“每次纸面调仓记录”，核对历史来源决策。</p>
-    <p class="detail">影子组合是实际持仓的参照物，不需要你手动维护影子比例。</p>
-  </div>
-  <div class="panel">
-    <h2>怎么核对实际差异</h2>
-    <p>“实际持仓 vs 影子组合”只比较比例差异，用来告诉你实际配置和系统参照之间偏在哪里。</p>
-    <p class="detail">如果 QMT 读取状态不是已读取，先刷新实际持仓比例，再看差异。</p>
-  </div>
-</section>
-<section class="panel">
-  <h2>自动模型对照</h2>
-  <p>影子组合由系统根据最新市场边界、研究门槛、标的池和风控约束自动维护。</p>
-  <p class="detail">它只生成纸面组合快照，用来和实际持仓对照；不会连接外部执行，也不需要你手动操作影子组合。</p>
-  <p class="detail">来源决策：{html.escape(str(portfolio["source_decision_id"]))}</p>
-</section>
-<section class="panel">
-  <h2>历史快照在哪里看</h2>
-  <p>人看的历史快照就在本页下方；系统原始回放在 <a href="/timeline/replay">历史回放 JSON</a>。</p>
-  <p class="detail">组合专用 JSON 在 <a href="/portfolio/history">组合历史 JSON</a>。输入历史日期时，也可以用 <a href="/portfolio/view?as_of=2026-06-15">按日期查看组合页</a>。</p>
-</section>
+{_help_row([
+    ("怎么核对自动调仓", "先看“最近纸面变化”，确认本次每个标的的原比例、目标比例和变化；再看“每次纸面调仓记录”，核对历史来源决策。影子组合是实际持仓的参照物，不需要你手动维护影子比例。"),
+    ("怎么核对实际差异", "“实际持仓 vs 影子组合”只比较比例差异，用来告诉你实际配置和系统参照之间偏在哪里。如果 QMT 读取状态不是已读取，先刷新实际持仓比例，再看差异。"),
+])}
+{_compact_details("自动模型对照和历史入口", auto_body, "解释影子组合为什么自动变化，以及历史快照、组合历史 JSON、时间线回放在哪里看。")}
 <section class="panel">
   <h2>QMT 读取状态</h2>
   <div class="grid-4">
@@ -1902,11 +1951,11 @@ def _portfolio_content(data: dict[str, Any]) -> str:
     {_metric_card("原因", _qmt_reason_label(qmt_status["reason"]))}
     {_metric_card("下一步", qmt_status["next_action_label"])}
   </div>
-  <p class="detail">来源：{html.escape(str(qmt_status["last_event_id"] or "暂无 QMT 读取快照"))}</p>
+  {_help_row([("来源", f"来源：{str(qmt_status['last_event_id'] or '暂无 QMT 读取快照')}")])}
 </section>
 <section id="qmt-refresh" class="panel">
   <h2>刷新实际持仓</h2>
-  <p>从本机 QMT 只读读取持仓比例，追加为历史快照来源；页面只展示比例，不展示金额类字段、数量类字段或账户细节。</p>
+  {_help_row([("读取边界", "从本机 QMT 只读读取持仓比例，追加为历史快照来源；页面只展示比例，不展示金额类字段、数量类字段或账户细节。")])}
   <div class="badge-row">
     <label class="inline-control">日期 <input id="qmt-refresh-date" type="date" aria-label="QMT 读取日期"></label>
     <button type="button" id="qmt-refresh-button">从 QMT 刷新</button>
@@ -1921,7 +1970,7 @@ def _portfolio_content(data: dict[str, Any]) -> str:
     {_metric_card("权益差异", _delta_or_missing(actual["active_exposure_pp"]))}
     {_metric_card("最大单项差异", _delta_or_missing(actual["max_abs_delta_pp"]))}
   </div>
-  <p class="detail">来源：{html.escape(str(actual["source_event_id"] or "缺少 QMT 比例快照"))}</p>
+  {_help_row([("来源", f"来源：{str(actual['source_event_id'] or '缺少 QMT 比例快照')}")])}
   <p class="detail">结构化 JSON：<a href="/portfolio/actual-vs-shadow">实际/影子对照 JSON</a></p>
   {_table(["标的", "实际比例", "影子比例", "影子-实际", "状态"], actual_rows)}
 </section>
@@ -1937,19 +1986,7 @@ def _portfolio_content(data: dict[str, Any]) -> str:
   <h2>每次纸面调仓记录</h2>
   {_table(["日期", "标的", "动作", "原比例", "目标比例", "变化", "来源决策"], rebalance_rows)}
 </section>
-<section>
-  <h2>历史组合快照</h2>
-  {_table(["日期", "现金", "换手", "收益率", "调仓数", "持仓摘要", "回放"], snapshot_rows, raw_columns={6})}
-</section>
-<section>
-  <h2>纸面表现</h2>
-  <div class="grid-4">
-    {_metric_card("收益率", _percent(portfolio["pnl_ratio"]))}
-    {_metric_card("换手", _percent(portfolio["turnover"]))}
-    {_metric_card("回撤", _percent(portfolio["drawdown"]))}
-    {_metric_card("现金比例", _percent(portfolio["cash_weight"]))}
-  </div>
-</section>
+{_compact_details("历史组合快照和纸面表现", history_snapshot_body, "保留完整历史快照、回放入口和纸面表现，需要查历史时展开。")}
 <script>
 (() => {{
   const dateInput = document.getElementById('qmt-refresh-date');
@@ -2063,6 +2100,11 @@ def _research_content(data: dict[str, Any]) -> str:
     ]
     if not queue_rows:
         queue_rows = [["none", "当前没有 ResearchFirst 队列。", "无", "guidance"]]
+    latest_body = f"""
+<section>
+  {_table(["模块", "摘要", "置信度", "行动性", "下次复核"], rows)}
+</section>
+"""
     return f"""
 <section class="two-pane">
   <div class="panel highlight">
@@ -2076,21 +2118,20 @@ def _research_content(data: dict[str, Any]) -> str:
   </div>
   <div class="panel">
     <h2>放行规则</h2>
-    <p>当前持仓、最新目标池和当前决策里的标的，只有画像、估值、流动性门槛都通过，才会从当前 ResearchFirst 队列移出。</p>
-    <p class="detail">历史或已排除候选只保留研究记录；是否进入决策和影子组合，以当前目标池、决策页和组合页为准。</p>
+    {_help_row([
+        ("当前范围", "当前持仓、最新目标池和当前决策里的标的，只有画像、估值、流动性门槛都通过，才会从当前 ResearchFirst 队列移出。"),
+        ("历史档案", "历史或已排除候选只保留研究记录；是否进入决策和影子组合，以当前目标池、决策页和组合页为准。"),
+    ])}
   </div>
 </section>
 {_research_workbench_section(queue, valuation_review, valuation_prompts)}
 <section class="panel">
   <h2>研究入口</h2>
   <p><a href="/research/import/view">导入新的研究 JSON</a>　<a href="#valuation-review">查看估值证据复核</a>　<a href="#valuation-prompts">生成补充研究提示词</a></p>
-  <p class="detail">适合导入市场研究、主线研究或其它已校验研究快照。</p>
+  {_help_row([("适用范围", "适合导入市场研究、主线研究或其它已校验研究快照。")])}
 </section>
 {_theme_summary_section(research["theme"])}
-<section>
-  <h2>最新研究快照</h2>
-  {_table(["模块", "摘要", "置信度", "行动性", "下次复核"], rows)}
-</section>
+{_compact_details("最新研究快照", latest_body, "完整研究快照列表保留在这里；日常先看 ResearchFirst 队列和下一项研究。")}
 <section>
   <h2>ResearchFirst 队列</h2>
   {_table(["标的", "原因", "当前卡点", "来源"], queue_rows)}
@@ -2117,8 +2158,10 @@ def _theme_summary_section(theme: dict[str, Any]) -> str:
 <section class="panel">
   <h2>主线研究摘要</h2>
   <p class="value">{html.escape(str(primary.get("display_theme", "暂无主线")))}</p>
-  <p class="detail">{html.escape(_theme_primary_detail(theme, primary))}</p>
-  <p class="detail">关注方向：{html.escape("；".join(watch))}</p>
+  {_help_row([
+      ("主线说明", _theme_primary_detail(theme, primary)),
+      ("关注方向", "关注方向：" + "；".join(watch)),
+  ])}
   <p class="detail"><a href="/theme/view">打开主线研究页</a>　<a href="/theme/state">查看主线 JSON</a></p>
 </section>
 """
@@ -2165,7 +2208,7 @@ def _research_workbench_section(
     return f"""
 <section id="research-workbench">
   <h2>下一项该研究什么</h2>
-  <p class="detail">这张表只合并当前 ResearchFirst 队列、估值复核和补充研究提示词；历史或已排除候选不会阻断这里。</p>
+  {_help_row([("范围", "这张表只合并当前 ResearchFirst 队列、估值复核和补充研究提示词；历史或已排除候选不会阻断这里。")])}
   {_table(["标的", "状态", "为什么还没放行", "下一步", "入口"], rows, raw_columns={4})}
 </section>
 """
@@ -2245,7 +2288,7 @@ def _valuation_review_section(review: dict[str, Any]) -> str:
     return f"""
 <section id="valuation-review">
   <h2>估值证据复核</h2>
-  <p class="detail">这里只读解释为什么“研究已做”但仍未从 ResearchFirst 放行。</p>
+  {_help_row([("用途", "这里只读解释为什么“研究已做”但仍未从 ResearchFirst 放行。")])}
   <p class="detail"><a href="/research/valuation-review">查看复核 JSON</a></p>
   {_table(["标的", "状态", "已有证据", "缺什么", "下一步", "来源快照"], rows)}
 </section>
@@ -2270,7 +2313,7 @@ def _valuation_prompt_section(prompt_state: dict[str, Any]) -> str:
     return f"""
 <section id="valuation-prompts">
   <h2>补充研究提示词</h2>
-  <p class="detail">复制对应标的的提示词到新的研究对话，完成后把 research_snapshot JSON 导入系统。</p>
+  {_help_row([("怎么用", "复制对应标的的提示词到新的研究对话，完成后把 research_snapshot JSON 导入系统。")])}
   <p class="detail"><a href="/research/valuation-prompts">查看提示词 JSON</a></p>
   {_table(["标的", "模块", "来源快照", "提示词"], rows, raw_columns=raw_columns)}
 </section>
@@ -2469,6 +2512,16 @@ def _research_import_content(data: dict[str, Any]) -> str:
         None,
     )
     current_status = mainline_step["detail"] if mainline_step else "等待研究 JSON。"
+    requirements_body = """
+<section class="panel">
+  <ul>
+    <li>必须符合 research.schema.json。</li>
+    <li>已知模块必须符合对应 payload schema。</li>
+    <li>不得包含策略禁止字段或外部执行指令。</li>
+    <li>snapshot_id 不得与历史研究重复。</li>
+  </ul>
+</section>
+"""
     return f"""
 <section class="two-pane">
   <div class="panel highlight">
@@ -2478,8 +2531,10 @@ def _research_import_content(data: dict[str, Any]) -> str:
   </div>
   <div class="panel">
     <h2>导入边界</h2>
-    <p>导入只写入 research_snapshot 和 event_log，保持 append-only。</p>
-    <p class="detail">代表标的只能作为研究对象，仍受 ResearchFirst、估值和流动性门槛约束。</p>
+    {_help_row([
+        ("写入范围", "导入只写入 research_snapshot 和 event_log，保持 append-only。"),
+        ("研究边界", "代表标的只能作为研究对象，仍受 ResearchFirst、估值和流动性门槛约束。"),
+    ])}
   </div>
 </section>
 <section class="grid-2">
@@ -2496,15 +2551,7 @@ def _research_import_content(data: dict[str, Any]) -> str:
     <pre id="research-import-result">等待输入。</pre>
   </div>
 </section>
-<section class="panel">
-  <h2>需要满足</h2>
-  <ul>
-    <li>必须符合 research.schema.json。</li>
-    <li>已知模块必须符合对应 payload schema。</li>
-    <li>不得包含策略禁止字段或外部执行指令。</li>
-    <li>snapshot_id 不得与历史研究重复。</li>
-  </ul>
-</section>
+{_compact_details("需要满足", requirements_body, "导入校验规则保留在这里；日常只需要粘贴 JSON、先校验、再追加导入。")}
 <script>
 (() => {{
   const input = document.getElementById('research-json');
@@ -2540,6 +2587,29 @@ def _report_content(data: dict[str, Any]) -> str:
     rows = [[section, "ready"] for section in report["sections"]]
     summary_rows = _report_summary_rows(data)
     source_rows = _report_source_rows(manifest)
+    source_body = f"""
+<section>
+  <div class="grid-4">
+    {_metric_card("格式", "、".join(report["supported_formats"]))}
+    {_metric_card("市场快照", manifest["market_snapshot_id"] or "暂无")}
+    {_metric_card("组合快照", manifest["portfolio_id"] or "暂无")}
+    {_metric_card("研究数量", len(manifest["research_snapshot_ids"]))}
+  </div>
+</section>
+<section>
+  {_table(["来源", "编号"], source_rows)}
+</section>
+"""
+    chapter_body = f"""
+<section>
+  {_table(["章节", "状态"], rows)}
+</section>
+<section class="panel">
+  <h2>追溯入口</h2>
+  <p><a href="/timeline/replay">查看完整时间线 JSON</a></p>
+  <p class="detail">报告只是派生视图，追溯仍以 SQLite 与 JSON 快照为准。</p>
+</section>
+"""
     return f"""
 <section class="two-pane">
   <div class="panel highlight">
@@ -2562,35 +2632,15 @@ def _report_content(data: dict[str, Any]) -> str:
       <a class="step" href="/decision/view">决策</a><span class="arrow">→</span>
       <a class="step" href="/portfolio/view">组合</a>
     </div>
-    <p class="detail">报告页只汇总当前状态；事实源仍是 SQLite 回放和 JSON 快照。</p>
+    {_help_row([("边界", "报告页只汇总当前状态；事实源仍是 SQLite 回放和 JSON 快照。")])}
   </div>
 </section>
 <section>
   <h2>一页式摘要</h2>
   {_table(["模块", "结论", "关键依据", "入口"], summary_rows, raw_columns={3})}
 </section>
-<section>
-  <h2>报告来源</h2>
-  <div class="grid-4">
-    {_metric_card("格式", "、".join(report["supported_formats"]))}
-    {_metric_card("市场快照", manifest["market_snapshot_id"] or "暂无")}
-    {_metric_card("组合快照", manifest["portfolio_id"] or "暂无")}
-    {_metric_card("研究数量", len(manifest["research_snapshot_ids"]))}
-  </div>
-</section>
-<section>
-  <h2>来源追溯</h2>
-  {_table(["来源", "编号"], source_rows)}
-</section>
-<section>
-  <h2>章节</h2>
-  {_table(["章节", "状态"], rows)}
-</section>
-<section class="panel">
-  <h2>追溯入口</h2>
-  <p><a href="/timeline/replay">查看完整时间线 JSON</a></p>
-  <p class="detail">报告只是派生视图，追溯仍以 SQLite 与 JSON 快照为准。</p>
-</section>
+{_compact_details("报告来源和来源追溯", source_body, "展开查看市场、组合、研究等来源编号。")}
+{_compact_details("章节和追溯入口", chapter_body, "展开查看报告章节和完整时间线 JSON 入口。")}
 """
 
 
@@ -2762,6 +2812,16 @@ def _system_content(data: dict[str, Any]) -> str:
         ["/timeline/replay", "历史回放 JSON"],
         ["/system/status", "系统自检 JSON"],
     ]
+    replay_body = f"""
+<section>
+  {_table(["字段", "来源编号"], rows)}
+</section>
+"""
+    api_body = f"""
+<section>
+  {_table(["接口", "说明"], api_rows)}
+</section>
+"""
     return f"""
 <section>
   <h2>系统状态</h2>
@@ -2772,14 +2832,8 @@ def _system_content(data: dict[str, Any]) -> str:
     {_metric_card("最新事件", overview["latest_event_timestamp"] or "暂无")}
   </div>
 </section>
-<section>
-  <h2>回放链路</h2>
-  {_table(["字段", "来源编号"], rows)}
-</section>
-<section>
-  <h2>JSON 入口</h2>
-  {_table(["接口", "说明"], api_rows)}
-</section>
+{_compact_details("回放链路", replay_body, "完整来源编号默认收起，需要追溯数据链路时展开。")}
+{_compact_details("JSON 入口", api_body, "完整 API 列表默认收起；日常操作优先使用页面入口。")}
 """
 
 
@@ -2791,6 +2845,16 @@ def _usability_content(data: dict[str, Any]) -> str:
     ]
     flow = _linked_flow(usability["human_flow"])
     entry_rows = [[endpoint, _endpoint_label(endpoint)] for endpoint in usability["feature_entrypoints"]]
+    checks_body = f"""
+<section>
+  {_table(["项目", "状态", "说明", "入口"], check_rows, raw_columns={3})}
+</section>
+"""
+    entry_body = f"""
+<section>
+  {_table(["入口", "用途"], entry_rows)}
+</section>
+"""
     return f"""
 <section>
   <h2>易用性检查</h2>
@@ -2800,18 +2864,12 @@ def _usability_content(data: dict[str, Any]) -> str:
     {_metric_card("入口数量", len(usability["feature_entrypoints"]))}
   </div>
 </section>
-<section>
-  <h2>检查项</h2>
-  {_table(["项目", "状态", "说明", "入口"], check_rows, raw_columns={3})}
-</section>
 <section class="panel">
   <h2>自然人使用流程</h2>
   <div class="path">{flow}</div>
 </section>
-<section>
-  <h2>全部入口</h2>
-  {_table(["入口", "用途"], entry_rows)}
-</section>
+{_compact_details("检查项", checks_body, "完整易用性检查默认收起，保留给排查入口和边界问题使用。")}
+{_compact_details("全部入口", entry_body, "完整页面入口默认收起，日常从顶部导航或首页优先入口进入。")}
 """
 
 
@@ -2819,7 +2877,7 @@ def _feature_card(title: str, href: str, detail: str) -> str:
     return f"""
 <div class="panel feature">
   <a href="{html.escape(href)}">{html.escape(title)}</a>
-  <p class="small">{html.escape(detail)}</p>
+  <p class="small">{_tip(detail, "悬停说明")}</p>
 </div>
 """
 

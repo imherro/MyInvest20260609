@@ -122,6 +122,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
         assert "MyInvest" in body
         assert "data-page-shell=\"portal\"" in body
         assert "统一页脚" in body
+        assert "help-tip" in body
         assert "/app" in body
         assert "/guidance/view" in body
         if path == "/dashboard":
@@ -143,6 +144,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
         if path == "/app":
             assert "优先入口" in body
             assert "打开系统后先看这三处" in body
+            assert "compact-details" in body
             assert 'href="/report/view"' in body
             assert "主线状态" in body
             assert 'href="/theme/view#theme-representative-scope"' in body
@@ -180,6 +182,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
         if path == "/market/view":
             assert "市场结论" in body
             assert "市场分数怎么读" in body
+            assert "来源、数据缺口和冲突提示" in body
             assert "权益目标区间" in body
             assert "行动边界" in body
             assert "策略目标池" in body
@@ -228,6 +231,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "宏观结论" in body
             assert "共识分数是宏观周期、市场位置、组合匹配度和研究质量四类模型分数的平均" in body
             assert "因子贡献不是简单相加成共识分数" in body
+            assert "compact-details" in body
             assert "共识分数来源" in body
             assert "中文含义" in body
             assert "流动性" in body
@@ -236,6 +240,8 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
         if path == "/research/view":
             assert "研究工作台" in body
             assert "主线研究摘要" in body
+            assert "最新研究快照" in body
+            assert "compact-details" in body
             assert "/theme/view" in body
             assert "下一项该研究什么" in body
             assert "为什么还没放行" in body
