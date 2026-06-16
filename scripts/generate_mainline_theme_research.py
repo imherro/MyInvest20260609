@@ -4,6 +4,7 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -14,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from invest_system.local_env import load_local_env  # noqa: E402
 from invest_system.repositories import DEFAULT_DB_PATH, SQLiteRepository  # noqa: E402
+from invest_system.validators.module_contracts import validate_module_contract  # noqa: E402
 from invest_system.validators.schema_validator import validate_or_raise  # noqa: E402
 
 
@@ -107,6 +109,7 @@ def generate_snapshot(as_of: date) -> dict[str, Any]:
 
     validate_or_raise(snapshot["payload"], "theme_research_payload.schema.json")
     validate_or_raise(snapshot, "research.schema.json")
+    validate_module_contract(snapshot)
     return snapshot
 
 
@@ -143,7 +146,6 @@ def _collect_theme_evidence(pro: Any, basis_date: str) -> dict[str, Any]:
     start_date = _lookback_start(pro, trade_date, lookback_open_days=7)
     ths_names = _ths_names(pro)
     sw_names = _sw_names(pro)
-    daily_rows = _daily_pct_rows(pro, trade_date)
     limit_industries = _limit_industries(pro, trade_date)
 
     clusters = []
@@ -151,20 +153,22 @@ def _collect_theme_evidence(pro: Any, basis_date: str) -> dict[str, Any]:
     for cluster in THEME_CLUSTERS:
         metrics, gaps = _cluster_metrics(pro, cluster, start_date, trade_date)
         data_gaps.extend(gaps)
-        symbols = _representative_symbols(pro, cluster, daily_rows)
         score = _strength_score(metrics)
         clusters.append(
             {
+                "theme_id": _theme_id(cluster.name),
                 "name": cluster.name,
+                "sector": _theme_sector(cluster),
                 "forming_reason": cluster.reason,
                 "strength_score": score,
+                "theme_state": _theme_state(score, _continuity(metrics)),
+                "signal_type": _signal_types(metrics, score),
                 "continuity": _continuity(metrics),
                 "risks": _cluster_risks(cluster, metrics),
-                "representative_plates": [
+                "leading_indicators": [
                     *[ths_names.get(code, code) for code in cluster.ths_codes],
                     *[sw_names.get(code, code) for code in cluster.sw_codes],
                 ],
-                "representative_symbols": symbols,
                 "research_first_queue": True,
                 "metrics": metrics,
                 "limit_industry_confirmation": _limit_confirmation(limit_industries, cluster),
@@ -249,36 +253,6 @@ def _safe_sw_history(pro: Any, code: str, start_date: str, trade_date: str) -> l
         }
         for _, row in data.iterrows()
     ]
-
-
-def _representative_symbols(pro: Any, cluster: ThemeCluster, daily_rows: dict[str, float]) -> list[str]:
-    members: dict[str, str] = {}
-    for code in cluster.ths_codes:
-        try:
-            data = pro.ths_member(ts_code=code)
-        except Exception:  # noqa: BLE001
-            data = None
-        if data is None or data.empty:
-            continue
-        for _, row in data.iterrows():
-            con_code = str(row["con_code"])
-            con_name = str(row.get("con_name", ""))
-            if "ST" in con_name.upper():
-                continue
-            members[con_code] = con_name
-
-    ranked = sorted(members, key=lambda symbol: daily_rows.get(symbol, -999), reverse=True)
-    return ranked[:5] or sorted(members)[:5]
-
-
-def _daily_pct_rows(pro: Any, trade_date: str) -> dict[str, float]:
-    try:
-        data = pro.daily(trade_date=trade_date)
-    except Exception:  # noqa: BLE001
-        return {}
-    if data is None or data.empty:
-        return {}
-    return {str(row["ts_code"]): float(row.get("pct_chg", 0) or 0) for _, row in data.iterrows()}
 
 
 def _limit_industries(pro: Any, trade_date: str) -> set[str]:
@@ -371,14 +345,12 @@ def _snapshot_from_evidence(
     risks = []
     for index, cluster in enumerate(clusters, start=1):
         key_facts.append(
-            f"Mainline {index}: {cluster['name']} strength_score={cluster['strength_score']} continuity={cluster['continuity']} research_first_queue=yes."
+            f"Mainline {index}: {cluster['name']} theme_state={cluster['theme_state']} auxiliary_strength_score={cluster['strength_score']}."
         )
         key_facts.append(
-            "Representative plates/themes: "
-            + "; ".join(cluster["representative_plates"][:8])
-            + ". Representative symbols are research objects only: "
-            + ", ".join(cluster["representative_symbols"][:5])
-            + "."
+            "Leading indicators: "
+            + "; ".join(cluster["leading_indicators"][:8])
+            + ". Theme layer does not output single-security candidates."
         )
         reasoning.append(f"{cluster['name']} formation reason: {cluster['forming_reason']}.")
         reasoning.append(
@@ -391,25 +363,17 @@ def _snapshot_from_evidence(
         risks.extend(cluster["risks"])
 
     payload = {
-        "theme": primary["name"],
+        "theme_id": primary["theme_id"],
+        "theme_name": primary["name"],
+        "sector": primary["sector"],
+        "theme_state": primary["theme_state"],
+        "signal_type": primary["signal_type"],
+        "leading_indicators": primary["leading_indicators"],
         "strength_score": primary["strength_score"],
-        "leading_symbols": primary["representative_symbols"] or ["research-object-unavailable"],
-        "phase": _phase(primary["strength_score"], primary["continuity"]),
-        "related_etfs": [],
-        "evidence": [
-            f"Basis date {basis_date} is selected from complete daily records.",
-            f"Primary mainline: {primary['name']}; continuity={primary['continuity']}; limit_confirmation={primary['limit_industry_confirmation']}.",
-            "All representative symbols are research-only objects and enter ResearchFirst review before any decision layer use.",
-            *[
-                f"{cluster['name']}: score={cluster['strength_score']}; plates={', '.join(cluster['representative_plates'][:5])}; next_review_date={next_review_date}."
-                for cluster in clusters
-            ],
-        ],
     }
     final_data_gaps = _dedupe_strings(
         [
             *data_gaps,
-            "representative_symbol_profile_valuation_liquidity_gates_not_completed",
             "intraday_and_after_close_realtime_confirmation_not_used",
         ]
     )
@@ -433,8 +397,8 @@ def _snapshot_from_evidence(
         "data_gaps": final_data_gaps,
         "conflicts": [],
         "executive_summary": (
-            f"On {basis_date}, the strongest research mainline is {primary['name']}. "
-            "The snapshot identifies 1-3 watchlist mainlines and keeps every representative symbol inside ResearchFirst."
+            f"On {basis_date}, the primary research mainline is {primary['name']} "
+            f"with theme_state={primary['theme_state']}."
         ),
         "key_facts": key_facts or ["No live theme evidence is available; fallback watchlist is blocked for review."],
         "reasoning": reasoning or ["Fallback research is not actionable because live evidence is unavailable."],
@@ -444,14 +408,14 @@ def _snapshot_from_evidence(
         "confidence": confidence,
         "invalidation_conditions": [
             "A newer complete trading day changes theme ranking or breadth.",
-            "Representative symbols fail profile, valuation, or liquidity gates.",
-            "Theme strength falls below the watch threshold in the next review.",
+            "A downstream stock-layer gate blocks any single-security use.",
+            "Theme state weakens in the next review.",
         ],
         "next_review_date": next_review_date,
         "must_not_do": [
             "Do not convert this research snapshot into broker execution.",
             "Do not create buy, add, reduce, or sell instructions from this theme snapshot.",
-            "Do not use representative symbols outside ResearchFirst gate review.",
+            "Do not derive single-security candidates from this theme snapshot.",
         ],
         "required_human_review": True,
         "status": "json_validated",
@@ -481,13 +445,16 @@ def _fallback_snapshot(as_of: date, reason: str) -> dict[str, Any]:
 
 def _fallback_cluster() -> dict[str, Any]:
     return {
+        "theme_id": "offline_mainline_watchlist",
         "name": "offline mainline watchlist",
+        "sector": "unconfirmed market theme",
         "forming_reason": "live structured source is unavailable, so no current market mainline is confirmed",
         "strength_score": 50,
+        "theme_state": "exhausted",
+        "signal_type": ["risk_event"],
         "continuity": "blocked_by_data_gap",
         "risks": ["Current strength is not confirmed by live structured data."],
-        "representative_plates": ["mock:fallback"],
-        "representative_symbols": ["research-object-unavailable"],
+        "leading_indicators": ["live structured source unavailable"],
         "research_first_queue": True,
         "metrics": {
             "current_pct_avg": 0,
@@ -528,7 +495,7 @@ def _continuity(metrics: dict[str, Any]) -> str:
 
 def _cluster_risks(cluster: ThemeCluster, metrics: dict[str, Any]) -> list[str]:
     risks = [
-        f"{cluster.name}: representative symbols still need profile, valuation, and liquidity gate review.",
+        f"{cluster.name}: concrete instruments must be reviewed only by the stock layer gates.",
         f"{cluster.name}: theme signal can reverse if next complete-day breadth weakens.",
     ]
     if metrics["positive_observation_ratio"] < 0.45:
@@ -538,12 +505,39 @@ def _cluster_risks(cluster: ThemeCluster, metrics: dict[str, Any]) -> list[str]:
     return risks
 
 
-def _phase(score: float, continuity: str) -> str:
-    if score < 55:
-        return "early"
+def _theme_state(score: float, continuity: str) -> str:
+    if score < 45:
+        return "exhausted"
+    if score < 58:
+        return "emerging"
     if score >= 82 and continuity == "strong_continuation":
-        return "late"
-    return "mid"
+        return "dominant"
+    if score >= 58:
+        return "strengthening"
+    return "weakening"
+
+
+def _signal_types(metrics: dict[str, Any], score: float) -> list[str]:
+    signals = ["momentum", "structural"]
+    if metrics.get("turnover_rate_avg", 0) > 0:
+        signals.append("liquidity")
+    if score >= 82 or metrics.get("lookback_cumulative_pct_avg", 0) > 8:
+        signals.append("risk_event")
+    return list(dict.fromkeys(signals))
+
+
+def _theme_id(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "theme"
+
+
+def _theme_sector(cluster: ThemeCluster) -> str:
+    if "AI" in cluster.name:
+        return "technology infrastructure"
+    if "electronics" in cluster.name:
+        return "advanced electronics manufacturing"
+    if "metal" in cluster.name:
+        return "strategic materials"
+    return "market structure"
 
 
 def _confidence(score: float, data_gaps: list[str], cluster_count: int) -> float:

@@ -4,9 +4,6 @@ import html
 from typing import Any
 
 from invest_system.validators.policies import assert_no_sensitive_content
-from invest_system.web.symbol_display import display_symbol
-
-
 ENDPOINT_LABELS = {
     "/home": "首页状态",
     "/app": "首页",
@@ -115,12 +112,12 @@ def _theme_interpretation(card: dict[str, Any]) -> dict[str, Any]:
         "weak": "主线偏弱，先回到研究结论。",
         "unavailable": "研究主线不足，先查看最新研究。",
     }.get(clarity, "主线状态需要确认。")
-    leaders = card.get("leading_symbols") or []
+    indicators = card.get("leading_indicators") or []
     return {
         "title": theme,
         "detail": clarity_text,
-        "strength": "暂无" if card.get("strength_score") is None else f"{card['strength_score']:.0f}/100",
-        "leaders": "、".join(display_symbol(symbol) for symbol in leaders) if leaders else "暂无",
+        "state": _theme_state_label(card.get("theme_state")),
+        "indicators": "、".join(str(item) for item in indicators) if indicators else "暂无",
     }
 
 
@@ -312,7 +309,7 @@ def _status_grid(model: dict[str, Any]) -> str:
   <h2>四个重点</h2>
   <div class="grid">
     {_status_card("市场", market["title"], market["detail"], [f"流动性 {market['liquidity']}", f"风险 {market['risk_label']}"])}
-    {_status_card("当前主线", theme["title"], theme["detail"], [f"强度 {theme['strength']}", f"代表标的 {theme['leaders']}"])}
+    {_status_card("当前主线", theme["title"], theme["detail"], [f"状态 {theme['state']}", f"领先指标 {theme['indicators']}"])}
     {_status_card("风险", risk["title"], risk["detail"], [f"分数 {risk['score']}", f"暴露 {risk['exposure']}"])}
     {_status_card("影子组合", portfolio["title"], portfolio["detail"], [f"影子 {portfolio['shadow_return']}", f"基准 {portfolio['benchmark_return']}", f"回撤 {portfolio['drawdown']}"])}
   </div>
@@ -403,6 +400,16 @@ def _risk_label(value: str) -> str:
         "high": "高",
         "unknown": "未知",
     }.get(value, value)
+
+
+def _theme_state_label(value: Any) -> str:
+    return {
+        "emerging": "萌芽",
+        "strengthening": "增强",
+        "dominant": "主导",
+        "weakening": "转弱",
+        "exhausted": "衰竭",
+    }.get(str(value), "暂无")
 
 
 def _exposure_label(value: str) -> str:

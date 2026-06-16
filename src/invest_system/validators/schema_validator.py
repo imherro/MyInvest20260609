@@ -18,6 +18,10 @@ class SchemaValidationError(ValueError):
         return "; ".join(self.errors)
 
 
+class SchemaViolationError(SchemaValidationError):
+    pass
+
+
 def load_schema(schema_name: str) -> dict[str, Any]:
     schema_path = SCHEMA_ROOT / schema_name
     with schema_path.open("r", encoding="utf-8") as schema_file:
@@ -29,7 +33,7 @@ def validate_or_raise(payload: dict[str, Any], schema_name: str) -> None:
     errors: list[str] = []
     _validate_value(payload, schema, "$", errors)
     if errors:
-        raise SchemaValidationError(errors)
+        raise SchemaViolationError(errors)
 
 
 def validate(payload: dict[str, Any], schema_name: str) -> dict[str, Any]:
@@ -126,4 +130,3 @@ def _validate_object(value: dict[str, Any], schema: dict[str, Any], path: str, e
             errors.append(f"{child_path}: additional property is not allowed")
         elif isinstance(additional, dict):
             _validate_value(item, additional, child_path, errors)
-

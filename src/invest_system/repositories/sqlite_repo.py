@@ -14,6 +14,8 @@ from invest_system.validators.policies import (
     assert_target_pool_policy,
     assert_no_sensitive_content,
 )
+from invest_system.validators.module_contracts import validate_module_contract
+from invest_system.validators.research_schemas import RESEARCH_PAYLOAD_SCHEMA_BY_MODULE
 from invest_system.validators.schema_validator import validate_or_raise
 
 
@@ -117,6 +119,7 @@ class SQLiteRepository:
     def append_market_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_or_raise(payload, "market_snapshot.schema.json")
         assert_research_policy(payload)
+        validate_module_contract(payload)
         return self._insert_snapshot(
             table="market_snapshot",
             id_column="snapshot_id",
@@ -130,7 +133,12 @@ class SQLiteRepository:
 
     def append_research_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
         validate_or_raise(payload, "research.schema.json")
+        payload_schema = RESEARCH_PAYLOAD_SCHEMA_BY_MODULE.get(payload.get("module"))
+        if not payload_schema:
+            raise ValueError(f"research module has no enforced payload schema: {payload.get('module')}")
+        validate_or_raise(payload["payload"], payload_schema)
         assert_research_policy(payload)
+        validate_module_contract(payload)
         return self._insert_snapshot(
             table="research_snapshot",
             id_column="snapshot_id",

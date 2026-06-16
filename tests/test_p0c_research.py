@@ -64,8 +64,14 @@ def test_p0c_valuation_payloads_are_ratio_only(tmp_path) -> None:
     for payload in valuation_payloads:
         assert "price" not in payload
         assert "fair_value_range" not in payload
-        assert "observed_to_fair_value_ratio" in payload
-        assert "fair_value_band_pct" in payload
+        if "research_first_status" in payload:
+            assert payload["research_first_status"] == "BLOCKED"
+            assert payload["gates"]["profile"] == "missing"
+            assert payload["gates"]["liquidity"] == "missing"
+            assert "signal_type" in payload
+        else:
+            assert "observed_to_fair_value_ratio" in payload
+            assert "fair_value_band_pct" in payload
 
 
 def test_generate_p0c_research_cli_outputs_json(tmp_path) -> None:

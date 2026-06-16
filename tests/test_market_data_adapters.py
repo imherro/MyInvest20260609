@@ -30,9 +30,9 @@ def test_mock_market_data_bundle_appends_market_snapshot(tmp_path) -> None:
     assert "adapter:mock" in latest["data_sources"]
     assert "derived:market_research_v1" in latest["data_sources"]
     assert latest["actionability"] == "observe"
-    assert latest["payload"]["headline_index"]["symbol"] == "000001.SH"
     assert latest["payload"]["headline_index"]["name"] == "上证指数"
     assert latest["payload"]["headline_index"]["last_price"] == 3387.42
+    assert "momentum" in latest["payload"]["signal_type"]
     assert repo.table_counts()["market_snapshot"] == 1
     assert repo.table_counts()["event_log"] == 1
 
@@ -51,7 +51,7 @@ def test_auto_market_data_uses_mock_fallback_when_network_disabled() -> None:
     snapshot = build_market_snapshot_from_bundle(bundle)
     assert snapshot["status"] == "json_validated"
     assert "adapter:mock" in snapshot["data_sources"]
-    assert snapshot["payload"]["headline_index"]["symbol"] == "000001.SH"
+    assert snapshot["payload"]["headline_index"]["name"] == "上证指数"
 
 
 def test_market_data_collection_loads_local_env(monkeypatch) -> None:
@@ -90,7 +90,8 @@ def test_market_data_bundle_builds_p0c_price_data_shape() -> None:
 
     assert price_data["etfs"]
     assert price_data["stocks"]
-    assert price_data["themes"][0]["symbols"]
+    assert price_data["themes"][0]["leading_indicators"]
+    assert "symbols" not in price_data["themes"][0]
     assert price_data["leaders"]
 
 

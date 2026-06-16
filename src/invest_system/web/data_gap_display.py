@@ -70,9 +70,9 @@ def describe_data_gap(gap: str) -> dict[str, str]:
         )
     if gap.startswith("representative_symbol_profile_valuation_liquidity_gates_not_completed"):
         return _description(
-            "代表标的门槛未完成",
-            "主线代表标的仍受 ResearchFirst 约束，不能直接进入行动建议。",
-            "对代表标的补做画像、估值、流动性研究并导入研究 JSON。",
+            "主题层旧下钻缺口",
+            "旧主题研究曾包含标的下钻信息；新合同下该信息不再影响全局 readiness。",
+            "改用目标池、ResearchFirst 队列和标的研究页处理具体标的。",
         )
     if gap.startswith("tushare:missing_TUSHARE_TOKEN"):
         return _description(

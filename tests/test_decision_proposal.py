@@ -235,14 +235,12 @@ def _symbol_research(symbol: str, confidence: float) -> dict[str, Any]:
         "trace": {"fact_pack_id": f"test-{symbol}"},
         "payload": {
             "symbol": symbol,
-            "valuation_score": 20,
-            "fair_value_band_pct": {"low": -0.1, "mid": 0, "high": 0.1},
-            "observed_to_fair_value_ratio": 1.5,
-            "deviation": 0.5,
-            "risk_flag": "high",
-            "confidence": confidence,
-            "method": "test_fixture",
-            "rating": "Watch",
+            "valuation_state": "fail",
+            "research_first_status": "BLOCKED",
+            "risk_score": 80,
+            "signal_type": ["valuation", "liquidity", "structural", "risk_event"],
+            "gates": {"profile": "pass", "valuation": "fail", "liquidity": "pass"},
+            "reason": ["Valuation gate fails, so ResearchFirst remains fail-closed."],
         },
     }
 

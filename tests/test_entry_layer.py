@@ -42,7 +42,7 @@ def test_home_state_is_schema_valid_and_read_only(tmp_path) -> None:
     assert state["status"] == "ok"
     validate_or_raise(state, "entry_home_state.schema.json")
     assert state["cards"]["market_status"]["overall_market_state"] in {"balanced", "constructive", "defensive"}
-    assert state["cards"]["main_theme"]["current_theme"] == "adapter_market_breadth"
+    assert state["cards"]["main_theme"]["current_theme"] == "适配器市场宽度"
     assert state["next_action"]["recommended_endpoint"].startswith("/")
     assert state["navigation_plan"]["steps"][0]["endpoint"] == "/home"
     assert repo.table_counts() == before_counts

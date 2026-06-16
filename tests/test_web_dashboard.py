@@ -51,7 +51,6 @@ def test_dashboard_state_endpoint_returns_json_without_sensitive_fields(tmp_path
     assert payload["data"]["portfolio_history"]["snapshot_count"] == 3
     assert payload["data"]["portfolio_history"]["rebalance_records"]
     assert payload["data"]["portfolio_history"]["rebalance_records"][0]["display_name"].endswith("）")
-    assert payload["data"]["market"]["headline_index"]["symbol"] == "000001.SH"
     assert payload["data"]["market"]["headline_index"]["name"] == "上证指数"
     assert payload["data"]["actual_vs_shadow"]["source_status"] == "actual_ratio_available"
     assert payload["data"]["actual_vs_shadow"]["qmt_read_status"]["status"] == "success"
@@ -66,7 +65,7 @@ def test_dashboard_state_endpoint_returns_json_without_sensitive_fields(tmp_path
     assert payload["data"]["target_pool"]["source"] == "seed"
     assert payload["data"]["research"]["available"] is True
     assert payload["data"]["research"]["theme"]["available"] is True
-    assert payload["data"]["research"]["theme"]["primary"]["display_theme"] == "市场宽度主题"
+    assert payload["data"]["research"]["theme"]["primary"]["display_theme"] == "适配器市场宽度"
     assert payload["data"]["risk"]["available"] is True
     assert payload["data"]["comparison"]["available"] is True
     assert payload["data"]["macro"]["available"] is True
@@ -157,8 +156,8 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "compact-details" in body
             assert 'href="/report/view"' in body
             assert "主线状态" in body
-            assert 'href="/theme/view#theme-representative-scope"' in body
-            assert "已按当前目标池和影子组合分组" in body
+            assert 'href="/theme/view#theme-state"' in body
+            assert "标的不由主题层生成" in body
             assert 'href="/research/view#research-workbench"' in body
             assert "组合核对" in body
             assert "今日刷新状态" in body
@@ -213,14 +212,16 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "当前主线排序" in body
             assert "主线变化记录" in body
             assert "你关心的方向" in body
+            assert "领先指标" in body
             assert "AI" in body
             assert "半导体" in body
             assert "电力设备" in body
             assert "机器人" in body
-            assert "市场宽度主题" in body
+            assert "适配器市场宽度" in body
+            assert "主题层禁止输出股票代码" in body
             assert "/theme/state" in body
             assert "/theme/history" in body
-            assert "ResearchFirst" in body
+            assert "代表标的当前状态" not in body
         if path == "/target-pool/view":
             assert "策略目标池" in body
             assert "当前策略目标池" in body
@@ -338,27 +339,17 @@ def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
 
     assert state_response.status_code == 200
     assert state["primary"]["display_theme"] == "先进电子制造链"
-    assert [item["display_theme"] for item in state["mainlines"]] == [
-        "先进电子制造链",
-        "战略金属和铜箔材料",
-        "AI 基础设施硬件链",
-    ]
+    assert [item["display_theme"] for item in state["mainlines"]] == ["先进电子制造链"]
+    assert state["primary"]["theme_state"] == "strengthening"
+    assert "momentum" in state["primary"]["signal_type"]
+    assert not state["representative_scope"]["available"]
+    assert state["representative_scope"]["rows"] == []
     watch = {item["theme"]: item for item in state["watchlist"]}
     assert watch["AI"]["status"] == "included"
     assert watch["半导体"]["status"] == "included"
     assert watch["电力设备"]["status"] == "not_in_top_mainlines"
     assert watch["机器人"]["status"] == "not_in_top_mainlines"
-    scope_rows = {
-        item["symbol"]: item
-        for item in state["representative_scope"]["rows"]
-        if item["display_theme"] == "先进电子制造链"
-    }
     assert state["representative_scope"]["source_target_pool_id"] == "target-pool-2026-06-15-theme-scope-test"
-    assert scope_rows["301566.SZ"]["scope_status"] == "approved_not_in_shadow"
-    assert scope_rows["301566.SZ"]["shadow_weight"] == 0
-    assert scope_rows["688603.SH"]["scope_status"] == "research_first_only"
-    assert scope_rows["688167.SH"]["scope_status"] == "blocked_candidate"
-    assert scope_rows["688170.SH"]["scope_status"] == "watch_only"
 
     history_response = _get(app, "/theme/history?as_of=2026-06-15")
     history = history_response.json()["data"]
@@ -375,22 +366,19 @@ def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
 
     assert response.status_code == 200
     assert "先进电子制造链" in body
-    assert "AI 基础设施硬件链" in body
+    assert "AI 基础设施硬件链" not in body
     assert "半导体" in body
     assert "电力设备" in body
     assert "机器人" in body
     assert "未进入前三主线" in body
     assert "主线变化记录" in body
-    assert "代表标的当前状态" in body
-    assert 'id="theme-representative-scope"' in body
-    assert "已通过但未配置" in body
-    assert "ResearchFirst" in body
-    assert "目标池阻断" in body
-    assert "观察档案" in body
+    assert "领先指标" in body
+    assert "代表标的当前状态" not in body
+    assert 'id="theme-state"' in body
     assert "切换" in body
-    assert "强度变化 -11.74 分" in body
-    assert "达利凯普（301566.SZ）" in body
-    assert "代表标的只是研究对象" in body
+    assert "辅助强度" in body
+    assert "达利凯普（301566.SZ）" not in body
+    assert "主题层禁止输出股票代码" in body
     _assert_no_forbidden_terms(body)
 
 
@@ -451,14 +439,11 @@ def _mainline_theme_research() -> dict[str, Any]:
         "data_sources": ["fixture:mainline"],
         "data_gaps": [],
         "conflicts": [],
-        "executive_summary": "Mainline research identifies advanced electronics, materials, and AI hardware chains.",
+        "executive_summary": "Mainline research identifies advanced electronics manufacturing as the current theme state.",
         "key_facts": [
-            "Mainline 1: advanced electronics manufacturing chain strength_score=88.26 continuity=continuation_watch research_first_queue=yes.",
-            "Representative plates/themes: 先进封装; 被动元件; 分立器件; MiniLED; 柔性屏(折叠屏); 电子. Representative symbols are research objects only: 301566.SZ, 688603.SH, 688167.SH, 688170.SH, 688757.SH.",
-            "Mainline 2: strategic metal and copper-foil materials strength_score=86.22 continuity=strong_continuation research_first_queue=yes.",
-            "Representative plates/themes: 钨; PET铜箔; 有色金属. Representative symbols are research objects only: 688813.SH, 301217.SZ, 688170.SH, 688020.SH, 301511.SZ.",
-            "Mainline 3: AI infrastructure hardware chain strength_score=83.68 continuity=continuation_watch research_first_queue=yes.",
-            "Representative plates/themes: PCB概念; 共封装光学(CPO); F5G概念; 光纤概念; 铜缆高速连接; 电子; 通信. Representative symbols are research objects only: 301526.SZ, 300726.SZ, 300570.SZ, 300548.SZ, 688813.SH.",
+            "Theme state is strengthening.",
+            "Sector is advanced electronics manufacturing.",
+            "Leading indicators include AI hardware, 半导体, advanced packaging, MiniLED, and electronic components.",
         ],
         "reasoning": ["Theme ranking is expanded for human-readable display."],
         "risks": ["Theme signal can reverse after a newer complete trading day."],
@@ -472,15 +457,13 @@ def _mainline_theme_research() -> dict[str, Any]:
         "status": "json_validated",
         "trace": {"fact_pack_id": "fixture-mainline-theme", "source_market_snapshot_id": "market-2026-06-15-golden"},
         "payload": {
-            "theme": "advanced electronics manufacturing chain",
+            "theme_id": "advanced_electronics_manufacturing_chain",
+            "theme_name": "先进电子制造链",
+            "sector": "advanced electronics manufacturing",
+            "theme_state": "strengthening",
+            "signal_type": ["momentum", "structural", "liquidity"],
+            "leading_indicators": ["AI hardware", "半导体", "先进封装", "MiniLED", "电子元件"],
             "strength_score": 88.26,
-            "leading_symbols": ["301566.SZ", "688603.SH", "688167.SH", "688170.SH", "688757.SH"],
-            "phase": "mid",
-            "related_etfs": [],
-            "evidence": [
-                "advanced electronics manufacturing chain: score=88.26; plates=先进封装, 被动元件, 分立器件, MiniLED, 柔性屏(折叠屏); next_review_date=2026-06-16.",
-                "AI infrastructure hardware chain: score=83.68; plates=PCB概念, 共封装光学(CPO), F5G概念, 光纤概念, 铜缆高速连接; next_review_date=2026-06-16.",
-            ],
         },
     }
 
@@ -503,23 +486,18 @@ def _strategic_mainline_theme_research() -> dict[str, Any]:
     payload["snapshot_id"] = "theme-research-2026-06-15-mainline-strategic-test"
     payload["executive_summary"] = "Mainline research identifies strategic metal as the earlier primary mainline."
     payload["key_facts"] = [
-        "Mainline 1: strategic metal and copper-foil materials strength_score=100 continuity=strong_continuation research_first_queue=yes.",
-        "Representative plates/themes: 钨; PET铜箔; 有色金属. Representative symbols are research objects only: 688813.SH, 301217.SZ, 688170.SH, 688020.SH, 301511.SZ.",
-        "Mainline 2: advanced electronics manufacturing chain strength_score=92.04 continuity=continuation_watch research_first_queue=yes.",
-        "Representative plates/themes: 先进封装; 被动元件; 分立器件; MiniLED; 柔性屏(折叠屏); 电子. Representative symbols are research objects only: 301566.SZ, 688603.SH, 688167.SH, 688170.SH, 688757.SH.",
-        "Mainline 3: AI infrastructure hardware chain strength_score=86.43 continuity=continuation_watch research_first_queue=yes.",
-        "Representative plates/themes: PCB概念; 共封装光学(CPO); F5G概念; 光纤概念; 铜缆高速连接; 电子; 通信. Representative symbols are research objects only: 301526.SZ, 300726.SZ, 300570.SZ, 300548.SZ, 688813.SH.",
+        "Theme state is dominant.",
+        "Sector is strategic metal and copper-foil materials.",
+        "Leading indicators include 钨, PET铜箔, and 有色金属.",
     ]
     payload["payload"] = {
-        "theme": "strategic metal and copper-foil materials",
+        "theme_id": "strategic_metal_and_copper_foil_materials",
+        "theme_name": "战略金属和铜箔材料",
+        "sector": "strategic materials",
+        "theme_state": "dominant",
+        "signal_type": ["momentum", "structural"],
+        "leading_indicators": ["钨", "PET铜箔", "有色金属"],
         "strength_score": 100,
-        "leading_symbols": ["688813.SH", "301217.SZ", "688170.SH", "688020.SH", "301511.SZ"],
-        "phase": "late",
-        "related_etfs": [],
-        "evidence": [
-            "strategic metal and copper-foil materials: score=100; plates=钨, PET铜箔, 有色金属; next_review_date=2026-06-16.",
-            "advanced electronics manufacturing chain: score=92.04; plates=先进封装, 被动元件, 分立器件, MiniLED, 柔性屏(折叠屏); next_review_date=2026-06-16.",
-        ],
     }
     return payload
 

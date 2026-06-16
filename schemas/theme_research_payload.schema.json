@@ -2,20 +2,37 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "theme",
-    "strength_score",
-    "leading_symbols",
-    "phase",
-    "related_etfs",
-    "evidence"
+    "theme_id",
+    "theme_name",
+    "sector",
+    "theme_state",
+    "signal_type",
+    "leading_indicators"
   ],
   "properties": {
-    "theme": { "type": "string", "minLength": 1 },
-    "strength_score": { "type": "number", "minimum": 0, "maximum": 100 },
-    "leading_symbols": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-    "phase": { "type": "string", "enum": ["early", "mid", "late"] },
-    "related_etfs": { "type": "array", "items": { "type": "string" } },
-    "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+    "theme_id": { "type": "string", "minLength": 1 },
+    "theme_name": { "type": "string", "minLength": 1 },
+    "sector": { "type": "string", "minLength": 1 },
+    "theme_state": {
+      "type": "string",
+      "enum": ["emerging", "strengthening", "dominant", "weakening", "exhausted"]
+    },
+    "signal_type": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["liquidity", "valuation", "momentum", "structural", "risk_event"]
+      },
+      "minItems": 1
+    },
+    "leading_indicators": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "strength_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    }
   }
 }
-

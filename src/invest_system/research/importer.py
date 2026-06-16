@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from typing import Any
 
 from invest_system.repositories import SQLiteRepository
-from invest_system.self_check import RESEARCH_PAYLOAD_SCHEMA_BY_MODULE
 from invest_system.validators.policies import (
     SENSITIVE_FIELD_NAMES,
     SENSITIVE_TERMS,
@@ -14,6 +13,8 @@ from invest_system.validators.policies import (
     assert_no_sensitive_content,
     assert_research_policy,
 )
+from invest_system.validators.module_contracts import validate_module_contract
+from invest_system.validators.research_schemas import RESEARCH_PAYLOAD_SCHEMA_BY_MODULE
 from invest_system.validators.schema_validator import validate_or_raise
 
 
@@ -61,13 +62,19 @@ def _append_schema_checks(checks: list[dict[str, Any]], payload: dict[str, Any])
 
     module_schema = RESEARCH_PAYLOAD_SCHEMA_BY_MODULE.get(payload.get("module"))
     if not module_schema:
-        checks.append(_check("module_payload_schema", "warn", "该模块没有专用 payload schema，仅执行通用研究 schema。"))
+        checks.append(_check("module_payload_schema", "failed", "该模块没有强制 payload schema，拒绝导入。"))
         return
     try:
         validate_or_raise(payload["payload"], module_schema)
         checks.append(_check("module_payload_schema", "pass", f"{module_schema} 校验通过。"))
     except Exception as exc:  # noqa: BLE001
         checks.append(_check("module_payload_schema", "failed", _safe_error(exc)))
+        return
+    try:
+        validate_module_contract(payload)
+        checks.append(_check("module_contract", "pass", "模块分层合同校验通过。"))
+    except Exception as exc:  # noqa: BLE001
+        checks.append(_check("module_contract", "failed", _safe_error(exc)))
 
 
 def _append_policy_checks(checks: list[dict[str, Any]], payload: dict[str, Any]) -> None:
@@ -117,7 +124,7 @@ def _validation_payload(payload: Any, checks: list[dict[str, Any]]) -> dict[str,
         "basis_date": basis_date,
         "module": module,
         "checks": checks,
-        "append_allowed": status in {"pass", "warn"},
+        "append_allowed": status == "pass",
     }
 
 

@@ -79,7 +79,8 @@
         "equity_max",
         "risk_level",
         "reason",
-        "crowding_penalty"
+        "crowding_penalty",
+        "signal_type"
       ],
       "properties": {
         "market_score": { "type": "number", "minimum": 0, "maximum": 100 },
@@ -88,12 +89,19 @@
         "risk_level": { "type": "string", "enum": ["low", "medium", "high"] },
         "reason": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
         "crowding_penalty": { "type": "number", "minimum": 0, "maximum": 100 },
+        "signal_type": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["liquidity", "valuation", "momentum", "structural", "risk_event"]
+          },
+          "minItems": 1
+        },
         "headline_index": {
           "type": ["object", "null"],
           "additionalProperties": false,
-          "required": ["symbol", "name", "daily_return", "source"],
+          "required": ["name", "daily_return", "source"],
           "properties": {
-            "symbol": { "type": "string", "minLength": 1 },
             "name": { "type": "string", "minLength": 1 },
             "last_price": { "type": ["number", "null"], "minimum": 0 },
             "daily_return": { "type": "number" },

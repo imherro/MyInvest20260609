@@ -26,12 +26,13 @@ DEFAULT_PRICE_DATA = {
     },
     "themes": [
         {
-            "theme": "broad_market_recovery",
-            "symbols": ["510300.SH", "159915.SZ", "002920.SZ"],
-            "related_etfs": ["510300.SH", "159915.SZ"],
+            "theme_id": "broad_market_recovery",
+            "theme_name": "宽基修复主线",
+            "sector": "broad_market",
             "return_signal": 0.62,
             "breadth_signal": 0.58,
             "liquidity_signal": 0.55,
+            "leading_indicators": ["index breadth", "turnover resilience", "risk appetite"],
         }
     ],
     "leaders": {
@@ -118,24 +119,20 @@ def _stock_valuation_snapshot(
     basis_date: str, fact_pack_id: str, market_id: str, data: dict[str, Any]
 ) -> tuple[dict[str, Any], str]:
     symbol, raw = next(iter(data["stocks"].items()))
-    payload = _valuation_payload(
-        symbol=symbol,
-        price=raw["price"],
-        fair_value_mid=raw["fair_value_mid"],
-        method=raw["method"],
-        volatility=raw["volatility"],
-    )
+    payload, blocked_reasons = _stock_payload(symbol, raw)
     snapshot = _research_snapshot(
         basis_date=basis_date,
         module="stock_valuation",
         snapshot_id=f"stock-valuation-{basis_date}-{symbol}",
         fact_pack_id=fact_pack_id,
         market_id=market_id,
-        summary=f"Stock valuation for {symbol} is recorded as a structured research snapshot.",
-        key_facts=[f"{symbol} observed level is compared with a ratio-only fair-value band."],
-        reasoning=["Relative valuation and volatility determine score and risk flag."],
+        summary=_stock_summary(symbol, blocked_reasons),
+        key_facts=_stock_key_facts(blocked_reasons),
+        reasoning=["Stock research fails closed when profile, valuation, or liquidity evidence is incomplete."],
         risks=["Single-name news and liquidity shocks can invalidate the score."],
         payload=payload,
+        status="blocked" if blocked_reasons else "json_validated",
+        actionability="research_first" if blocked_reasons else "observe",
     )
     return snapshot, "stock_valuation_payload.schema.json"
 
@@ -149,25 +146,26 @@ def _theme_research_snapshot(
         4,
     )
     payload = {
-        "theme": theme["theme"],
+        "theme_id": theme["theme_id"],
+        "theme_name": theme["theme_name"],
+        "sector": theme["sector"],
+        "theme_state": _theme_state(strength_score),
+        "signal_type": _theme_signal_types(theme),
+        "leading_indicators": theme["leading_indicators"],
         "strength_score": strength_score,
-        "leading_symbols": theme["symbols"],
-        "phase": _phase(strength_score),
-        "related_etfs": theme["related_etfs"],
-        "evidence": [
-            "Return, breadth, and liquidity signals are combined into one strength score.",
-            "Leading symbols are ranked separately before becoming candidates for review.",
-        ],
     }
     snapshot = _research_snapshot(
         basis_date=basis_date,
         module="theme_research",
-        snapshot_id=f"theme-research-{basis_date}-{theme['theme']}",
+        snapshot_id=f"theme-research-{basis_date}-{theme['theme_id']}",
         fact_pack_id=fact_pack_id,
         market_id=market_id,
-        summary=f"Theme {theme['theme']} has a structured strength score.",
-        key_facts=[f"Theme strength score is {strength_score}."],
-        reasoning=["Theme phase is derived from the score band, not free text."],
+        summary=f"Theme {theme['theme_name']} is in {payload['theme_state']} state.",
+        key_facts=[
+            f"Theme state is {payload['theme_state']}.",
+            f"Sector is {theme['sector']}.",
+        ],
+        reasoning=["Theme state is the decision-facing output; strength_score is non-decision context only."],
         risks=["Theme evidence is fixture-based until live data adapters are connected."],
         payload=payload,
     )
@@ -177,7 +175,7 @@ def _theme_research_snapshot(
 def _leader_ranking_snapshot(
     basis_date: str, fact_pack_id: str, market_id: str, data: dict[str, Any]
 ) -> tuple[dict[str, Any], str]:
-    theme_name = data["themes"][0]["theme"]
+    theme_name = data["themes"][0]["theme_id"]
     rows = data["leaders"][theme_name]
     rankings = []
     for row in rows:
@@ -278,6 +276,50 @@ def _valuation_payload(
     }
 
 
+def _stock_payload(symbol: str, raw: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    profile_gate = raw.get("profile_gate", "missing")
+    liquidity_gate = raw.get("liquidity_gate", "missing")
+    deviation = round((raw["price"] - raw["fair_value_mid"]) / raw["fair_value_mid"], 6)
+    valuation_gate = raw.get("valuation_gate") or ("fail" if abs(deviation) >= 0.18 else "pass")
+    risk_score = round(min(100, max(0, abs(deviation) * 220 + float(raw["volatility"]) * 100)), 4)
+    gates = {
+        "profile": profile_gate,
+        "valuation": valuation_gate,
+        "liquidity": liquidity_gate,
+    }
+    blocked = [
+        name
+        for name, value in gates.items()
+        if value in {"missing", "blocked", "fail"}
+    ]
+    payload = {
+        "symbol": symbol,
+        "valuation_state": "blocked" if valuation_gate in {"missing", "blocked"} else valuation_gate,
+        "research_first_status": "BLOCKED" if blocked else "PASSED",
+        "risk_score": risk_score,
+        "signal_type": ["valuation", "liquidity", "structural"],
+        "gates": gates,
+        "reason": (
+            ["RESEARCH_FIRST_GATE", *[f"{name}_gate_{gates[name]}" for name in blocked]]
+            if blocked
+            else ["profile, valuation, and liquidity gates pass"]
+        ),
+    }
+    return payload, blocked
+
+
+def _stock_summary(symbol: str, blocked_reasons: list[str]) -> str:
+    if blocked_reasons:
+        return f"{symbol} is BLOCKED by RESEARCH_FIRST_GATE because required stock gates are incomplete."
+    return f"{symbol} stock research passes profile, valuation, and liquidity gates."
+
+
+def _stock_key_facts(blocked_reasons: list[str]) -> list[str]:
+    if blocked_reasons:
+        return [f"RESEARCH_FIRST_GATE blocks stock completion: {', '.join(blocked_reasons)}."]
+    return ["Profile, valuation, and liquidity gates all pass."]
+
+
 def _research_snapshot(
     *,
     basis_date: str,
@@ -290,6 +332,8 @@ def _research_snapshot(
     reasoning: list[str],
     risks: list[str],
     payload: dict[str, Any],
+    status: str = "json_validated",
+    actionability: str = "observe",
 ) -> dict[str, Any]:
     return {
         "schema_version": "1.0",
@@ -305,24 +349,37 @@ def _research_snapshot(
         "reasoning": reasoning,
         "risks": risks,
         "conclusion_strength": "medium",
-        "actionability": "observe",
+        "actionability": actionability,
         "confidence": payload.get("confidence", 0.7) if isinstance(payload.get("confidence"), (int, float)) else 0.7,
         "invalidation_conditions": ["Source signal update invalidates current score."],
         "next_review_date": basis_date,
         "must_not_do": ["Do not treat research output as real broker execution."],
         "required_human_review": True,
-        "status": "json_validated",
+        "status": status,
         "trace": {"fact_pack_id": fact_pack_id, "source_market_snapshot_id": market_id},
         "payload": payload,
     }
 
 
-def _phase(score: float) -> str:
-    if score < 45:
-        return "early"
-    if score < 70:
-        return "mid"
-    return "late"
+def _theme_state(score: float) -> str:
+    if score < 35:
+        return "exhausted"
+    if score < 50:
+        return "weakening"
+    if score < 65:
+        return "emerging"
+    if score < 80:
+        return "strengthening"
+    return "dominant"
+
+
+def _theme_signal_types(theme: dict[str, Any]) -> list[str]:
+    signals = ["momentum", "liquidity", "structural"]
+    if theme.get("valuation_signal") is not None:
+        signals.append("valuation")
+    if theme.get("risk_event_signal"):
+        signals.append("risk_event")
+    return signals
 
 
 def _utc_now() -> str:

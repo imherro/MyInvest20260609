@@ -116,7 +116,7 @@ def _mainline_step(research: dict[str, Any] | None, reference_date: str | None) 
         "mainline_research",
         "主线研究",
         "pass",
-        "主线研究已进入系统，代表标的仍受 ResearchFirst 约束。",
+        "主线研究已进入系统；主题层只展示状态和领先指标，不下钻股票代码。",
         "/research/view",
         "/research/latest",
         research["basis_date"],

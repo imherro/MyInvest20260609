@@ -638,7 +638,7 @@ def _home_priority_map(data: dict[str, Any]) -> dict[str, dict[str, str]]:
             "detail": "先看今天总摘要、阅读顺序和来源编号。",
         },
         "主线状态": {
-            "href": "/theme/view#theme-representative-scope",
+            "href": "/theme/view#theme-state",
             "status": _theme_scope_headline(theme),
             "detail": _theme_scope_detail(theme),
         },
@@ -674,7 +674,7 @@ def _home_entry_groups(data: dict[str, Any]) -> str:
             "研究与市场",
             [
                 ("市场状态", "/market/view", "查看市场评分、风险等级、权益比例边界和数据缺口。"),
-                ("主线状态", "/theme/view#theme-representative-scope", "查看 AI、半导体、电力设备、机器人等方向是否进入当前主线。"),
+                ("主线状态", "/theme/view#theme-state", "查看 AI、半导体、电力设备、机器人等方向是否进入当前主线。"),
                 ("研究工作台", "/research/view#research-workbench", "查看最新研究快照和 ResearchFirst 队列。"),
                 ("研究导入", "/research/import/view", "粘贴研究 JSON，先校验，再追加写入系统。"),
             ],
@@ -735,16 +735,8 @@ def _home_entry_link(
 def _theme_scope_headline(theme: dict[str, Any]) -> str:
     if not theme.get("available"):
         return "主线待导入"
-    scope = theme.get("representative_scope", {})
-    total = int(scope.get("record_count", 0))
-    if total == 0:
-        return "代表标的待关联"
-    counts = scope.get("status_counts", {})
-    passed = _theme_passed_count(counts)
-    research_first = int(counts.get("research_first_only", 0))
-    blocked = int(counts.get("blocked_candidate", 0))
-    watch_only = int(counts.get("watch_only", 0))
-    return f"已通过 {passed} / 先研究 {research_first} / 阻断 {blocked} / 观察 {watch_only}"
+    primary = theme.get("primary") or {}
+    return f"{primary.get('display_theme', '当前主线')}：{_theme_state_label(primary.get('theme_state'))}"
 
 
 def _theme_scope_detail(theme: dict[str, Any]) -> str:
@@ -752,15 +744,9 @@ def _theme_scope_detail(theme: dict[str, Any]) -> str:
         return "当前没有主线研究快照，先导入或生成主线研究 JSON。"
     primary = theme.get("primary") or {}
     display_theme = str(primary.get("display_theme", "暂无主线"))
-    scope = theme.get("representative_scope", {})
-    total = int(scope.get("record_count", 0))
-    if total == 0:
-        return f"{display_theme} 还没有可关联的代表标的状态。"
-    return f"{display_theme} 的 {total} 个代表标的已按当前目标池和影子组合分组，只读展示，不触发交易。"
-
-
-def _theme_passed_count(counts: dict[str, Any]) -> int:
-    return int(counts.get("approved_in_shadow", 0)) + int(counts.get("approved_not_in_shadow", 0))
+    indicators = primary.get("leading_indicators", [])
+    indicator_text = "、".join(indicators[:3]) if indicators else "暂无指标"
+    return f"{display_theme} 只展示主题状态和领先指标：{indicator_text}；标的不由主题层生成。"
 
 
 def _home_content(data: dict[str, Any]) -> str:
@@ -1015,16 +1001,16 @@ def _theme_content(data: dict[str, Any]) -> str:
             item["rank"],
             item["display_theme"],
             _theme_alias_text(item),
-            _theme_strength_text(item["strength_score"]),
-            _theme_phase_label(item.get("phase") or item.get("continuity")),
-            "、".join(item["plates"]) if item["plates"] else "暂无",
-            "、".join(item["display_symbols"]) if item["display_symbols"] else "暂无",
-            _theme_research_first_label(item.get("research_first")),
+            _theme_state_label(item.get("theme_state")),
+            "、".join(item.get("signal_type", [])) or "暂无",
+            item.get("sector") or "暂无",
+            "、".join(item.get("leading_indicators", [])) or "暂无",
+            _theme_strength_text(item.get("strength_score")),
         ]
         for item in theme["mainlines"]
     ]
     if not mainline_rows:
-        mainline_rows = [["暂无", "主线研究暂不可用", "无", "暂无", "暂无", "暂无", "暂无", "待研究"]]
+        mainline_rows = [["暂无", "主线研究暂不可用", "无", "暂无", "暂无", "暂无", "暂无", "暂无"]]
     watch_rows = [
         [
             item["theme"],
@@ -1034,18 +1020,18 @@ def _theme_content(data: dict[str, Any]) -> str:
         ]
         for item in theme["watchlist"]
     ]
-    evidence_rows = [
-        [item["display_theme"], evidence]
+    indicator_rows = [
+        [item["display_theme"], indicator]
         for item in theme["mainlines"]
-        for evidence in item.get("evidence", [])
+        for indicator in item.get("leading_indicators", [])
     ]
-    if not evidence_rows:
-        evidence_rows = [["暂无", theme["summary"]]]
+    if not indicator_rows:
+        indicator_rows = [["暂无", theme["summary"]]]
     history_rows = [
         [
             item["basis_date"],
             item["display_theme"],
-            _theme_strength_text(item["strength_score"]),
+            _theme_state_label(item.get("theme_state")),
             _theme_change_label(item["change"]),
             _theme_delta_text(item["score_delta"]),
             item["change_detail"],
@@ -1055,26 +1041,12 @@ def _theme_content(data: dict[str, Any]) -> str:
     ]
     if not history_rows:
         history_rows = [["暂无", "暂无主线", "暂无", "暂无", "暂无", "当前没有主线变化记录。", "无"]]
-    scope = theme["representative_scope"]
-    scope_rows = [
-        [
-            item["display_theme"],
-            item["display_symbol"],
-            _theme_scope_status_label(item["scope_status"]),
-            _theme_target_pool_status_label(item["target_pool_status"]),
-            _theme_shadow_weight_text(item["shadow_weight"]),
-            item["scope_detail"],
-        ]
-        for item in scope["rows"]
-    ]
-    if not scope_rows:
-        scope_rows = [["暂无", "暂无代表标的", "暂无", "暂无", "无", "当前没有可关联的代表标的。"]]
     source_body = f"""
 <section class="grid-2">
   <div class="panel">
     <h2>为什么之前看不到</h2>
-    <p>之前页面只展示 theme_research 的压缩摘要，AI、半导体等方向藏在 key_facts 和 payload.evidence 里。</p>
-    <p class="detail">现在本页把这些字段展开成主线、板块、代表标的和关注方向。</p>
+    <p>主题层现在只展示主线状态、板块和领先指标。</p>
+    <p class="detail">主题层禁止输出股票代码；候选标的和影子组合状态不再由主题层输出。</p>
   </div>
   <div class="panel">
     <h2>来源追溯</h2>
@@ -1086,12 +1058,12 @@ def _theme_content(data: dict[str, Any]) -> str:
 """
     history_body = f"""
 <section>
-  {_table(["日期", "第一主线", "强度", "变化", "强度差", "说明", "来源快照"], history_rows)}
+  {_table(["日期", "第一主线", "状态", "变化", "辅助强度差", "说明", "来源快照"], history_rows)}
 </section>
 """
     evidence_body = f"""
 <section>
-  {_table(["主线", "证据"], evidence_rows)}
+  {_table(["主线", "领先指标"], indicator_rows)}
 </section>
 """
     return f"""
@@ -1101,36 +1073,32 @@ def _theme_content(data: dict[str, Any]) -> str:
     <p class="value">{html.escape(str(primary.get("display_theme", "暂无主线")))}</p>
     <p class="detail">{html.escape(_theme_primary_detail(theme, primary))}</p>
     <div class="badge-row">
-      <span class="badge">强度 {html.escape(_theme_strength_text(primary.get("strength_score")))}</span>
+      <span class="badge">状态 {html.escape(_theme_state_label(primary.get("theme_state")))}</span>
       <span class="badge">置信度 {_percent(theme["confidence"])}</span>
       <span class="badge">下次复核 {html.escape(str(theme["next_review_date"]))}</span>
     </div>
   </div>
   <div class="panel">
     <h2>怎么读</h2>
+    <p class="detail">主题层禁止输出股票代码；标的只在目标池、研究队列、决策预览和组合页出现。</p>
     {_help_row([
         ("主线含义", "主线研究回答“现在市场最强的方向是什么”，不回答“应该买哪个标的”。"),
-        ("标的边界", "代表标的只是研究对象，必须继续经过画像、估值、流动性和 ResearchFirst 门槛。"),
+        ("标的边界", "主题层禁止输出股票代码；标的只在目标池、研究队列、决策预览和组合页出现。"),
     ])}
   </div>
 </section>
-{_compact_details("说明和来源追溯", source_body, "解释为什么现在能看到 AI、半导体等方向，以及对应的快照和 JSON 来源。")}
-<section>
+{_compact_details("说明和来源追溯", source_body, "解释主题层只展示方向状态，以及对应的快照和 JSON 来源。")}
+<section id="theme-state">
   <h2>当前主线排序</h2>
-  {_table(["排序", "主线", "你熟悉的说法", "强度", "阶段", "包含板块", "代表标的", "门槛状态"], mainline_rows)}
+  {_table(["排序", "主线", "你熟悉的说法", "状态", "信号类型", "板块", "领先指标", "辅助强度"], mainline_rows)}
 </section>
 <section>
   <h2>你关心的方向</h2>
   {_help_row([("用途", "这张表专门回答 AI、半导体、电力设备、机器人是否进入当前主线。")])}
   {_table(["方向", "状态", "对应主线", "说明"], watch_rows)}
 </section>
-<section id="theme-representative-scope">
-  <h2>代表标的当前状态</h2>
-  {_help_row([("边界", "这张表把主线代表标的和当前策略目标池、影子组合对齐；ResearchFirst、阻断和观察档案都不会产生真实交易动作。")])}
-  {_table(["主线", "标的", "当前状态", "目标池范围", "影子比例", "说明"], scope_rows)}
-</section>
 {_compact_details("主线变化记录", history_body, "这里从历史 research_snapshot 追加记录推导，帮助你判断当前主线是延续、增强、减弱还是切换。")}
-{_compact_details("证据摘录", evidence_body, "保留主线证据原文摘要；需要追溯时再展开。")}
+{_compact_details("领先指标", evidence_body, "保留主题层领先指标；需要找标的时进入目标池或研究队列。")}
 """
 
 
@@ -2618,7 +2586,7 @@ def _research_import_content(data: dict[str, Any]) -> str:
     <h2>导入边界</h2>
     {_help_row([
         ("写入范围", "导入只写入 research_snapshot 和 event_log，保持 append-only。"),
-        ("研究边界", "代表标的只能作为研究对象，仍受 ResearchFirst、估值和流动性门槛约束。"),
+        ("研究边界", "主题研究不允许下钻股票代码；具体标的必须走画像、估值、流动性和 ResearchFirst 门槛。"),
     ])}
   </div>
 </section>
@@ -3204,12 +3172,12 @@ def _qmt_reason_label(value: str | None) -> str:
 def _theme_primary_detail(theme: dict[str, Any], primary: dict[str, Any]) -> str:
     if not primary:
         return "当前没有可展示的主线。"
-    plates = "、".join(primary.get("plates", [])) or "暂无板块明细"
+    sector = primary.get("sector") or "暂无板块"
+    indicators = "、".join(primary.get("leading_indicators", [])) or "暂无领先指标"
     aliases = _theme_alias_text(primary)
     return (
-        f"强度 {_theme_strength_text(primary.get('strength_score'))}，"
-        f"阶段 {_theme_phase_label(primary.get('phase') or primary.get('continuity'))}，"
-        f"包含 {plates}。你熟悉的说法：{aliases}。"
+        f"状态 {_theme_state_label(primary.get('theme_state'))}，"
+        f"板块 {sector}，领先指标 {indicators}。你熟悉的说法：{aliases}。"
     )
 
 
@@ -3220,7 +3188,7 @@ def _theme_report_basis(theme: dict[str, Any]) -> str:
         for item in theme.get("watchlist", [])
     ]
     return (
-        f"强度 {_theme_strength_text(primary.get('strength_score'))}；"
+        f"状态 {_theme_state_label(primary.get('theme_state'))}；"
         f"关注方向 {'；'.join(watch) if watch else '暂无'}。"
     )
 
@@ -3236,25 +3204,14 @@ def _theme_strength_text(value: Any) -> str:
     return _score_out_of_100(value)
 
 
-def _theme_phase_label(value: Any) -> str:
-    if value is None:
-        return "暂无"
+def _theme_state_label(value: Any) -> str:
     return {
-        "early": "早期",
-        "mid": "中段",
-        "late": "后段",
-        "strong_continuation": "强延续",
-        "continuation_watch": "延续观察",
-        "new": "新出现",
-    }.get(str(value), str(value))
-
-
-def _theme_research_first_label(value: Any) -> str:
-    if value is True:
-        return "代表标的先 ResearchFirst"
-    if value is False:
-        return "未标记 ResearchFirst"
-    return "待确认"
+        "emerging": "萌芽",
+        "strengthening": "增强",
+        "dominant": "主导",
+        "weakening": "转弱",
+        "exhausted": "衰竭",
+    }.get(str(value), "暂无")
 
 
 def _theme_watch_status_label(value: str) -> str:
@@ -3271,6 +3228,7 @@ def _theme_change_label(value: str) -> str:
         "strengthened": "增强",
         "weakened": "减弱",
         "switched": "切换",
+        "state_changed": "状态变化",
     }.get(value, value)
 
 
@@ -3280,16 +3238,6 @@ def _theme_delta_text(value: Any) -> str:
     return f"{float(value):+.2f} 分"
 
 
-def _theme_scope_status_label(value: str) -> str:
-    return {
-        "approved_in_shadow": "已进影子参照",
-        "approved_not_in_shadow": "已通过但未配置",
-        "research_first_only": "ResearchFirst",
-        "blocked_candidate": "目标池阻断",
-        "watch_only": "观察档案",
-    }.get(value, value)
-
-
 def _theme_target_pool_status_label(value: str) -> str:
     return {
         "approved": "已通过目标池",
@@ -3297,12 +3245,6 @@ def _theme_target_pool_status_label(value: str) -> str:
         "blocked": "目标池阻断",
         "watch_only": "不在当前目标池",
     }.get(value, value)
-
-
-def _theme_shadow_weight_text(value: Any) -> str:
-    if value is None:
-        return "暂无影子组合"
-    return _percent(value)
 
 
 def _target_pool_source_label(value: str) -> str:

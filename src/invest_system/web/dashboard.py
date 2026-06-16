@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import html
-import re
 from datetime import date
 from typing import Any
 
@@ -10,7 +9,9 @@ from invest_system.macro import compute_macro_state
 from invest_system.repositories import SQLiteRepository
 from invest_system.risk import compute_risk_state
 from invest_system.self_check import system_status
+from invest_system.validators.module_contracts import ModuleContractViolation, validate_module_contract
 from invest_system.validators.policies import assert_no_sensitive_content
+from invest_system.validators.schema_validator import SchemaValidationError, validate_or_raise
 from invest_system.web.symbol_display import display_symbol, symbol_name
 
 
@@ -639,6 +640,7 @@ def _theme_history_state(timeline: list[dict[str, Any]]) -> dict[str, Any]:
         event
         for event in timeline
         if event["type"] == "research" and event["payload"].get("module") == "theme_research"
+        and _valid_theme_snapshot(event["payload"])
     ]
     records: list[dict[str, Any]] = []
     previous: dict[str, Any] | None = None
@@ -659,6 +661,7 @@ def _theme_history_state(timeline: list[dict[str, Any]]) -> dict[str, Any]:
         "notes": [
             "主线变化记录来自 append-only research_snapshot 时间线。",
             "它只解释研究主线变化，不产生买卖或调仓指令。",
+            "不满足主题层合同的历史快照不会进入当前主题状态。",
         ],
     }
 
@@ -672,7 +675,8 @@ def _theme_history_record(
     theme = primary["theme"] if primary else None
     display_theme = primary["display_theme"] if primary else "暂无主线"
     strength = primary.get("strength_score") if primary else None
-    change, score_delta, detail = _theme_change(previous, theme, display_theme, strength)
+    theme_state = primary.get("theme_state") if primary else None
+    change, score_delta, detail = _theme_change(previous, theme, display_theme, strength, theme_state)
     return {
         "snapshot_id": item["snapshot_id"],
         "basis_date": item["basis_date"],
@@ -680,9 +684,11 @@ def _theme_history_record(
         "primary_theme": theme,
         "display_theme": display_theme,
         "strength_score": strength,
+        "theme_state": theme_state,
         "previous_theme": previous["primary_theme"] if previous else None,
         "previous_display_theme": previous["display_theme"] if previous else None,
         "previous_strength_score": previous["strength_score"] if previous else None,
+        "previous_theme_state": previous["theme_state"] if previous else None,
         "score_delta": score_delta,
         "change": change,
         "change_label": _theme_change_label(change),
@@ -696,9 +702,10 @@ def _theme_change(
     theme: str | None,
     display_theme: str,
     strength: float | None,
+    theme_state: str | None,
 ) -> tuple[str, float | None, str]:
     if previous is None:
-        return ("initial", None, f"首次记录主线为{display_theme}。")
+        return ("initial", None, f"首次记录主线为{display_theme}，状态为{_theme_state_label(theme_state)}。")
     previous_theme = previous["primary_theme"]
     previous_display = previous["display_theme"]
     previous_strength = previous["strength_score"]
@@ -708,10 +715,16 @@ def _theme_change(
         else None
     )
     if theme != previous_theme:
-        detail = f"主线从{previous_display}切换为{display_theme}。"
+        detail = f"主线从{previous_display}切换为{display_theme}，状态为{_theme_state_label(theme_state)}。"
         if score_delta is not None:
-            detail += f" 强度变化 {score_delta:+.2f} 分。"
+            detail += f" 辅助强度变化 {score_delta:+.2f} 分。"
         return ("switched", score_delta, detail)
+    if theme_state != previous.get("theme_state"):
+        return (
+            "state_changed",
+            score_delta,
+            f"{display_theme}状态从{_theme_state_label(previous.get('theme_state'))}变为{_theme_state_label(theme_state)}。",
+        )
     if score_delta is None:
         return ("continued", None, f"{display_theme}继续保持当前主线。")
     if score_delta >= 5:
@@ -728,15 +741,19 @@ def _theme_change_label(value: str) -> str:
         "strengthened": "增强",
         "weakened": "减弱",
         "switched": "切换",
+        "state_changed": "状态变化",
     }.get(value, value)
 
 
-MAINLINE_RE = re.compile(
-    r"^Mainline\s+(?P<rank>\d+):\s+"
-    r"(?P<theme>.+?)\s+strength_score=(?P<score>\d+(?:\.\d+)?)"
-    r"(?:\s+continuity=(?P<continuity>[^\s.]+))?"
-    r"(?:\s+research_first_queue=(?P<research_first>[^\s.]+))?"
-)
+def _theme_state_label(value: Any) -> str:
+    return {
+        "emerging": "萌芽",
+        "strengthening": "增强",
+        "dominant": "主导",
+        "weakening": "转弱",
+        "exhausted": "衰竭",
+    }.get(str(value), "未知")
+
 
 THEME_LABELS = {
     "advanced electronics manufacturing chain": "先进电子制造链",
@@ -769,7 +786,7 @@ def _theme_research_state(
     portfolio: dict[str, Any] | None,
 ) -> dict[str, Any]:
     item = _theme_research_item(research_items)
-    if item is None:
+    if item is None or not _valid_theme_snapshot(item):
         return {
             "available": False,
             "snapshot_id": None,
@@ -779,7 +796,7 @@ def _theme_research_state(
             "watchlist": _theme_watchlist([]),
             "representative_scope": _empty_theme_representative_scope(target_pool, portfolio),
             "data_gaps": [],
-            "notes": ["当前没有 theme_research 快照。"],
+            "notes": ["当前没有满足主题层合同的 theme_research 快照。"],
         }
 
     mainlines = _theme_mainlines(item)
@@ -801,7 +818,7 @@ def _theme_research_state(
         "conflicts": item.get("conflicts", []),
         "notes": [
             "主线研究只用于研究层观察和候选筛选。",
-            "代表标的必须继续经过画像、估值和流动性门槛；这里不产生买卖指令。",
+            "主题层合同禁止输出股票代码；标的研究、目标池和影子组合在各自层处理。",
         ],
     }
 
@@ -814,11 +831,7 @@ def _theme_research_item(items: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 
 def _theme_mainlines(item: dict[str, Any]) -> list[dict[str, Any]]:
-    rows = _theme_mainlines_from_key_facts(item.get("key_facts", []))
-    if not rows:
-        rows = [_theme_mainline_from_payload(item)]
-    _fill_theme_rows_from_evidence(rows, item.get("payload", {}).get("evidence", []))
-    return rows
+    return [_theme_mainline_from_payload(item)]
 
 
 def _empty_theme_representative_scope(
@@ -833,8 +846,8 @@ def _empty_theme_representative_scope(
         "status_counts": {},
         "rows": [],
         "notes": [
-            "当前没有主线代表标的可关联。",
-            "这里不会生成真实交易动作，也不会写入 QMT。",
+            "主题层合同禁止输出股票代码。",
+            "标的状态请查看目标池、ResearchFirst 队列、决策预览或组合页。",
         ],
     }
 
@@ -844,130 +857,33 @@ def _theme_representative_scope(
     target_pool: dict[str, Any] | None,
     portfolio: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    pool_by_symbol = _target_pool_symbol_map(target_pool)
-    shadow_weights = portfolio.get("holdings_weight", {}) if portfolio else {}
-    rows: list[dict[str, Any]] = []
-    seen: set[tuple[int, str]] = set()
-    for mainline in mainlines:
-        for symbol in mainline.get("symbols", []):
-            key = (int(mainline["rank"]), str(symbol))
-            if key in seen:
-                continue
-            seen.add(key)
-            rows.append(_theme_representative_row(mainline, str(symbol), pool_by_symbol, shadow_weights, portfolio))
-    status_counts = _theme_representative_status_counts(rows)
     return {
-        "available": bool(rows),
+        "available": False,
         "source_target_pool_id": target_pool["target_pool_id"] if target_pool else None,
         "source_portfolio_id": portfolio["portfolio_id"] if portfolio else None,
-        "record_count": len(rows),
-        "status_counts": status_counts,
-        "rows": rows,
+        "record_count": 0,
+        "status_counts": {},
+        "rows": [],
         "notes": [
-            "代表标的状态只来自当前策略目标池和影子组合快照。",
-            "approved 代表可进入纸面参照；ResearchFirst、blocked、观察档案都不产生买卖建议。",
-            "QMT 实际持仓不会覆盖策略目标池，也不会触发真实交易。",
+            "主题层合同禁止输出股票代码。",
+            "目标池、ResearchFirst 和影子组合只在各自页面展示，不由主题层下钻生成。",
         ],
     }
 
 
-def _theme_representative_row(
-    mainline: dict[str, Any],
-    symbol: str,
-    pool_by_symbol: dict[str, str],
-    shadow_weights: dict[str, Any],
-    portfolio: dict[str, Any] | None,
-) -> dict[str, Any]:
-    pool_type = pool_by_symbol.get(symbol)
-    shadow_weight = round(float(shadow_weights.get(symbol, 0)), 6) if portfolio else None
-    shadow_status = "in_shadow" if shadow_weight and shadow_weight > 0 else "not_in_shadow"
-    if portfolio is None:
-        shadow_status = "shadow_missing"
-    scope_status, scope_detail = _theme_representative_status(pool_type, shadow_status)
-    return {
-        "mainline_rank": mainline["rank"],
-        "theme": mainline["theme"],
-        "display_theme": mainline["display_theme"],
-        "symbol": symbol,
-        "display_symbol": display_symbol(symbol),
-        "target_pool_status": pool_type or "watch_only",
-        "shadow_status": shadow_status,
-        "shadow_weight": shadow_weight,
-        "scope_status": scope_status,
-        "scope_detail": scope_detail,
-        "paper_only": True,
-    }
-
-
-def _theme_representative_status(pool_type: str | None, shadow_status: str) -> tuple[str, str]:
-    if pool_type == "approved":
-        if shadow_status == "in_shadow":
-            return ("approved_in_shadow", "已进入 approved 目标池，并已出现在影子组合参照中。")
-        return ("approved_not_in_shadow", "已进入 approved 目标池，但当前影子组合比例为 0。")
-    if pool_type == "research_first":
-        return ("research_first_only", "仍在 ResearchFirst，只能继续补研究，不能进入纸面调仓参照。")
-    if pool_type == "blocked":
-        return ("blocked_candidate", "当前目标池阻断，不进入影子组合，也不产生买卖建议。")
-    return ("watch_only", "只是主线研究代表标的，未进入当前策略目标池，只作为观察档案。")
-
-
-def _target_pool_symbol_map(target_pool: dict[str, Any] | None) -> dict[str, str]:
-    if target_pool is None:
-        return {}
-    symbol_map: dict[str, str] = {}
-    for entry in target_pool.get("entries", []):
-        pool_type = str(entry.get("pool_type", "unknown"))
-        for symbol in entry.get("symbols", []):
-            symbol_map[str(symbol)] = pool_type
-    return symbol_map
-
-
-def _theme_representative_status_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for row in rows:
-        status = str(row["scope_status"])
-        counts[status] = counts.get(status, 0) + 1
-    return counts
-
-
-def _theme_mainlines_from_key_facts(key_facts: list[str]) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for fact in key_facts:
-        mainline_match = MAINLINE_RE.match(str(fact))
-        if mainline_match:
-            theme = mainline_match.group("theme").strip()
-            research_first = mainline_match.group("research_first")
-            rows.append(
-                _theme_row(
-                    rank=int(mainline_match.group("rank")),
-                    theme=theme,
-                    strength_score=float(mainline_match.group("score")),
-                    continuity=mainline_match.group("continuity"),
-                    research_first=research_first == "yes" if research_first is not None else None,
-                )
-            )
-            continue
-        if rows and str(fact).startswith("Representative plates/themes:"):
-            plates, symbols = _representative_parts(str(fact))
-            rows[-1]["plates"] = plates
-            rows[-1]["symbols"] = symbols
-            rows[-1]["display_symbols"] = [display_symbol(symbol) for symbol in symbols]
-    return rows
-
-
 def _theme_mainline_from_payload(item: dict[str, Any]) -> dict[str, Any]:
     payload = item.get("payload", {})
-    symbols = [str(symbol) for symbol in payload.get("leading_symbols", [])]
     row = _theme_row(
         rank=1,
-        theme=str(payload.get("theme") or item.get("snapshot_id") or "unknown"),
+        theme=str(payload.get("theme_id") or item.get("snapshot_id") or "unknown"),
+        display_theme=str(payload.get("theme_name") or payload.get("theme_id") or "unknown"),
         strength_score=_optional_float(payload.get("strength_score")),
-        phase=payload.get("phase"),
+        theme_state=payload.get("theme_state"),
+        sector=payload.get("sector"),
+        signal_type=payload.get("signal_type", []),
+        leading_indicators=payload.get("leading_indicators", []),
         research_first=item.get("actionability") == "research_first",
     )
-    row["symbols"] = symbols
-    row["display_symbols"] = [display_symbol(symbol) for symbol in symbols]
-    row["related_etfs"] = [display_symbol(str(symbol)) for symbol in payload.get("related_etfs", [])]
     return row
 
 
@@ -976,55 +892,28 @@ def _theme_row(
     rank: int,
     theme: str,
     strength_score: float | None,
+    display_theme: str | None = None,
     continuity: str | None = None,
-    phase: str | None = None,
+    theme_state: str | None = None,
+    sector: str | None = None,
+    signal_type: list[str] | None = None,
+    leading_indicators: list[str] | None = None,
     research_first: bool | None = None,
 ) -> dict[str, Any]:
     aliases = THEME_ALIASES.get(theme, [])
     return {
         "rank": rank,
         "theme": theme,
-        "display_theme": THEME_LABELS.get(theme, theme),
+        "display_theme": display_theme or THEME_LABELS.get(theme, theme),
         "aliases": aliases,
         "strength_score": strength_score,
-        "phase": phase,
+        "theme_state": theme_state,
+        "sector": sector,
+        "signal_type": signal_type or [],
+        "leading_indicators": [str(item) for item in (leading_indicators or [])],
         "continuity": continuity,
         "research_first": research_first,
-        "plates": [],
-        "symbols": [],
-        "display_symbols": [],
-        "related_etfs": [],
-        "evidence": [],
     }
-
-
-def _fill_theme_rows_from_evidence(rows: list[dict[str, Any]], evidence: list[str]) -> None:
-    for row in rows:
-        theme = row["theme"]
-        for item in evidence:
-            text = str(item)
-            if text.startswith(f"{theme}:"):
-                row["evidence"].append(text)
-                if not row["plates"] and "plates=" in text:
-                    row["plates"] = _split_theme_list(text.split("plates=", 1)[1].split(";", 1)[0])
-
-
-def _representative_parts(text: str) -> tuple[list[str], list[str]]:
-    prefix = "Representative plates/themes:"
-    body = text[len(prefix):].strip()
-    plates_part, _, symbols_part = body.partition("Representative symbols are research objects only:")
-    plates = _split_theme_list(plates_part.rstrip(". "))
-    symbols = [
-        item.strip().rstrip(".")
-        for item in symbols_part.split(",")
-        if item.strip()
-    ]
-    return plates, symbols
-
-
-def _split_theme_list(value: str) -> list[str]:
-    normalized = value.replace(";", ",")
-    return [item.strip() for item in normalized.split(",") if item.strip()]
 
 
 def _theme_watchlist(mainlines: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1050,10 +939,20 @@ def _theme_search_text(row: dict[str, Any]) -> str:
     parts = [
         row.get("theme", ""),
         row.get("display_theme", ""),
+        row.get("sector", ""),
         " ".join(row.get("aliases", [])),
-        " ".join(row.get("plates", [])),
+        " ".join(row.get("leading_indicators", [])),
     ]
     return " ".join(str(part) for part in parts)
+
+
+def _valid_theme_snapshot(item: dict[str, Any]) -> bool:
+    try:
+        validate_or_raise(item.get("payload", {}), "theme_research_payload.schema.json")
+        validate_module_contract(item)
+    except (SchemaValidationError, ModuleContractViolation, ValueError):
+        return False
+    return True
 
 
 def _theme_watchlist_detail(theme: str, matches: list[dict[str, Any]]) -> str:

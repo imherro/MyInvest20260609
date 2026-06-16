@@ -6,7 +6,10 @@ from typing import Any
 from invest_system.guidance.engine import DEFAULT_POLICY
 from invest_system.repositories import SQLiteRepository
 from invest_system.shadow.engine import ShadowPortfolioEngine
+from invest_system.validators.module_contracts import ModuleContractViolation, validate_module_contract
 from invest_system.validators.policies import assert_no_sensitive_content
+from invest_system.validators.research_schemas import RESEARCH_PAYLOAD_SCHEMA_BY_MODULE
+from invest_system.validators.schema_validator import SchemaValidationError, validate_or_raise
 
 
 def run_auto_shadow_portfolio(
@@ -29,7 +32,7 @@ def run_auto_shadow_portfolio(
             reason="missing_market_target_pool_or_portfolio",
             basis_date=as_of,
         )
-    source_research_ids = _source_research_ids(repo, as_of=as_of)
+    source_research_ids = _source_research_ids(repo, as_of=as_of, target_pool=target_pool, portfolio=previous)
     if not source_research_ids:
         return _result(
             "skipped",
@@ -183,17 +186,47 @@ def _model_decision(
     }
 
 
-def _source_research_ids(repo: SQLiteRepository, *, as_of: str | None) -> list[str]:
-    ids: list[str] = []
-    seen: set[str] = set()
+def _source_research_ids(
+    repo: SQLiteRepository,
+    *,
+    as_of: str | None,
+    target_pool: dict[str, Any],
+    portfolio: dict[str, Any],
+) -> list[str]:
+    current_scope = _current_symbol_scope(target_pool, portfolio)
+    latest: dict[str, dict[str, Any]] = {}
     for event in repo.timeline(as_of):
         if event["type"] != "research":
             continue
-        object_id = event["object_id"]
-        if object_id not in seen:
-            ids.append(object_id)
-            seen.add(object_id)
-    return ids
+        payload = event["payload"]
+        module = payload.get("module")
+        module_schema = RESEARCH_PAYLOAD_SCHEMA_BY_MODULE.get(module)
+        if not module_schema or not _research_is_contract_valid(payload, module_schema):
+            continue
+        symbol = payload.get("payload", {}).get("symbol")
+        if symbol and current_scope and symbol not in current_scope:
+            continue
+        key = f"{module}:{symbol}" if symbol else str(module)
+        latest[key] = event
+    return [event["object_id"] for event in latest.values()]
+
+
+def _current_symbol_scope(target_pool: dict[str, Any], portfolio: dict[str, Any]) -> set[str]:
+    symbols: set[str] = set()
+    for entry in target_pool.get("entries", []):
+        symbols.update(entry.get("symbols", []))
+    symbols.update(symbol for symbol, weight in portfolio.get("holdings_weight", {}).items() if float(weight) > 0)
+    return symbols
+
+
+def _research_is_contract_valid(payload: dict[str, Any], module_schema: str) -> bool:
+    try:
+        validate_or_raise(payload, "research.schema.json")
+        validate_or_raise(payload["payload"], module_schema)
+        validate_module_contract(payload)
+    except (KeyError, SchemaValidationError, ModuleContractViolation, ValueError):
+        return False
+    return True
 
 
 def _pool_symbols(target_pool: dict[str, Any], pool_type: str) -> set[str]:

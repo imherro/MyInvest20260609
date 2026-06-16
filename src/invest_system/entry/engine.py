@@ -72,17 +72,19 @@ def _main_theme_card(research_items: list[dict[str, Any]]) -> dict[str, Any]:
     if theme_item is None:
         return {
             "current_theme": None,
-            "strength_score": None,
-            "leading_symbols": [],
+            "theme_state": None,
+            "signal_type": [],
+            "leading_indicators": [],
             "clarity_state": "unavailable",
         }
     payload = theme_item.get("payload", {})
-    strength = payload.get("strength_score")
+    theme_state = payload.get("theme_state")
     return {
-        "current_theme": payload.get("theme"),
-        "strength_score": strength,
-        "leading_symbols": payload.get("leading_symbols", []),
-        "clarity_state": _theme_clarity(strength),
+        "current_theme": payload.get("theme_name"),
+        "theme_state": theme_state,
+        "signal_type": payload.get("signal_type", []),
+        "leading_indicators": payload.get("leading_indicators", []),
+        "clarity_state": _theme_clarity(theme_state),
     }
 
 
@@ -268,12 +270,12 @@ def _overall_market_state(risk_level: str, market_score: float) -> str:
     return "balanced"
 
 
-def _theme_clarity(strength: Any) -> str:
-    if strength is None:
+def _theme_clarity(theme_state: Any) -> str:
+    if theme_state is None:
         return "unavailable"
-    if strength >= 70:
+    if theme_state in {"dominant", "strengthening"}:
         return "strong"
-    if strength >= 45:
+    if theme_state == "emerging":
         return "medium"
     return "weak"
 

@@ -167,6 +167,7 @@ def build_market_snapshot_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
             "risk_level": risk_level,
             "reason": _market_reasons(bundle, market_score),
             "crowding_penalty": crowding_penalty,
+            "signal_type": _market_signal_types(signals, crowding_penalty),
             "headline_index": _headline_index(bundle),
         },
     }
@@ -187,12 +188,20 @@ def _headline_index(bundle: dict[str, Any]) -> dict[str, Any] | None:
 
 def _index_payload(row: dict[str, Any], fallback_name: str) -> dict[str, Any]:
     return {
-        "symbol": row["symbol"],
         "name": row.get("name") or fallback_name,
         "last_price": row.get("last_price"),
         "daily_return": row["daily_return"],
         "source": row["source"],
     }
+
+
+def _market_signal_types(signals: dict[str, Any], crowding_penalty: float) -> list[str]:
+    types = ["momentum", "liquidity", "structural"]
+    if crowding_penalty > 0:
+        types.append("valuation")
+    if signals["risk_appetite"] == "risk_off" or signals["breadth"] < 0.45:
+        types.append("risk_event")
+    return list(dict.fromkeys(types))
 
 
 def _market_signals(bundle: dict[str, Any], market_score: float, crowding_penalty: float) -> dict[str, Any]:
@@ -252,7 +261,6 @@ def build_p0c_price_data_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     symbol_rows = {row["symbol"]: row for row in bundle["symbols"]}
     etf_row = symbol_rows.get("510300.SH") or _first_symbol_row(bundle)
     stock_row = symbol_rows.get("002920.SZ") or _first_symbol_row(bundle)
-    theme_symbols = [row["symbol"] for row in bundle["symbols"][:3]] or ["510300.SH", "159915.SZ", "002920.SZ"]
     average_return = _average_return(bundle)
     return_signal = _bounded(0.5 + average_return * 12, 0.05, 0.95)
     breadth_signal = _bounded(_positive_ratio(bundle), 0.05, 0.95)
@@ -278,12 +286,13 @@ def build_p0c_price_data_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
         },
         "themes": [
             {
-                "theme": theme_name,
-                "symbols": theme_symbols,
-                "related_etfs": [etf_row["symbol"]],
+                "theme_id": theme_name,
+                "theme_name": "适配器市场宽度",
+                "sector": "market_breadth",
                 "return_signal": round(return_signal, 4),
                 "breadth_signal": round(breadth_signal, 4),
                 "liquidity_signal": round(liquidity_signal, 4),
+                "leading_indicators": ["positive-record ratio", "average return", "turnover proxy"],
             }
         ],
         "leaders": {

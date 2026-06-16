@@ -17,7 +17,7 @@ def main() -> None:
     parser.add_argument("--as-of")
     parser.add_argument("--db", default=str(DEFAULT_DB_PATH))
     args = parser.parse_args()
-    result = run_self_check(args.db, args.as_of)
+    result = run_self_check(args.db, args.as_of, current_only=args.current_only)
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     if result["status"] != "passed":
         raise SystemExit(1)
@@ -25,4 +25,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

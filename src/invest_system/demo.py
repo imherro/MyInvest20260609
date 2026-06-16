@@ -63,6 +63,7 @@ def make_market_snapshot() -> dict[str, Any]:
             "risk_level": "medium",
             "reason": ["Neutral breadth and controlled crowding."],
             "crowding_penalty": 8,
+            "signal_type": ["momentum", "liquidity", "structural", "valuation"],
         },
     }
 

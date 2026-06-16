@@ -218,9 +218,6 @@ def _candidate_symbols(
             symbol = candidate.get("symbol")
             if symbol and symbol not in cleanup_symbols and _is_current_symbol(symbol, current_scope):
                 symbols.append(symbol)
-        for symbol in payload.get("leading_symbols", []):
-            if symbol and symbol not in cleanup_symbols and _is_current_symbol(symbol, current_scope):
-                symbols.append(symbol)
         for queued in payload.get("research_first_list", []):
             symbol = queued.get("symbol")
             if symbol and symbol not in cleanup_symbols and _is_current_symbol(symbol, current_scope):
@@ -265,7 +262,6 @@ def _research_referenced_symbols(payload: dict[str, Any]) -> set[str]:
         symbol = candidate.get("symbol")
         if symbol:
             symbols.add(symbol)
-    symbols.update(symbol for symbol in payload.get("leading_symbols", []) if symbol)
     for queued in payload.get("research_first_list", []):
         symbol = queued.get("symbol")
         if symbol:
@@ -355,6 +351,13 @@ def _symbol_gates(
 
 
 def _research_gate_value(research: dict[str, Any], gate: str) -> str:
+    structured = research.get("payload", {}).get("gates", {})
+    if isinstance(structured, dict) and gate in structured:
+        value = structured[gate]
+        if value == "fail":
+            return "blocked"
+        if value in {"pass", "blocked", "missing"}:
+            return "blocked" if value == "missing" else value
     text = _research_evidence_text(research)
     pass_markers = [
         f"{gate} gate passes",
@@ -377,7 +380,12 @@ def _research_gate_value(research: dict[str, Any], gate: str) -> str:
 
 
 def _research_requires_first(research: dict[str, Any]) -> bool:
-    return research.get("actionability") == "research_first" or research.get("status") == "blocked"
+    status = research.get("payload", {}).get("research_first_status")
+    return (
+        research.get("actionability") == "research_first"
+        or research.get("status") == "blocked"
+        or status == "BLOCKED"
+    )
 
 
 def _research_is_current_cleanup(research: dict[str, Any]) -> bool:

@@ -35,11 +35,21 @@
         "main_theme": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["current_theme", "strength_score", "leading_symbols", "clarity_state"],
+          "required": ["current_theme", "theme_state", "signal_type", "leading_indicators", "clarity_state"],
           "properties": {
             "current_theme": { "type": ["string", "null"] },
-            "strength_score": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
-            "leading_symbols": { "type": "array", "items": { "type": "string" } },
+            "theme_state": {
+              "type": ["string", "null"],
+              "enum": ["emerging", "strengthening", "dominant", "weakening", "exhausted", null]
+            },
+            "signal_type": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["liquidity", "valuation", "momentum", "structural", "risk_event"]
+              }
+            },
+            "leading_indicators": { "type": "array", "items": { "type": "string" } },
             "clarity_state": { "type": "string", "enum": ["strong", "medium", "weak", "unavailable"] }
           }
         },

@@ -10,6 +10,8 @@ from invest_system.validators.policies import (
     assert_research_policy,
     assert_target_pool_policy,
 )
+from invest_system.validators.module_contracts import validate_module_contract
+from invest_system.validators.research_schemas import RESEARCH_PAYLOAD_SCHEMA_BY_MODULE
 from invest_system.validators.schema_validator import validate_or_raise
 
 
@@ -21,20 +23,12 @@ SCHEMA_BY_TYPE = {
     "portfolio": "portfolio.schema.json",
 }
 
-RESEARCH_PAYLOAD_SCHEMA_BY_MODULE = {
-    "etf_valuation": "etf_valuation_payload.schema.json",
-    "stock_valuation": "stock_valuation_payload.schema.json",
-    "theme_research": "theme_research_payload.schema.json",
-    "leader_ranking": "leader_ranking_payload.schema.json",
-    "review_score": "review_score_payload.schema.json",
-}
-
-
-def run_self_check(db_path: str | Path, as_of: str | None = None) -> dict[str, Any]:
+def run_self_check(db_path: str | Path, as_of: str | None = None, current_only: bool = False) -> dict[str, Any]:
     repo = SQLiteRepository(db_path)
+    rows = _current_payload_rows(repo, as_of) if current_only else repo.all_payload_rows()
     checks = [
-        _check_json_valid(repo),
-        _check_history_continuity(repo),
+        _check_json_valid(rows),
+        _check_history_continuity(rows),
         _check_portfolio_replay(repo, as_of),
         _check_multiday_replay(repo),
         _check_event_log_consistency(repo),
@@ -48,16 +42,19 @@ def run_self_check(db_path: str | Path, as_of: str | None = None) -> dict[str, A
     }
 
 
-def _check_json_valid(repo: SQLiteRepository) -> dict[str, Any]:
+def _check_json_valid(rows: list[dict[str, Any]]) -> dict[str, Any]:
     errors: list[str] = []
-    for row in repo.all_payload_rows():
+    for row in rows:
         payload = row["payload"]
         try:
             validate_or_raise(payload, SCHEMA_BY_TYPE[row["type"]])
             if row["type"] in {"market", "research"}:
                 assert_research_policy(payload)
-                module_schema = RESEARCH_PAYLOAD_SCHEMA_BY_MODULE.get(payload.get("module"))
-                if module_schema:
+                validate_module_contract(payload)
+                if row["type"] == "research":
+                    module_schema = RESEARCH_PAYLOAD_SCHEMA_BY_MODULE.get(payload.get("module"))
+                    if not module_schema:
+                        raise ValueError(f"research module has no enforced payload schema: {payload.get('module')}")
                     validate_or_raise(payload["payload"], module_schema)
             elif row["type"] == "target_pool":
                 assert_target_pool_policy(payload)
@@ -74,8 +71,7 @@ def _check_json_valid(repo: SQLiteRepository) -> dict[str, Any]:
     }
 
 
-def _check_history_continuity(repo: SQLiteRepository) -> dict[str, Any]:
-    rows = repo.all_payload_rows()
+def _check_history_continuity(rows: list[dict[str, Any]]) -> dict[str, Any]:
     market_ids = {row["object_id"] for row in rows if row["type"] == "market"}
     research_ids = {row["object_id"] for row in rows if row["type"] == "research"}
     decision_ids = {row["object_id"] for row in rows if row["type"] == "decision"}
@@ -172,7 +168,7 @@ def _check_event_log_consistency(repo: SQLiteRepository) -> dict[str, Any]:
 def system_status(db_path: str | Path, as_of: str | None = None) -> dict[str, Any]:
     repo = SQLiteRepository(db_path)
     repo.init_db()
-    self_check = run_self_check(db_path, as_of)
+    self_check = run_self_check(db_path, as_of, current_only=True)
     replay_state = repo.replay_state(as_of)
     return {
         "status": "ok",
@@ -197,3 +193,102 @@ def _latest_portfolio_id_on_or_before(portfolio_rows: list[dict[str, Any]], basi
     if not candidates:
         return None
     return sorted(candidates, key=lambda payload: (payload["basis_date"], payload["generated_at"]))[-1]["portfolio_id"]
+
+
+def _current_payload_rows(repo: SQLiteRepository, as_of: str | None) -> list[dict[str, Any]]:
+    rows = repo.all_payload_rows()
+    replay = repo.replay_state(as_of)
+    current_keys: set[tuple[str, str]] = set()
+    row_by_key = {(row["type"], row["object_id"]): row for row in rows}
+    current_scope = _current_symbol_scope(replay)
+    for payload_type, payload in replay.items():
+        if payload_type == "trace" or payload is None or not isinstance(payload, dict):
+            continue
+        object_id = _object_id_for_payload(payload_type, payload)
+        if object_id:
+            current_keys.add((payload_type, object_id))
+    for event in _latest_research_events(repo.timeline(as_of), current_scope):
+        current_keys.add(("research", event["object_id"]))
+    _include_trace_dependencies(current_keys, row_by_key)
+    return [row for row in rows if (row["type"], row["object_id"]) in current_keys]
+
+
+def _include_trace_dependencies(
+    current_keys: set[tuple[str, str]],
+    row_by_key: dict[tuple[str, str], dict[str, Any]],
+) -> None:
+    changed = True
+    while changed:
+        changed = False
+        for key in list(current_keys):
+            row = row_by_key.get(key)
+            if row is None:
+                continue
+            for dependency in _trace_dependencies(row):
+                if dependency in row_by_key and dependency not in current_keys:
+                    current_keys.add(dependency)
+                    changed = True
+
+
+def _trace_dependencies(row: dict[str, Any]) -> list[tuple[str, str]]:
+    payload = row["payload"]
+    dependencies: list[tuple[str, str]] = []
+    if row["type"] == "decision":
+        trace = payload.get("trace", {})
+        market_id = trace.get("source_market_snapshot_id")
+        if market_id:
+            dependencies.append(("market", market_id))
+        dependencies.extend(("research", research_id) for research_id in trace.get("source_research_snapshot_ids", []))
+    if row["type"] == "portfolio":
+        decision_id = payload.get("source_decision_id")
+        target_pool_id = payload.get("source_target_pool_id")
+        if decision_id:
+            dependencies.append(("decision", decision_id))
+        if target_pool_id:
+            dependencies.append(("target_pool", target_pool_id))
+    return dependencies
+
+
+def _current_symbol_scope(replay: dict[str, Any]) -> set[str]:
+    symbols: set[str] = set()
+    target_pool = replay.get("target_pool")
+    if isinstance(target_pool, dict):
+        for entry in target_pool.get("entries", []):
+            symbols.update(entry.get("symbols", []))
+    decision = replay.get("decision")
+    if isinstance(decision, dict):
+        symbols.update(action.get("symbol") for action in decision.get("decision_actions", []) if action.get("symbol"))
+    portfolio = replay.get("portfolio")
+    if isinstance(portfolio, dict):
+        symbols.update(
+            symbol
+            for symbol, weight in portfolio.get("holdings_weight", {}).items()
+            if float(weight) > 0
+        )
+    return symbols
+
+
+def _latest_research_events(timeline: list[dict[str, Any]], current_scope: set[str]) -> list[dict[str, Any]]:
+    latest: dict[str, dict[str, Any]] = {}
+    for event in timeline:
+        if event["type"] != "research":
+            continue
+        payload = event["payload"]
+        module = payload.get("module", "unknown")
+        if module not in RESEARCH_PAYLOAD_SCHEMA_BY_MODULE:
+            continue
+        symbol = payload.get("payload", {}).get("symbol")
+        if symbol and current_scope and symbol not in current_scope:
+            continue
+        key = f"{module}:{symbol}" if symbol else module
+        latest[key] = event
+    return list(latest.values())
+
+
+def _object_id_for_payload(payload_type: str, payload: dict[str, Any]) -> str | None:
+    return {
+        "market": payload.get("snapshot_id"),
+        "target_pool": payload.get("target_pool_id"),
+        "decision": payload.get("decision_id"),
+        "portfolio": payload.get("portfolio_id"),
+    }.get(payload_type)
