@@ -144,6 +144,9 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "优先入口" in body
             assert "打开系统后先看这三处" in body
             assert 'href="/report/view"' in body
+            assert "主线状态" in body
+            assert 'href="/theme/view#theme-representative-scope"' in body
+            assert "已按当前目标池和影子组合分组" in body
             assert 'href="/research/view#research-workbench"' in body
             assert "组合核对" in body
             assert "今日刷新状态" in body
@@ -337,6 +340,7 @@ def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
     assert "未进入前三主线" in body
     assert "主线变化记录" in body
     assert "代表标的当前状态" in body
+    assert 'id="theme-representative-scope"' in body
     assert "已通过但未配置" in body
     assert "ResearchFirst" in body
     assert "目标池阻断" in body

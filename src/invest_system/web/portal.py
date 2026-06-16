@@ -538,12 +538,19 @@ def _home_priority_cards(data: dict[str, Any]) -> str:
     guidance = data["guidance"]
     queue = guidance["research_first"]["queue"]
     valuation_review = data["research_valuation_review"]
+    theme = dashboard["research"]["theme"]
     cards = [
         (
             "每日报告",
             "/report/view",
             _report_headline(data),
             "先看今天总摘要、阅读顺序和来源编号。",
+        ),
+        (
+            "主线状态",
+            "/theme/view#theme-representative-scope",
+            _theme_scope_headline(theme),
+            _theme_scope_detail(theme),
         ),
         (
             "研究工作台",
@@ -573,6 +580,37 @@ def _priority_entry_card(title: str, href: str, status: str, detail: str) -> str
   <p class="small">{html.escape(detail)}</p>
 </div>
 """
+
+
+def _theme_scope_headline(theme: dict[str, Any]) -> str:
+    if not theme.get("available"):
+        return "主线待导入"
+    scope = theme.get("representative_scope", {})
+    total = int(scope.get("record_count", 0))
+    if total == 0:
+        return "代表标的待关联"
+    counts = scope.get("status_counts", {})
+    passed = _theme_passed_count(counts)
+    research_first = int(counts.get("research_first_only", 0))
+    blocked = int(counts.get("blocked_candidate", 0))
+    watch_only = int(counts.get("watch_only", 0))
+    return f"已通过 {passed} / 先研究 {research_first} / 阻断 {blocked} / 观察 {watch_only}"
+
+
+def _theme_scope_detail(theme: dict[str, Any]) -> str:
+    if not theme.get("available"):
+        return "当前没有主线研究快照，先导入或生成主线研究 JSON。"
+    primary = theme.get("primary") or {}
+    display_theme = str(primary.get("display_theme", "暂无主线"))
+    scope = theme.get("representative_scope", {})
+    total = int(scope.get("record_count", 0))
+    if total == 0:
+        return f"{display_theme} 还没有可关联的代表标的状态。"
+    return f"{display_theme} 的 {total} 个代表标的已按当前目标池和影子组合分组，只读展示，不触发交易。"
+
+
+def _theme_passed_count(counts: dict[str, Any]) -> int:
+    return int(counts.get("approved_in_shadow", 0)) + int(counts.get("approved_not_in_shadow", 0))
 
 
 def _home_content(data: dict[str, Any]) -> str:
@@ -935,7 +973,7 @@ def _theme_content(data: dict[str, Any]) -> str:
   <p class="detail">这张表专门回答 AI、半导体、电力设备、机器人是否进入当前主线。</p>
   {_table(["方向", "状态", "对应主线", "说明"], watch_rows)}
 </section>
-<section>
+<section id="theme-representative-scope">
   <h2>代表标的当前状态</h2>
   <p class="detail">这张表把主线代表标的和当前策略目标池、影子组合对齐；ResearchFirst、阻断和观察档案都不会产生真实交易动作。</p>
   {_table(["主线", "标的", "当前状态", "目标池范围", "影子比例", "说明"], scope_rows)}
