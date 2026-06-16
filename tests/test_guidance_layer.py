@@ -66,6 +66,10 @@ def test_guidance_api_and_view_are_stable(tmp_path) -> None:
     assert "提高风险" in view_response.text
     assert "新增标的" in view_response.text
     assert "ResearchFirst" in view_response.text
+    assert 'href="/risk/view"' in view_response.text
+    assert 'href="/research/view"' in view_response.text
+    assert 'href="/risk/state"' not in view_response.text
+    assert 'href="/research/latest"' not in view_response.text
     for forbidden in FORBIDDEN_TERMS:
         assert forbidden not in view_response.text
 

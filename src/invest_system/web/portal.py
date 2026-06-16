@@ -64,6 +64,28 @@ USABILITY_ENDPOINTS = [
     "/usability/view",
 ]
 
+HUMAN_ENDPOINT_MAP = {
+    "/home": "/app",
+    "/entry/home_state": "/app",
+    "/workflow/daily/state": "/workflow/daily/view",
+    "/guidance/state": "/guidance/view",
+    "/market/latest": "/market/view",
+    "/target-pool/latest": "/research/view",
+    "/research/latest": "/research/view",
+    "/research/import": "/research/import/view",
+    "/research/import/validate": "/research/import/view",
+    "/decision/latest": "/decision/view",
+    "/decision/proposal": "/decision/view",
+    "/decision/explain": "/decision/view",
+    "/portfolio/state": "/portfolio/view",
+    "/risk/state": "/risk/view",
+    "/macro/state": "/macro/view",
+    "/comparison/state": "/comparison/view",
+    "/system/status": "/system/view",
+    "/system/dashboard_state": "/dashboard",
+    "/usability/state": "/usability/view",
+}
+
 
 def build_portal_state(repo: SQLiteRepository, as_of: str | None = None) -> dict[str, Any]:
     dashboard = build_dashboard_state(repo, as_of)["data"]
@@ -156,6 +178,7 @@ def _build_usability_payload(
     guidance: dict[str, Any],
 ) -> dict[str, Any]:
     feature_count = len(USABILITY_ENDPOINTS)
+    next_action_endpoint = _human_endpoint(home.get("next_action", {}).get("recommended_endpoint") or "/home")
     checks = [
         _usability_check(
             "primary_home",
@@ -211,7 +234,7 @@ def _build_usability_payload(
             "pass" if home.get("next_action", {}).get("recommended_endpoint") else "warn",
             "下一步引导",
             "首页直接显示系统建议先看的模块。",
-            home.get("next_action", {}).get("recommended_endpoint") or "/home",
+            next_action_endpoint,
         ),
         _usability_check(
             "guidance_boundary_visible",
@@ -247,7 +270,7 @@ def _build_usability_payload(
             {"step": "查看每日工作流", "endpoint": "/workflow/daily/view"},
             {"step": "查看决策预览", "endpoint": "/decision/view"},
             {"step": "查看今日边界", "endpoint": "/guidance/view"},
-            {"step": "按下一步引导进入模块", "endpoint": home["next_action"]["recommended_endpoint"]},
+            {"step": "按下一步引导进入模块", "endpoint": next_action_endpoint},
             {"step": "查看组合、风险、研究或报告", "endpoint": "/dashboard"},
             {"step": "需要追溯时查看 JSON", "endpoint": "/timeline/replay"},
         ],
@@ -386,7 +409,7 @@ def _today_summary(data: dict[str, Any]) -> str:
     guidance = data["guidance"]
     home = data["home"]
     headline = guidance.get("today_action", {}).get("headline")
-    next_endpoint = home.get("next_action", {}).get("recommended_endpoint", "/guidance/view")
+    next_endpoint = _human_endpoint(home.get("next_action", {}).get("recommended_endpoint", "/guidance/view"))
     if headline:
         return (
             f"{html.escape(headline)} "
@@ -400,6 +423,7 @@ def _home_content(data: dict[str, Any]) -> str:
     guidance = data["guidance"]
     dashboard = data["dashboard"]
     next_action = home["next_action"]
+    next_endpoint = _human_endpoint(next_action["recommended_endpoint"])
     features = [
         ("每日工作流", "/workflow/daily/view", "检查今天市场、主线、边界、组合和报告是否形成闭环。"),
         ("今日行动边界", "/guidance/view", "先判断今天能不能提高风险、新增标的或只读复核。"),
@@ -425,7 +449,7 @@ def _home_content(data: dict[str, Any]) -> str:
   <div class="panel">
     <h2>今日系统状态</h2>
     <div class="label">下一步建议</div>
-    <p class="value"><a href="{html.escape(next_action['recommended_endpoint'])}">{html.escape(_endpoint_label(next_action['recommended_endpoint']))}</a></p>
+    <p class="value"><a href="{html.escape(next_endpoint)}">{html.escape(_endpoint_label(next_endpoint))}</a></p>
     <p class="detail">{html.escape(_reason_label(next_action['reason_code']))}</p>
     <div class="badge-row">
       <span class="badge">优先级 {_priority_label(next_action['priority'])}</span>
@@ -1061,7 +1085,7 @@ def _operation_row(item: dict[str, Any]) -> list[Any]:
         _operation_label(item["operation"]),
         _operation_status(item["status"]),
         item["reason"],
-        _link(item["endpoint"]) if item["endpoint"] else "无",
+        _human_link(item["endpoint"]) if item["endpoint"] else "无",
     ]
 
 
@@ -1069,7 +1093,7 @@ def _next_step_row(item: dict[str, Any]) -> list[Any]:
     return [
         _step_label(item["step"]),
         item["reason"],
-        _link(item["endpoint"]),
+        _human_link(item["endpoint"]),
     ]
 
 
@@ -1078,7 +1102,7 @@ def _check_row(item: dict[str, Any]) -> list[Any]:
         item["title"],
         _status_label(item["status"]),
         item["detail"],
-        _link(item["next_endpoint"]) if item.get("next_endpoint") else "无",
+        _human_link(item["next_endpoint"]) if item.get("next_endpoint") else "无",
     ]
 
 
@@ -1108,6 +1132,14 @@ def _empty_section(title: str, detail: str) -> str:
 def _link(endpoint: str) -> str:
     label = _endpoint_label(endpoint)
     return f"<a href=\"{html.escape(endpoint)}\">{html.escape(label)}</a>"
+
+
+def _human_link(endpoint: str) -> str:
+    return _link(_human_endpoint(endpoint))
+
+
+def _human_endpoint(endpoint: str) -> str:
+    return HUMAN_ENDPOINT_MAP.get(endpoint, endpoint)
 
 
 def _endpoint_label(endpoint: str) -> str:
