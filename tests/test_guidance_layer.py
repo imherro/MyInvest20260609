@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from invest_system.adapters import append_market_snapshot_from_adapters, build_p0c_price_data_from_bundle
+from invest_system.collectors import import_qmt_positions
 from invest_system.golden import seed_multiday_repository
 from invest_system.guidance import compute_guidance_state
 from invest_system.repositories import SQLiteRepository
@@ -132,6 +133,25 @@ def test_historical_failed_research_outside_current_scope_does_not_block(tmp_pat
     assert state["research_first"]["queue"] == []
     assert state["research_first"]["active_holdings_without_passed_gates"] == []
     assert state["research_first"]["status"] == "pass"
+
+
+def test_qmt_actual_target_pool_does_not_uncover_shadow_holdings(tmp_path) -> None:
+    repo = SQLiteRepository(tmp_path / "guidance_qmt_scope.sqlite")
+    seed_multiday_repository(repo)
+    csv_path = tmp_path / "qmt_actual_positions.csv"
+    csv_path.write_text(
+        "symbol,holding_weight,bucket,pool_type\n"
+        "512880.SH,0.6,actual,approved\n"
+        "511360.SH,0.4,actual,approved\n",
+        encoding="utf-8",
+    )
+    import_qmt_positions(csv_path, repo, "2026-06-16")
+
+    state = compute_guidance_state(repo)
+
+    assert state["source_ids"]["target_pool_id"] == "target-pool-2026-06-15-golden"
+    assert "159915.SZ" not in state["research_first"]["active_holdings_without_passed_gates"]
+    assert "510300.SH" not in state["research_first"]["active_holdings_without_passed_gates"]
 
 
 def test_research_first_queue_reports_current_blockers(tmp_path) -> None:

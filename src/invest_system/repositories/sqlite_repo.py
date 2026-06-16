@@ -26,6 +26,7 @@ SNAPSHOT_TABLES = {
     "decision_record": ("decision_id", "decision"),
     "portfolio_snapshot": ("portfolio_id", "portfolio"),
 }
+QMT_TARGET_POOL_SOURCES = {"qmt_live", "qmt_mock"}
 
 
 class SQLiteRepository:
@@ -191,7 +192,12 @@ class SQLiteRepository:
         return self._latest_payload("decision_record", as_of)
 
     def latest_target_pool(self, as_of: str | None = None) -> dict[str, Any] | None:
-        return self._latest_payload("target_pool_snapshot", as_of)
+        strategy_payload = self._latest_payload(
+            "target_pool_snapshot",
+            as_of,
+            source_exclude=QMT_TARGET_POOL_SOURCES,
+        )
+        return strategy_payload or self._latest_payload("target_pool_snapshot", as_of)
 
     def latest_portfolio(self, as_of: str | None = None) -> dict[str, Any] | None:
         return self._latest_payload("portfolio_snapshot", as_of)
@@ -264,7 +270,7 @@ class SQLiteRepository:
             "as_of": as_of,
             "market": self._latest_payload("market_snapshot", as_of),
             "research": self._latest_payload("research_snapshot", as_of),
-            "target_pool": self._latest_payload("target_pool_snapshot", as_of),
+            "target_pool": self.latest_target_pool(as_of),
             "decision": self._latest_payload("decision_record", as_of),
             "portfolio": self._latest_payload("portfolio_snapshot", as_of),
         }
@@ -363,13 +369,26 @@ class SQLiteRepository:
             conn.commit()
         return {"object_id": object_id, "created_at": created_at, "type": event_type}
 
-    def _latest_payload(self, table: str, as_of: str | None = None) -> dict[str, Any] | None:
-        where = ""
-        params: tuple[str, ...] = ()
+    def _latest_payload(
+        self,
+        table: str,
+        as_of: str | None = None,
+        *,
+        source_exclude: set[str] | None = None,
+    ) -> dict[str, Any] | None:
+        clauses: list[str] = []
+        params: list[str] = []
         if as_of:
             column = _as_of_column(as_of)
-            where = f"WHERE {column} <= ?"
-            params = (as_of,)
+            clauses.append(f"{column} <= ?")
+            params.append(as_of)
+        if source_exclude:
+            if table != "target_pool_snapshot":
+                raise ValueError("source filtering is only supported for target_pool_snapshot")
+            placeholders = ", ".join("?" for _ in source_exclude)
+            clauses.append(f"source NOT IN ({placeholders})")
+            params.extend(sorted(source_exclude))
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         with closing(self._connect()) as conn:
             row = conn.execute(
                 f"""
@@ -379,7 +398,7 @@ class SQLiteRepository:
                 ORDER BY created_at DESC, id DESC
                 LIMIT 1
                 """,
-                params,
+                tuple(params),
             ).fetchone()
         if row is None:
             return None

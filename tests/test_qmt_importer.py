@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from invest_system.collectors import import_qmt_positions, import_qmt_positions_from_qmt
+from invest_system.golden import seed_multiday_repository
 from invest_system.repositories import SQLiteRepository
 from invest_system.validators.policies import PolicyViolation
 
@@ -27,6 +28,33 @@ def test_qmt_mock_import_appends_market_event_and_target_pool(tmp_path) -> None:
         "511360.SH": 0.25,
     }
     assert repo.latest_target_pool()["entries"][0]["symbols"] == ["159915.SZ", "510300.SH", "511360.SH"]
+
+
+def test_qmt_target_pool_does_not_override_strategy_target_pool(tmp_path) -> None:
+    repo = SQLiteRepository(tmp_path / "qmt_strategy_scope.sqlite")
+    seed_multiday_repository(repo)
+    csv_path = tmp_path / "qmt_actual_positions.csv"
+    csv_path.write_text(
+        "symbol,holding_weight,bucket,pool_type\n"
+        "512880.SH,0.6,actual,approved\n"
+        "511360.SH,0.4,actual,approved\n",
+        encoding="utf-8",
+    )
+
+    result = import_qmt_positions(csv_path, repo, "2026-06-16")
+    latest_pool = repo.latest_target_pool()
+    replay = repo.replay_state()
+
+    assert result["status"] == "ok"
+    assert result["target_pool"]["object_id"] == "target-pool-2026-06-16-qmt-mock"
+    assert latest_pool["target_pool_id"] == "target-pool-2026-06-15-golden"
+    assert latest_pool["source"] == "seed"
+    assert replay["target_pool"]["target_pool_id"] == "target-pool-2026-06-15-golden"
+    assert any(
+        event["object_id"] == "qmt-mock-2026-06-16"
+        and event["payload"]["holdings_weight"] == {"511360.SH": 0.4, "512880.SH": 0.6}
+        for event in repo.timeline()
+    )
 
 
 def test_qmt_mock_missing_file_records_blocked_event(tmp_path) -> None:
