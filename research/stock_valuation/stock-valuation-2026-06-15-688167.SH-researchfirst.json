@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0",
+  "snapshot_id": "stock-valuation-2026-06-15-688167.SH-researchfirst",
+  "basis_date": "2026-06-15",
+  "generated_at": "2026-06-16T04:20:17.299352Z",
+  "module": "stock_valuation",
+  "data_sources": [
+    "tushare:stock_basic",
+    "tushare:daily",
+    "tushare:daily_basic",
+    "tushare:fina_indicator"
+  ],
+  "data_gaps": [
+    "Long-horizon peer valuation percentile is unavailable; valuation uses point-in-time relative pressure only.",
+    "Order-book spread and intraday liquidity details were not available in the local structured source.",
+    "Forward earnings forecast and full peer-set normalization were not available in the local structured source."
+  ],
+  "conflicts": [],
+  "executive_summary": "688167.SH is confirmed by Tushare as 炬光科技, 科创板 元器件. Profile and liquidity evidence pass, but valuation pressure is high, so valuation fails and ResearchFirst remains required.",
+  "key_facts": [
+    "Security identity confirmed: 688167.SH is 炬光科技, located in 陕西, classified by Tushare as 元器件 on 科创板.",
+    "Latest Tushare ratios show negative PE TTM, PB 23.1771, and PS TTM 56.5906.",
+    "Recent sampled turnover-rate evidence is present, with latest turnover rate 8.6661% and 12-record average 6.1527%.",
+    "2026Q1 sampled profitability margin is negative while latest sampled daily return is 20.0012%.",
+    "Research judgement: this symbol should not enter approved target-pool use until valuation and risk review are refreshed."
+  ],
+  "reasoning": [
+    "Profile gate passes because stock identity, exchange board, and industry are confirmed by Tushare.",
+    "Liquidity gate passes for research-review purposes because recent turnover-rate records are available and active.",
+    "Valuation gate fails because point-in-time PE/PB/PS pressure is high or earnings quality is insufficient.",
+    "Risk disclosure passes because volatility, valuation, profitability, and data-gap risks are explicit."
+  ],
+  "risks": [
+    "Negative earnings and very high PB/PS pressure block valuation gate.",
+    "STAR/ChiNext style daily-limit behavior can make recent liquidity appear better than durable liquidity.",
+    "Single-name fundamentals and disclosure updates can supersede this snapshot quickly."
+  ],
+  "conclusion_strength": "medium",
+  "actionability": "research_first",
+  "confidence": 0.67,
+  "invalidation_conditions": [
+    "A newer complete-day valuation record materially lowers the normalized pressure ratio.",
+    "A refreshed financial report changes profitability or growth quality.",
+    "Liquidity records become stale or conflicting."
+  ],
+  "next_review_date": "2026-06-23",
+  "must_not_do": [
+    "Do not use this snapshot as external execution output.",
+    "Do not move this symbol into an approved target pool without human review and a later passing valuation gate.",
+    "Do not infer a price target from the normalized pressure ratio."
+  ],
+  "required_human_review": true,
+  "status": "blocked",
+  "trace": {
+    "fact_pack_id": "research-batch-risk-review-688167.SH-2026-06-15-tushare",
+    "source_market_snapshot_id": "market-2026-06-15-mixed-adapter"
+  },
+  "payload": {
+    "symbol": "688167.SH",
+    "valuation_score": 8.0,
+    "fair_value_band_pct": {
+      "low": -0.1,
+      "mid": 0,
+      "high": 0.1
+    },
+    "observed_to_fair_value_ratio": 2.05,
+    "deviation": 1.05,
+    "risk_flag": "high",
+    "confidence": 0.67,
+    "method": "relative_valuation_pressure_score_no_price_target",
+    "rating": "Watch"
+  }
+}

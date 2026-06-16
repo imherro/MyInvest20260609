@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0",
+  "snapshot_id": "etf-valuation-2026-06-15-511360.SH-risk-review",
+  "basis_date": "2026-06-15",
+  "generated_at": "2026-06-16T04:20:17.299352Z",
+  "module": "etf_valuation",
+  "data_sources": [
+    "tushare:fund_basic",
+    "tushare:fund_daily",
+    "tushare:fund_nav",
+    "tushare:fund_share"
+  ],
+  "data_gaps": [
+    "Duration boundary was not available from the local structured source and remains a risk-review blocker.",
+    "Underlying credit-quality distribution was not available from the local structured source and remains a risk-review blocker.",
+    "Intraday spread and creation-redemption basket details were not available in the local structured source."
+  ],
+  "conflicts": [],
+  "executive_summary": "511360.SH is confirmed as 短融ETF海富通, a listed passive bond ETF benchmarked to 中证短融指数收益率. Profile, NAV-relative valuation, and daily liquidity evidence pass, but duration and credit-quality evidence are incomplete, so the risk gate remains blocked for research-review purposes.",
+  "key_facts": [
+    "Security identity confirmed: 511360.SH is 短融ETF海富通, managed by 海富通基金, with 兴业银行 as custodian.",
+    "Asset type confirmed: 债券型 ETF, passive index style, benchmarked to 中证短融指数收益率.",
+    "Latest complete-day close-to-unit-NAV ratio from Tushare is 0.999819.",
+    "Recent sampled complete-day records show a positive-session ratio of 0.8333 and very low daily return variability.",
+    "Cash-like instrument review still lacks structured duration-boundary and credit-quality evidence."
+  ],
+  "reasoning": [
+    "Profile gate passes because the fund is listed and benchmark identity is confirmed.",
+    "Valuation gate passes for research-review purposes because the NAV-relative ratio is within a narrow neutral band.",
+    "Liquidity gate passes because recent complete-day ETF records and unit-scale records are present through the basis date.",
+    "Risk gate remains blocked because duration and credit-quality checks are mandatory for short-duration instruments and were not fully available."
+  ],
+  "risks": [
+    "Interest-rate repricing can affect short-duration bond ETF returns.",
+    "Credit-spread stress can invalidate cash-like assumptions.",
+    "Duration and credit-quality gaps prevent a complete risk gate pass."
+  ],
+  "conclusion_strength": "medium",
+  "actionability": "research_first",
+  "confidence": 0.68,
+  "invalidation_conditions": [
+    "A structured duration and credit-quality source clears or changes the risk gate.",
+    "A newer complete-day NAV record supersedes this snapshot."
+  ],
+  "next_review_date": "2026-06-23",
+  "must_not_do": [
+    "Do not use this snapshot as external execution output.",
+    "Do not treat short-duration ETF review as complete without duration and credit-quality evidence.",
+    "Do not change target_pool from this snapshot alone."
+  ],
+  "required_human_review": true,
+  "status": "blocked",
+  "trace": {
+    "fact_pack_id": "research-batch-risk-review-511360.SH-2026-06-15-tushare",
+    "source_market_snapshot_id": "market-2026-06-15-mixed-adapter"
+  },
+  "payload": {
+    "symbol": "511360.SH",
+    "valuation_score": 50.0398,
+    "fair_value_band_pct": {
+      "low": -0.01,
+      "mid": 0,
+      "high": 0.01
+    },
+    "observed_to_fair_value_ratio": 0.999819,
+    "deviation": -0.000181,
+    "risk_flag": "medium",
+    "confidence": 0.68,
+    "method": "nav_premium_discount_with_duration_credit_data_gap",
+    "tracking_target": "中证短融指数收益率",
+    "rating": "Watch"
+  }
+}

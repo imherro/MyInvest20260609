@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0",
+  "snapshot_id": "etf-valuation-2026-06-15-159999.SZ-risk-refresh",
+  "basis_date": "2026-06-15",
+  "generated_at": "2026-06-16T04:20:17.299352Z",
+  "module": "etf_valuation",
+  "data_sources": [
+    "tushare:fund_basic",
+    "tushare:fund_daily",
+    "tushare:fund_nav",
+    "tushare:fund_share"
+  ],
+  "data_gaps": [
+    "Tushare fund_basic marks the fund status as delisted, so there is no active listed profile for current review.",
+    "Tushare returned no recent complete-day fund daily records for the review window.",
+    "Tushare returned no recent NAV records for the review window.",
+    "Tushare returned no recent ETF unit-scale records for the review window."
+  ],
+  "conflicts": [],
+  "executive_summary": "159999.SZ is again confirmed as 永赢中证500ETF(退市), a passive ETF benchmarked to 中证500指数收益率. Because the fund is delisted and current review data is missing, profile fails, valuation is blocked, liquidity fails, and ResearchFirst remains required.",
+  "key_facts": [
+    "Security identity confirmed: 159999.SZ is 永赢中证500ETF(退市), managed by 永赢基金, with 中国银行 as custodian.",
+    "Asset type confirmed: 股票型 ETF, passive index style, benchmarked to 中证500指数收益率.",
+    "Active-status profile gate fails because Tushare status is delisted.",
+    "Liquidity gate fails because recent complete-day fund activity records are unavailable.",
+    "Valuation gate is blocked because current NAV and active-market evidence are unavailable."
+  ],
+  "reasoning": [
+    "A delisted ETF cannot be treated as an active approved target-pool candidate from this research snapshot.",
+    "Missing current daily, NAV, and unit-scale records prevent ratio-only valuation and liquidity checks.",
+    "The payload records a zero review score only as a blocked-state marker, not as a fair-value estimate."
+  ],
+  "risks": [
+    "Delisting status invalidates active instrument assumptions.",
+    "Symbol reuse, product migration, or successor fund mapping would require separate verification.",
+    "No current liquidity or NAV evidence is available from Tushare for the review window."
+  ],
+  "conclusion_strength": "weak",
+  "actionability": "research_first",
+  "confidence": 0.74,
+  "invalidation_conditions": [
+    "A verified active successor instrument with a different code supersedes this blocked snapshot.",
+    "A later authoritative source contradicts the delisted status."
+  ],
+  "next_review_date": "2026-06-23",
+  "must_not_do": [
+    "Do not use this snapshot as external execution output.",
+    "Do not move this symbol into an approved target pool without a fresh active-instrument review.",
+    "Do not infer valuation from missing current data."
+  ],
+  "required_human_review": true,
+  "status": "blocked",
+  "trace": {
+    "fact_pack_id": "research-batch-risk-review-159999.SZ-2026-06-15-tushare",
+    "source_market_snapshot_id": "market-2026-06-15-mixed-adapter"
+  },
+  "payload": {
+    "symbol": "159999.SZ",
+    "valuation_score": 0,
+    "fair_value_band_pct": {
+      "low": 0,
+      "mid": 0,
+      "high": 0
+    },
+    "observed_to_fair_value_ratio": 0,
+    "deviation": 0,
+    "risk_flag": "high",
+    "confidence": 0.74,
+    "method": "valuation_not_available_delisted_fund_basic_status",
+    "tracking_target": "中证500指数收益率",
+    "rating": "Watch"
+  }
+}

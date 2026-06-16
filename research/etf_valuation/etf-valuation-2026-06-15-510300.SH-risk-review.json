@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0",
+  "snapshot_id": "etf-valuation-2026-06-15-510300.SH-risk-review",
+  "basis_date": "2026-06-15",
+  "generated_at": "2026-06-16T04:20:17.299352Z",
+  "module": "etf_valuation",
+  "data_sources": [
+    "tushare:fund_basic",
+    "tushare:fund_daily",
+    "tushare:fund_nav",
+    "tushare:fund_share",
+    "tushare:index_basic",
+    "tushare:index_daily",
+    "tushare:fund_portfolio"
+  ],
+  "data_gaps": [
+    "Long-horizon valuation percentile is unavailable; valuation uses NAV premium-discount and tracking-index relative checks only.",
+    "ETF portfolio constituents are latest disclosed records, not realtime complete holdings.",
+    "Intraday spread and creation-redemption basket details were not available in the local structured source."
+  ],
+  "conflicts": [],
+  "executive_summary": "510300.SH is confirmed as 沪深300ETF华泰柏瑞, a listed passive equity ETF tracking 沪深300指数. Profile, NAV-relative valuation, liquidity evidence, and risk disclosure pass for research-review purposes; this snapshot does not create execution output.",
+  "key_facts": [
+    "Security identity confirmed: 510300.SH is 沪深300ETF华泰柏瑞, managed by 华泰柏瑞基金, with 中国工商银行 as custodian.",
+    "Asset type confirmed: 股票型 ETF, passive index style, benchmarked to 沪深300指数.",
+    "Latest complete-day close-to-unit-NAV ratio from Tushare is 0.999655.",
+    "Recent sampled complete-day records show a positive-session ratio of 0.4167 and available unit-scale records through the basis date.",
+    "Risk source is broad CSI300 equity beta, index-tracking error, and ETF disclosure lag rather than single-name fundamentals."
+  ],
+  "reasoning": [
+    "Profile gate passes because the fund is listed and benchmark identity is confirmed.",
+    "Valuation gate passes for research-review purposes because the NAV-relative ratio is within a narrow neutral band.",
+    "Liquidity gate passes because recent complete-day ETF records and unit-scale records are present through the basis date.",
+    "Risk disclosure passes because broad-market, tracking, and disclosure-lag risks are explicit."
+  ],
+  "risks": [
+    "Broad-market drawdown can quickly invalidate a neutral NAV-relative read.",
+    "Tracking error can widen around index rebalance or market stress.",
+    "Latest disclosed components are delayed evidence, not realtime complete holdings."
+  ],
+  "conclusion_strength": "medium",
+  "actionability": "observe",
+  "confidence": 0.79,
+  "invalidation_conditions": [
+    "A newer complete-day NAV or benchmark record supersedes this snapshot.",
+    "Listing status or tracking benchmark changes."
+  ],
+  "next_review_date": "2026-06-23",
+  "must_not_do": [
+    "Do not use this snapshot as external execution output.",
+    "Do not change target_pool from this snapshot alone.",
+    "Do not treat disclosed constituents as realtime complete holdings."
+  ],
+  "required_human_review": true,
+  "status": "json_validated",
+  "trace": {
+    "fact_pack_id": "research-batch-risk-review-510300.SH-2026-06-15-tushare",
+    "source_market_snapshot_id": "market-2026-06-15-mixed-adapter"
+  },
+  "payload": {
+    "symbol": "510300.SH",
+    "valuation_score": 50.0759,
+    "fair_value_band_pct": {
+      "low": -0.01,
+      "mid": 0,
+      "high": 0.01
+    },
+    "observed_to_fair_value_ratio": 0.999655,
+    "deviation": -0.000345,
+    "risk_flag": "medium",
+    "confidence": 0.79,
+    "method": "nav_premium_discount_and_tracking_index_relative_check",
+    "tracking_target": "沪深300指数",
+    "rating": "Fair"
+  }
+}
