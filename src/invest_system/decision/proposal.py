@@ -191,21 +191,29 @@ def _candidate_symbols(
     portfolio: dict[str, Any] | None,
 ) -> list[str]:
     symbols: list[str] = []
+    cleanup_symbols = {
+        item.get("payload", {}).get("symbol") or item.get("symbol")
+        for item in research_items
+        if _research_is_current_cleanup(item)
+    }
+    cleanup_symbols.discard(None)
     for item in research_items:
+        if _research_is_current_cleanup(item):
+            continue
         payload = item.get("payload", {})
         symbol = payload.get("symbol") or item.get("symbol")
-        if symbol:
+        if symbol and symbol not in cleanup_symbols:
             symbols.append(symbol)
         for candidate in payload.get("action_candidates", []):
             symbol = candidate.get("symbol")
-            if symbol:
+            if symbol and symbol not in cleanup_symbols:
                 symbols.append(symbol)
         for symbol in payload.get("leading_symbols", []):
-            if symbol:
+            if symbol and symbol not in cleanup_symbols:
                 symbols.append(symbol)
         for queued in payload.get("research_first_list", []):
             symbol = queued.get("symbol")
-            if symbol:
+            if symbol and symbol not in cleanup_symbols:
                 symbols.append(symbol)
     if decision:
         symbols.extend(action["symbol"] for action in decision["decision_actions"])
@@ -304,6 +312,16 @@ def _research_gate_value(research: dict[str, Any], gate: str) -> str:
 
 def _research_requires_first(research: dict[str, Any]) -> bool:
     return research.get("actionability") == "research_first" or research.get("status") == "blocked"
+
+
+def _research_is_current_cleanup(research: dict[str, Any]) -> bool:
+    payload = research.get("payload", {})
+    method = str(payload.get("method", ""))
+    tracking_target = str(payload.get("tracking_target", ""))
+    return (
+        research.get("actionability") == "no_action"
+        and ("cleanup" in method or tracking_target == "not_current_candidate")
+    )
 
 
 def _research_evidence_text(research: dict[str, Any]) -> str:

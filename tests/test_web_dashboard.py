@@ -9,6 +9,7 @@ from invest_system.adapters import append_market_snapshot_from_adapters, build_p
 from invest_system.golden import seed_multiday_repository
 from invest_system.repositories import SQLiteRepository
 from invest_system.research import generate_p0c_research
+from invest_system.web.dashboard import build_dashboard_state
 from invest_system.web import create_app
 from invest_system.web.symbol_display import display_symbol
 
@@ -58,6 +59,19 @@ def test_dashboard_state_endpoint_returns_json_without_sensitive_fields(tmp_path
 def test_researched_stock_symbols_have_human_readable_names() -> None:
     assert display_symbol("301566.SZ") == "达利凯普（301566.SZ）"
     assert display_symbol("688603.SH") == "天承科技（688603.SH）"
+
+
+def test_dashboard_keeps_latest_research_by_symbol(tmp_path) -> None:
+    repo = SQLiteRepository(tmp_path / "dashboard_symbol_research.sqlite")
+    seed_multiday_repository(repo)
+    repo.append_research_snapshot(_symbol_research("588000.SH", "observe"))
+    repo.append_research_snapshot(_symbol_research("511360.SH", "observe"))
+
+    state = build_dashboard_state(repo, "2026-06-15")
+    ids = {item["snapshot_id"] for item in state["data"]["research"]["items"]}
+
+    assert "etf-valuation-2026-06-15-588000.SH-observe-test" in ids
+    assert "etf-valuation-2026-06-15-511360.SH-observe-test" in ids
 
 
 def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
@@ -150,6 +164,44 @@ def _prepare_dashboard_db(tmp_path) -> str:
     market_data = append_market_snapshot_from_adapters(repo, basis_date="2026-06-15", source="mock")
     generate_p0c_research(repo, "2026-06-15", price_data=build_p0c_price_data_from_bundle(market_data["bundle"]))
     return str(db_path)
+
+
+def _symbol_research(symbol: str, actionability: str) -> dict[str, Any]:
+    return {
+        "schema_version": "1.0",
+        "snapshot_id": f"etf-valuation-2026-06-15-{symbol}-{actionability}-test",
+        "basis_date": "2026-06-15",
+        "generated_at": "2026-06-15T12:00:00Z",
+        "module": "etf_valuation",
+        "data_sources": ["fixture:research"],
+        "data_gaps": [],
+        "conflicts": [],
+        "executive_summary": f"{symbol} profile gate passes, valuation gate passes, and liquidity gate passes.",
+        "key_facts": [f"{symbol} profile gate passes."],
+        "reasoning": ["Profile gate passes, valuation gate passes, and liquidity gate passes."],
+        "risks": ["Fixture research can be superseded."],
+        "conclusion_strength": "medium",
+        "actionability": actionability,
+        "confidence": 0.7,
+        "invalidation_conditions": ["New evidence supersedes fixture research."],
+        "next_review_date": "2026-06-16",
+        "must_not_do": ["Do not use fixture research as external execution output."],
+        "required_human_review": True,
+        "status": "json_validated",
+        "trace": {"fact_pack_id": f"fixture-{symbol}", "source_market_snapshot_id": "market-2026-06-15-golden"},
+        "payload": {
+            "symbol": symbol,
+            "valuation_score": 50,
+            "fair_value_band_pct": {"low": -0.01, "mid": 0, "high": 0.01},
+            "observed_to_fair_value_ratio": 1,
+            "deviation": 0,
+            "risk_flag": "medium",
+            "confidence": 0.7,
+            "method": "fixture",
+            "tracking_target": "fixture",
+            "rating": "Fair",
+        },
+    }
 
 
 def _assert_no_forbidden_terms(payload: Any) -> None:

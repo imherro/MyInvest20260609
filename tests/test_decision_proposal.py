@@ -88,6 +88,23 @@ def test_symbol_research_snapshots_are_not_collapsed_by_module(tmp_path) -> None
     }
 
 
+def test_current_cleanup_research_is_not_a_decision_candidate(tmp_path) -> None:
+    repo = SQLiteRepository(tmp_path / "decision_cleanup.sqlite")
+    seed_multiday_repository(repo)
+    cleaned_decision = repo.latest_decision("2026-06-15")
+    cleaned_decision["decision_id"] = "decision-2026-06-15-clean-test"
+    cleaned_decision["decision_actions"] = [
+        action for action in cleaned_decision["decision_actions"] if action["symbol"] != "159999.SZ"
+    ]
+    repo.append_decision_record(cleaned_decision)
+    repo.append_research_snapshot(_cleanup_research("159999.SZ"))
+
+    proposal = build_decision_proposal(repo, "2026-06-15")
+    preview_symbols = {item["symbol"] for item in proposal["decision_preview"]}
+
+    assert "159999.SZ" not in preview_symbols
+
+
 def test_decision_view_uses_portal_shell(tmp_path) -> None:
     repo = _prepare_decision_repo(tmp_path)
     app = create_app(repo.db_path)
@@ -122,6 +139,44 @@ def _prepare_decision_repo(tmp_path) -> SQLiteRepository:
     market_data = append_market_snapshot_from_adapters(repo, basis_date="2026-06-15", source="mock")
     generate_p0c_research(repo, "2026-06-15", price_data=build_p0c_price_data_from_bundle(market_data["bundle"]))
     return repo
+
+
+def _cleanup_research(symbol: str) -> dict[str, Any]:
+    return {
+        "schema_version": "1.0",
+        "snapshot_id": f"etf-valuation-2026-06-15-{symbol}-cleanup-test",
+        "basis_date": "2026-06-15",
+        "generated_at": "2026-06-15T12:00:00Z",
+        "module": "etf_valuation",
+        "data_sources": ["fixture:research"],
+        "data_gaps": [],
+        "conflicts": [],
+        "executive_summary": f"{symbol} is removed from current target-pool review.",
+        "key_facts": [f"{symbol} is not a current candidate."],
+        "reasoning": ["Current-only cleanup should not create a decision candidate."],
+        "risks": ["A future active-instrument review can supersede this cleanup snapshot."],
+        "conclusion_strength": "medium",
+        "actionability": "no_action",
+        "confidence": 0.7,
+        "invalidation_conditions": ["A later target-pool snapshot reintroduces the symbol."],
+        "next_review_date": "2026-06-16",
+        "must_not_do": ["Do not use fixture research as external execution output."],
+        "required_human_review": True,
+        "status": "finalized",
+        "trace": {"fact_pack_id": f"fixture-{symbol}", "source_market_snapshot_id": "market-2026-06-15-golden"},
+        "payload": {
+            "symbol": symbol,
+            "valuation_score": 0,
+            "fair_value_band_pct": {"low": 0, "mid": 0, "high": 0},
+            "observed_to_fair_value_ratio": 0,
+            "deviation": 0,
+            "risk_flag": "high",
+            "confidence": 0.7,
+            "method": "current_target_pool_cleanup",
+            "tracking_target": "not_current_candidate",
+            "rating": "Watch",
+        },
+    }
 
 
 def _symbol_research(symbol: str, confidence: float) -> dict[str, Any]:

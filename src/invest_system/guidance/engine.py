@@ -451,22 +451,43 @@ def _action_has_passed_gates(action: dict[str, Any]) -> bool:
 
 
 def _research_queue_from_timeline(timeline: list[dict[str, Any]]) -> list[dict[str, str]]:
-    queue: list[dict[str, str]] = []
+    queue: dict[str, dict[str, str]] = {}
     for event in timeline:
         if event["type"] != "research":
             continue
-        payload = event["payload"].get("payload", {})
+        snapshot = event["payload"]
+        payload = snapshot.get("payload", {})
+        symbol = payload.get("symbol") or snapshot.get("symbol")
+        if symbol:
+            if _research_snapshot_requires_first(snapshot):
+                queue[symbol] = {
+                    "symbol": symbol,
+                    "reason": _research_queue_reason(snapshot),
+                    "source": event["object_id"],
+                }
+            else:
+                queue.pop(symbol, None)
         for item in payload.get("research_first_list", []):
             symbol = item.get("symbol")
             if symbol:
-                queue.append(
-                    {
-                        "symbol": symbol,
-                        "reason": item.get("blocking_reason", "research_first_required"),
-                        "source": event["object_id"],
-                    }
-                )
-    return queue
+                queue[symbol] = {
+                    "symbol": symbol,
+                    "reason": item.get("blocking_reason", "research_first_required"),
+                    "source": event["object_id"],
+                }
+    return list(queue.values())
+
+
+def _research_snapshot_requires_first(snapshot: dict[str, Any]) -> bool:
+    return snapshot.get("actionability") == "research_first" or snapshot.get("status") == "blocked"
+
+
+def _research_queue_reason(snapshot: dict[str, Any]) -> str:
+    if snapshot.get("status") == "blocked":
+        return "profile_or_gate_incomplete"
+    if snapshot.get("actionability") == "research_first":
+        return "research_first_required"
+    return "research_first_required"
 
 
 def _boundary_item(

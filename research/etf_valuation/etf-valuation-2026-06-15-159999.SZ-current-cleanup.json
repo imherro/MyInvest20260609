@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "snapshot_id": "etf-valuation-2026-06-15-159999.SZ-current-cleanup",
+  "basis_date": "2026-06-15",
+  "generated_at": "2026-06-16T05:30:00Z",
+  "module": "etf_valuation",
+  "data_sources": [
+    "tushare:fund_basic",
+    "tushare:fund_daily",
+    "tushare:fund_nav",
+    "public:sohu_delisted_status"
+  ],
+  "data_gaps": [],
+  "conflicts": [],
+  "executive_summary": "159999.SZ is confirmed as 永赢中证500ETF(退市). The current cleanup review removes it from the active target-pool research queue; it is not a current candidate for approved pool use.",
+  "key_facts": [
+    "Tushare fund_basic identifies 159999.SZ as 永赢中证500ETF(退市), managed by 永赢基金, with status D and delist date 20230320.",
+    "Tushare returned no recent complete-day fund daily, NAV, or share records for the 2026-06 review window.",
+    "Public quote pages also mark the instrument as delisted.",
+    "Current target-pool review should not keep a delisted ETF in ResearchFirst; any successor instrument must be reviewed under its own code."
+  ],
+  "reasoning": [
+    "Profile as an active listed instrument fails, so the symbol should be removed from the current active research queue instead of staying as an unresolved ResearchFirst item.",
+    "Valuation and liquidity are not current-action gates for this code because the code is not a current target candidate.",
+    "The cleanup snapshot supersedes historical ResearchFirst queue entries for 159999.SZ without deleting the historical record."
+  ],
+  "risks": [
+    "A successor product or code mapping would require separate verification before any future review.",
+    "Historical records remain traceable and must not be overwritten.",
+    "The cleanup is a target-pool hygiene action only, not external execution output."
+  ],
+  "conclusion_strength": "medium",
+  "actionability": "no_action",
+  "confidence": 0.82,
+  "invalidation_conditions": [
+    "An authoritative later source shows the code is active again.",
+    "A verified successor product is explicitly added to the target pool under a different code."
+  ],
+  "next_review_date": "2026-06-23",
+  "must_not_do": [
+    "Do not use this snapshot as external execution output.",
+    "Do not infer any current valuation from the delisted code.",
+    "Do not re-add the code to ResearchFirst without a new active-instrument review."
+  ],
+  "required_human_review": true,
+  "status": "finalized",
+  "trace": {
+    "fact_pack_id": "current-cleanup-159999.SZ-2026-06-15",
+    "source_market_snapshot_id": "market-2026-06-15-mixed-adapter"
+  },
+  "payload": {
+    "symbol": "159999.SZ",
+    "valuation_score": 0,
+    "fair_value_band_pct": {
+      "low": 0,
+      "mid": 0,
+      "high": 0
+    },
+    "observed_to_fair_value_ratio": 0,
+    "deviation": 0,
+    "risk_flag": "high",
+    "confidence": 0.82,
+    "method": "current_target_pool_cleanup_delisted_status",
+    "tracking_target": "not_current_candidate",
+    "rating": "Watch"
+  }
+}

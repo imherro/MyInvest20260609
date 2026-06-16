@@ -76,12 +76,78 @@ def test_guidance_api_and_view_are_stable(tmp_path) -> None:
         assert forbidden not in view_response.text
 
 
+def test_latest_symbol_research_can_clear_historical_research_first_item(tmp_path) -> None:
+    repo = SQLiteRepository(tmp_path / "guidance_clear.sqlite")
+    seed_multiday_repository(repo)
+    repo.append_research_snapshot(_symbol_research("159999.SZ", "no_action", "finalized"))
+
+    state = compute_guidance_state(repo, "2026-06-15")
+    queued_symbols = {item["symbol"] for item in state["research_first"]["queue"]}
+
+    assert "159999.SZ" in queued_symbols
+
+    cleaned_pool = repo.latest_target_pool("2026-06-15")
+    cleaned_pool["target_pool_id"] = "target-pool-2026-06-15-clean-test"
+    for entry in cleaned_pool["entries"]:
+        entry["symbols"] = [symbol for symbol in entry["symbols"] if symbol != "159999.SZ"]
+    repo.append_target_pool_snapshot(cleaned_pool)
+    cleaned_decision = repo.latest_decision("2026-06-15")
+    cleaned_decision["decision_id"] = "decision-2026-06-15-clean-test"
+    cleaned_decision["decision_actions"] = [
+        action for action in cleaned_decision["decision_actions"] if action["symbol"] != "159999.SZ"
+    ]
+    repo.append_decision_record(cleaned_decision)
+
+    state = compute_guidance_state(repo, "2026-06-15")
+    queued_symbols = {item["symbol"] for item in state["research_first"]["queue"]}
+
+    assert "159999.SZ" not in queued_symbols
+
+
 def _prepare_guidance_repo(tmp_path) -> SQLiteRepository:
     repo = SQLiteRepository(tmp_path / "guidance.sqlite")
     seed_multiday_repository(repo)
     market_data = append_market_snapshot_from_adapters(repo, basis_date="2026-06-15", source="mock")
     generate_p0c_research(repo, "2026-06-15", price_data=build_p0c_price_data_from_bundle(market_data["bundle"]))
     return repo
+
+
+def _symbol_research(symbol: str, actionability: str, status: str) -> dict[str, Any]:
+    return {
+        "schema_version": "1.0",
+        "snapshot_id": f"etf-valuation-2026-06-15-{symbol}-{actionability}-test",
+        "basis_date": "2026-06-15",
+        "generated_at": "2026-06-15T12:00:00Z",
+        "module": "etf_valuation",
+        "data_sources": ["fixture:research"],
+        "data_gaps": [],
+        "conflicts": [],
+        "executive_summary": f"{symbol} has been removed from the current target-pool review queue.",
+        "key_facts": [f"{symbol} is not a current target-pool candidate."],
+        "reasoning": ["Current-only review clears this historical ResearchFirst item."],
+        "risks": ["A future active-instrument review can supersede this cleanup snapshot."],
+        "conclusion_strength": "medium",
+        "actionability": actionability,
+        "confidence": 0.7,
+        "invalidation_conditions": ["A later target-pool snapshot reintroduces the symbol."],
+        "next_review_date": "2026-06-16",
+        "must_not_do": ["Do not use fixture research as external execution output."],
+        "required_human_review": True,
+        "status": status,
+        "trace": {"fact_pack_id": f"fixture-{symbol}", "source_market_snapshot_id": "market-2026-06-15-golden"},
+        "payload": {
+            "symbol": symbol,
+            "valuation_score": 0,
+            "fair_value_band_pct": {"low": 0, "mid": 0, "high": 0},
+            "observed_to_fair_value_ratio": 0,
+            "deviation": 0,
+            "risk_flag": "high",
+            "confidence": 0.7,
+            "method": "current_only_cleanup",
+            "tracking_target": "not_current_candidate",
+            "rating": "Watch",
+        },
+    }
 
 
 def _operation_status(state: dict[str, Any], operation: str) -> str:

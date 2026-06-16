@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0",
+  "snapshot_id": "etf-valuation-2026-06-15-511360.SH-duration-credit-review",
+  "basis_date": "2026-06-15",
+  "generated_at": "2026-06-16T05:32:00Z",
+  "module": "etf_valuation",
+  "data_sources": [
+    "tushare:fund_basic",
+    "tushare:fund_daily",
+    "tushare:fund_nav",
+    "tushare:fund_share",
+    "public:hftfund_product_511360",
+    "public:eastmoney_fundf10_511360"
+  ],
+  "data_gaps": [],
+  "conflicts": [],
+  "executive_summary": "511360.SH is confirmed as 短融ETF海富通, a listed passive bond ETF tracking 中证短融指数. The refreshed review adds duration and credit-quality strategy evidence: the fund tracks by stratified sampling across duration, remaining maturity, credit grade, yield, and issuer features, so the prior duration-credit ResearchFirst blocker is cleared for research-review purposes.",
+  "key_facts": [
+    "Tushare fund_basic confirms 511360.SH is 短融ETF海富通, managed by 海富通基金, listed status L, bond ETF type, passive index style, and benchmark 中证短融指数收益率.",
+    "Tushare complete-day fund daily, NAV, and share records are present through 2026-06-15.",
+    "Latest complete-day close-to-unit-NAV ratio from Tushare is 0.999819, inside the neutral review band.",
+    "Public fund profile says the fund tracks 中证短融指数 and seeks to minimize tracking deviation and tracking error.",
+    "Public investment-strategy disclosure states the sampling process considers duration, remaining maturity, credit grade, yield to maturity, and issuer characteristics."
+  ],
+  "reasoning": [
+    "Profile gate passes because the fund identity, listing status, fund type, and benchmark are confirmed.",
+    "Valuation gate passes for research-review purposes because NAV-relative deviation is narrow on the basis date.",
+    "Liquidity gate passes because recent complete-day ETF records and share records are available.",
+    "Duration and credit-quality review passes at product-strategy level because the fund's disclosed replication method explicitly controls duration and credit-grade matching.",
+    "Residual issuer-level distribution risk remains a monitored risk note, but it no longer blocks current research coverage."
+  ],
+  "risks": [
+    "Short-duration bond ETF returns can still be affected by interest-rate repricing.",
+    "Credit-spread stress can invalidate cash-like assumptions.",
+    "Issuer-level duration and credit distribution can drift between periodic disclosures.",
+    "A newer report or index methodology update can supersede the product-strategy evidence."
+  ],
+  "conclusion_strength": "medium",
+  "actionability": "observe",
+  "confidence": 0.76,
+  "invalidation_conditions": [
+    "A newer disclosure contradicts the duration or credit-grade matching process.",
+    "NAV-relative deviation moves outside the neutral band.",
+    "Recent complete-day ETF records become unavailable or conflicting.",
+    "Credit-spread or interest-rate stress materially changes short-duration bond ETF risk."
+  ],
+  "next_review_date": "2026-06-23",
+  "must_not_do": [
+    "Do not use this snapshot as external execution output.",
+    "Do not treat short-duration bond ETF exposure as risk-free cash.",
+    "Do not ignore issuer-level credit and duration drift between disclosures."
+  ],
+  "required_human_review": true,
+  "status": "json_validated",
+  "trace": {
+    "fact_pack_id": "duration-credit-review-511360.SH-2026-06-15",
+    "source_market_snapshot_id": "market-2026-06-15-mixed-adapter"
+  },
+  "payload": {
+    "symbol": "511360.SH",
+    "valuation_score": 50.0398,
+    "fair_value_band_pct": {
+      "low": -0.01,
+      "mid": 0,
+      "high": 0.01
+    },
+    "observed_to_fair_value_ratio": 0.999819,
+    "deviation": -0.000181,
+    "risk_flag": "medium",
+    "confidence": 0.76,
+    "method": "nav_premium_discount_with_duration_credit_strategy_evidence",
+    "tracking_target": "中证短融指数收益率",
+    "rating": "Fair"
+  }
+}

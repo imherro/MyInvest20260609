@@ -98,12 +98,20 @@ def render_dashboard_page(state: dict[str, Any], page: str) -> str:
 
 
 def _latest_research_by_module(timeline: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    latest_by_module: dict[str, dict[str, Any]] = {}
+    latest_by_current_key: dict[str, dict[str, Any]] = {}
     for event in timeline:
         if event["type"] == "research":
             payload = event["payload"]
-            latest_by_module[payload.get("module", "unknown")] = payload
-    return list(latest_by_module.values())
+            latest_by_current_key[_research_current_key(payload)] = payload
+    return list(latest_by_current_key.values())
+
+
+def _research_current_key(payload: dict[str, Any]) -> str:
+    module = payload.get("module", "unknown")
+    symbol = payload.get("payload", {}).get("symbol") or payload.get("symbol")
+    if symbol:
+        return f"{module}:{symbol}"
+    return module
 
 
 def _market_state(market: dict[str, Any] | None) -> dict[str, Any]:
