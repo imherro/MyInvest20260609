@@ -451,6 +451,7 @@ def _home_content(data: dict[str, Any]) -> str:
     flow_steps = _linked_flow(flow)
     readiness = guidance["readiness"]
     overview = dashboard["overview"]
+    daily_refresh = dashboard["daily_refresh"]
     return f"""
 <section class="two-pane">
   <div class="panel">
@@ -472,6 +473,7 @@ def _home_content(data: dict[str, Any]) -> str:
     <p class="detail"><a href="/guidance/view">打开今日行动边界</a></p>
   </div>
 </section>
+{_daily_refresh_strip(daily_refresh)}
 <section>
   <h2>功能入口</h2>
   <div class="feature-grid">{feature_cards}</div>
@@ -514,6 +516,34 @@ def _overview_content(data: dict[str, Any]) -> str:
   <div class="panel"><h2>数据缺口</h2>{gaps}{gap_actions}</div>
   <div class="panel"><h2>冲突提示</h2>{conflicts}</div>
 </section>
+"""
+
+
+def _daily_refresh_strip(daily_refresh: dict[str, Any]) -> str:
+    cards = "".join(_daily_refresh_card(item) for item in daily_refresh["items"])
+    status = "全部完成" if daily_refresh["all_done"] else "仍有待处理"
+    return f"""
+<section>
+  <h2>今日刷新状态</h2>
+  <p class="detail">参考日期：{html.escape(str(daily_refresh["reference_date"]))}；状态：{html.escape(status)}。</p>
+  <div class="grid-3">{cards}</div>
+</section>
+"""
+
+
+def _daily_refresh_card(item: dict[str, Any]) -> str:
+    status_class = "good" if item["status"] == "done" else "warn"
+    last_date = item["last_basis_date"] or "暂无"
+    reason = item["reason"] or "无"
+    return f"""
+<div class="panel">
+  <div class="label">{html.escape(item["label"])}</div>
+  <p class="{status_class}">{html.escape(_daily_refresh_status_label(item["status"]))}</p>
+  <p class="detail">{html.escape(item["detail"])}</p>
+  <p class="small">最后日期：{html.escape(str(last_date))}</p>
+  <p class="small">原因：{html.escape(_daily_refresh_reason_label(reason))}</p>
+  <p class="detail"><a href="{html.escape(item["endpoint"])}">{html.escape(item["action_label"])}</a></p>
+</div>
 """
 
 
@@ -1435,6 +1465,28 @@ def _actual_shadow_status_label(value: str) -> str:
         "aligned": "一致",
         "shadow_overweight": "影子更高",
         "shadow_underweight": "影子更低",
+    }.get(value, value)
+
+
+def _daily_refresh_status_label(value: str) -> str:
+    return {
+        "done": "已完成",
+        "pending": "待处理",
+    }.get(value, value)
+
+
+def _daily_refresh_reason_label(value: str) -> str:
+    if value == "无":
+        return value
+    return {
+        "qmt_readonly_config_missing": "本机 QMT 只读配置缺失",
+        "qmt_xtquant_sdk_missing": "QMT SDK 不可用",
+        "qmt_connect_failed": "QMT 未连接",
+        "qmt_read_failed": "QMT 读取失败",
+        "qmt_total_asset_unavailable": "QMT 比例基准不可用",
+        "qmt_position_missing": "未读到持仓比例",
+        "qmt_holding_weight_missing": "缺少实际比例",
+        "qmt_position_import_missing": "尚未读取实际持仓比例",
     }.get(value, value)
 
 

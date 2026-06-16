@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+from datetime import date
 from typing import Any
 
 from invest_system.comparison import compute_comparison_state
@@ -34,6 +35,7 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
     macro = compute_macro_state(repo, as_of)
     data_gaps = _data_gaps(market, research_items)
     conflicts = _conflicts(market, research_items)
+    actual_vs_shadow = build_actual_vs_shadow_state(repo, as_of)["data"]
     state = {
         "status": "ok",
         "data": {
@@ -53,7 +55,8 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
             "target_pool": _target_pool_state(target_pool),
             "portfolio": _portfolio_state(portfolio, market),
             "portfolio_history": build_portfolio_history_state(repo, as_of)["data"],
-            "actual_vs_shadow": build_actual_vs_shadow_state(repo, as_of)["data"],
+            "actual_vs_shadow": actual_vs_shadow,
+            "daily_refresh": _daily_refresh_state(timeline, as_of, actual_vs_shadow),
             "research": _research_state(research_items),
             "risk": _risk_state(risk),
             "comparison": _comparison_state(comparison),
@@ -195,6 +198,105 @@ def _research_current_key(payload: dict[str, Any]) -> str:
     if symbol:
         return f"{module}:{symbol}"
     return module
+
+
+def _daily_refresh_state(
+    timeline: list[dict[str, Any]],
+    as_of: str | None,
+    actual_vs_shadow: dict[str, Any],
+) -> dict[str, Any]:
+    reference_date = _reference_date(as_of)
+    market_event = _latest_event_for_date(timeline, reference_date, "market")
+    research_event = _latest_event_for_date(timeline, reference_date, "research")
+    qmt_status = actual_vs_shadow["qmt_read_status"]
+    qmt_done = qmt_status["status"] == "success" and qmt_status["last_basis_date"] == reference_date
+    items = [
+        _daily_refresh_item(
+            item_id="market",
+            label="市场快照",
+            done=market_event is not None,
+            last_basis_date=market_event["basis_date"] if market_event else _latest_basis_date(timeline, "market"),
+            endpoint="/market/view#market-refresh",
+            action_label="刷新市场快照",
+            done_detail="今天已有市场快照。",
+            pending_detail="今天还没有市场快照。",
+        ),
+        _daily_refresh_item(
+            item_id="research",
+            label="研究快照",
+            done=research_event is not None,
+            last_basis_date=research_event["basis_date"] if research_event else _latest_basis_date(timeline, "research"),
+            endpoint="/research/import/view",
+            action_label="导入研究 JSON",
+            done_detail="今天已有研究快照。",
+            pending_detail="今天还没有研究快照。",
+        ),
+        _daily_refresh_item(
+            item_id="qmt",
+            label="QMT 实际持仓",
+            done=qmt_done,
+            last_basis_date=qmt_status["last_basis_date"],
+            endpoint="/portfolio/view#qmt-refresh",
+            action_label="从 QMT 刷新",
+            done_detail="今天已读取实际持仓比例。",
+            pending_detail="今天还没有读取实际持仓比例。",
+            reason=qmt_status["reason"],
+        ),
+    ]
+    return {
+        "schema_version": "1.0",
+        "reference_date": reference_date,
+        "all_done": all(item["status"] == "done" for item in items),
+        "items": items,
+    }
+
+
+def _daily_refresh_item(
+    *,
+    item_id: str,
+    label: str,
+    done: bool,
+    last_basis_date: str | None,
+    endpoint: str,
+    action_label: str,
+    done_detail: str,
+    pending_detail: str,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "item_id": item_id,
+        "label": label,
+        "status": "done" if done else "pending",
+        "last_basis_date": last_basis_date,
+        "detail": done_detail if done else pending_detail,
+        "reason": None if done else reason,
+        "endpoint": endpoint,
+        "action_label": action_label,
+    }
+
+
+def _reference_date(as_of: str | None) -> str:
+    if as_of:
+        return as_of[:10]
+    return date.today().isoformat()
+
+
+def _latest_event_for_date(
+    timeline: list[dict[str, Any]],
+    basis_date: str,
+    event_type: str,
+) -> dict[str, Any] | None:
+    for event in reversed(timeline):
+        if event["type"] == event_type and event["basis_date"] == basis_date:
+            return event
+    return None
+
+
+def _latest_basis_date(timeline: list[dict[str, Any]], event_type: str) -> str | None:
+    for event in reversed(timeline):
+        if event["type"] == event_type:
+            return event["basis_date"]
+    return None
 
 
 def _market_state(market: dict[str, Any] | None) -> dict[str, Any]:

@@ -53,6 +53,10 @@ def test_dashboard_state_endpoint_returns_json_without_sensitive_fields(tmp_path
     assert payload["data"]["actual_vs_shadow"]["source_status"] == "actual_ratio_available"
     assert payload["data"]["actual_vs_shadow"]["qmt_read_status"]["status"] == "success"
     assert payload["data"]["actual_vs_shadow"]["qmt_read_status"]["next_action_label"] == "查看实际持仓与影子组合差异。"
+    assert payload["data"]["daily_refresh"]["reference_date"] == "2026-06-15"
+    assert payload["data"]["daily_refresh"]["all_done"] is True
+    assert {item["item_id"] for item in payload["data"]["daily_refresh"]["items"]} == {"market", "research", "qmt"}
+    assert all(item["status"] == "done" for item in payload["data"]["daily_refresh"]["items"])
     assert payload["data"]["actual_vs_shadow"]["actual_equity_weight"] == 0.75
     assert payload["data"]["actual_vs_shadow"]["shadow_equity_weight"] == 0.75
     assert "沪深300ETF华泰柏瑞（510300.SH）" in payload["data"]["target_pool"]["entries"][0]["display_symbols"]
@@ -130,6 +134,14 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert 'href="/portfolio/state"' not in body
             assert 'href="/research/view"' in body
             assert 'href="/research/latest"' not in body
+        if path == "/app":
+            assert "今日刷新状态" in body
+            assert "市场快照" in body
+            assert "研究快照" in body
+            assert "QMT 实际持仓" in body
+            assert 'href="/market/view#market-refresh"' in body
+            assert 'href="/research/import/view"' in body
+            assert 'href="/portfolio/view#qmt-refresh"' in body
         if path == "/portfolio/view":
             assert "创业板ETF易方达（159915.SZ）" in body
             assert "沪深300ETF华泰柏瑞（510300.SH）" in body
