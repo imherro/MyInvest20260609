@@ -282,6 +282,18 @@ def test_usability_state_describes_human_entrypoints(tmp_path) -> None:
     _assert_no_forbidden_terms(payload)
 
 
+def test_market_view_refresh_date_matches_reference_date(tmp_path) -> None:
+    db_path = _prepare_dashboard_db(tmp_path)
+    app = create_app(db_path)
+
+    response = _get(app, "/market/view?as_of=2026-06-16")
+    body = response.text
+
+    assert response.status_code == 200
+    assert 'id="market-refresh-date" type="date" value="2026-06-16"' in body
+    assert "默认日期跟首页今日刷新状态一致" in body
+
+
 def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
     db_path = tmp_path / "theme_view.sqlite"
     repo = SQLiteRepository(db_path)

@@ -994,6 +994,7 @@ def _market_content(data: dict[str, Any]) -> str:
     market = data["dashboard"]["market"]
     guidance = data["guidance"]
     target_pool = data["dashboard"]["target_pool"]
+    refresh_date = str(data["dashboard"]["daily_refresh"]["reference_date"] or market.get("basis_date", ""))
     if not market["available"]:
         return _empty_section("市场状态", "市场快照暂不可用，请先查看系统状态。")
     pool_entries = target_pool["entries"] if target_pool.get("available") else []
@@ -1045,10 +1046,11 @@ def _market_content(data: dict[str, Any]) -> str:
   <h2>刷新市场快照</h2>
   <p>追加写入新的市场快照，不覆盖历史记录。</p>
   <div class="badge-row">
-    <label class="inline-control">基准日期 <input id="market-refresh-date" type="date" value="{html.escape(market["basis_date"])}"></label>
+    <label class="inline-control">基准日期 <input id="market-refresh-date" type="date" value="{html.escape(refresh_date)}"></label>
     <button type="button" id="market-refresh-button">刷新市场快照</button>
     <a class="step" href="/market/latest">查看市场 JSON</a>
   </div>
+  <p class="detail">默认日期跟首页今日刷新状态一致；最新市场快照日期仍保留在上方来源信息里。</p>
   <pre id="market-refresh-result">等待刷新。</pre>
 </section>
 <section class="grid-2">

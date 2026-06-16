@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 
 import httpx
 
@@ -8,6 +9,7 @@ from invest_system.demo import seed_demo_repository
 from invest_system.golden import seed_multiday_repository
 from invest_system.repositories import SQLiteRepository
 from invest_system.web import create_app
+import invest_system.web.app as web_app
 
 
 def test_required_api_endpoints_return_json(tmp_path) -> None:
@@ -78,6 +80,27 @@ def test_market_refresh_endpoint_appends_snapshot_as_json(tmp_path) -> None:
         assert after_counts["event_log"] == before_counts["event_log"] + 3
     else:
         assert after_counts["event_log"] == before_counts["event_log"] + 1
+
+
+def test_market_refresh_endpoint_defaults_to_current_date(tmp_path, monkeypatch) -> None:
+    class FixedDate(date):
+        @classmethod
+        def today(cls) -> "FixedDate":
+            return cls(2026, 6, 16)
+
+    monkeypatch.setattr(web_app, "date", FixedDate)
+    db_path = tmp_path / "api.sqlite"
+    repo = SQLiteRepository(db_path)
+    seed_demo_repository(repo)
+    app = create_app(db_path)
+
+    response = _post(app, "/market/refresh?source=mock&allow_network=false")
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert payload["status"] == "ok"
+    assert payload["data"]["market_snapshot_id"] == "market-2026-06-16-mock-adapter"
 
 
 def test_market_refresh_endpoint_returns_json_on_invalid_source(tmp_path) -> None:

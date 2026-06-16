@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -160,16 +161,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
         source: str = Query(default="auto"),
         allow_network: bool = Query(default=True),
     ) -> dict[str, Any]:
-        latest_market = repo.latest_market()
-        refresh_date = basis_date or (latest_market["basis_date"] if latest_market else None)
-        if refresh_date is None:
-            return {
-                "status": "failed",
-                "data": {
-                    "reason": "missing_basis_date",
-                    "message": "没有可复用的市场基准日，请指定 basis_date。",
-                },
-            }
+        refresh_date = basis_date or date.today().isoformat()
         try:
             result = append_market_snapshot_from_adapters(
                 repo,
