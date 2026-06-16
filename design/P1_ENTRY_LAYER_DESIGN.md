@@ -75,6 +75,22 @@ Must display:
 
 ---
 
+### 4.1.1 Human Entry Homepage (/home_human)
+
+Purpose:
+Derived plain-language entry page for non-engineering users.
+
+Rules:
+- Reads the same state as /home
+- Translates market, theme, risk, portfolio, next_action, and navigation_plan into human-readable language
+- Does not add analysis logic
+- Does not change JSON schema
+- Does not write SQLite
+- Does not change replay, event_log, shadow engine, risk, macro, comparison, or research systems
+- Does not expose trading controls or sensitive account fields
+
+---
+
 ### 4.2 Guided Navigation Engine
 
 A rule-based routing layer:
@@ -153,6 +169,7 @@ No new backend logic allowed.
 Add:
 
 GET /entry/home_state
+GET /home_human
 
 Returns:
 - market summary
@@ -160,6 +177,7 @@ Returns:
 - risk summary
 - portfolio summary
 - next_action
+- plain-language human entry view
 
 ---
 
@@ -192,6 +210,7 @@ Entry layer outputs:
 - entry_home_state.json
 - next_action.json
 - navigation_plan.json
+- /home_human derived HTML view
 
 ---
 

@@ -46,6 +46,7 @@ API_ENDPOINTS = [
     "/system/status",
 ]
 VIEW_ENDPOINTS = [
+    "/home_human",
     "/dashboard",
     "/overview",
     "/portfolio/view",

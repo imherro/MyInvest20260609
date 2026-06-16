@@ -23,6 +23,7 @@ Open:
 ```text
 http://127.0.0.1:8008/
 http://127.0.0.1:8008/home
+http://127.0.0.1:8008/home_human
 http://127.0.0.1:8008/system/status
 http://127.0.0.1:8008/timeline/replay
 http://127.0.0.1:8008/dashboard
@@ -53,13 +54,14 @@ API responses are JSON. Read-only dashboard pages are view-layer HTML. FastAPI H
 
 Read-only view endpoints:
 
+- `GET /home_human`
 - `GET /dashboard`
 - `GET /overview`
 - `GET /portfolio/view`
 - `GET /research/view`
 - `GET /report/view`
 
-View endpoints never write data and do not expose trading controls.
+View endpoints never write data and do not expose trading controls. `/home_human` renders the existing `/home` state into a plain-language entry page for human review.
 
 ## Validation
 
@@ -161,7 +163,7 @@ The shared JSON state is available at `GET /system/dashboard_state`. Pages rende
 
 ## Entry Layer
 
-P1 entry layer is read-only and JSON-only. It computes:
+P1 entry layer JSON APIs are read-only and JSON-only. They compute:
 
 - market status card
 - main theme card
@@ -171,6 +173,8 @@ P1 entry layer is read-only and JSON-only. It computes:
 - navigation plan
 
 Entry APIs are `GET /home` and `GET /entry/home_state`. They derive guidance from existing dashboard, risk, macro, comparison, portfolio, and research state without writing to SQLite or changing core replay behavior.
+
+The human entry view is `GET /home_human`. It is a derived HTML presentation of the same `/home` state. It does not add analysis logic, write SQLite, change replay, or create execution output.
 
 ## Risk Monitoring
 

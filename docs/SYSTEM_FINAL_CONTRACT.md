@@ -12,7 +12,7 @@ The delivered MVP supports:
 - Shadow portfolio paper simulation
 - Multi-day replay by `basis_date`
 - JSON-only read APIs
-- Read-only HTML dashboard views
+- Read-only HTML dashboard and human-entry views
 - JSON-only CLI validation and append workflows
 
 ## Hard Boundaries
@@ -169,6 +169,7 @@ HTML docs are intentionally disabled.
 
 Read-only view endpoints:
 
+- `GET /home_human`
 - `GET /dashboard`
 - `GET /overview`
 - `GET /portfolio/view`
@@ -255,6 +256,7 @@ Dashboard JSON:
 
 Dashboard views:
 
+- `/home_human`
 - `/dashboard`
 - `/overview`
 - `/portfolio/view`
@@ -273,10 +275,14 @@ Dashboard rules:
 
 The P1 entry layer is a read-only user guidance layer above the existing analytical system.
 
-Entry APIs:
+Entry JSON APIs:
 
 - `GET /home`
 - `GET /entry/home_state`
+
+Entry human view:
+
+- `GET /home_human`
 
 Entry input sources:
 
@@ -298,7 +304,8 @@ Entry output includes:
 
 Entry rules:
 
-- JSON output only
+- JSON APIs output JSON only
+- `/home_human` is a derived HTML view of the `/home` state
 - read-only computation only
 - no SQLite writes
 - no trading or execution output

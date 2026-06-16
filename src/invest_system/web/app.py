@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 
 from invest_system.comparison import compute_comparison_history, compute_comparison_state
 from invest_system.entry import build_home_state
+from invest_system.entry.human import render_home_human_page
 from invest_system.macro import compute_macro_history, compute_macro_state, compute_model_consensus
 from invest_system.repositories import DEFAULT_DB_PATH, SQLiteRepository
 from invest_system.risk import compute_risk_history, compute_risk_state
@@ -52,6 +53,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/system/status",
                 ],
                 "view_endpoints": [
+                    "/home_human",
                     "/dashboard",
                     "/overview",
                     "/portfolio/view",
@@ -68,6 +70,10 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/entry/home_state")
     def entry_home_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
         return {"status": "ok", "data": build_home_state(repo, as_of)}
+
+    @app.get("/home_human", response_class=HTMLResponse)
+    def home_human_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_home_human_page(build_home_state(repo, as_of)))
 
     @app.get("/research/latest")
     def research_latest() -> dict[str, Any]:

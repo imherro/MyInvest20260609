@@ -75,6 +75,29 @@ def test_next_action_endpoint_is_followable(tmp_path) -> None:
     assert response.json()["status"] in {"ok", "empty"}
 
 
+def test_home_human_view_is_read_only_plain_language(tmp_path) -> None:
+    repo = _prepare_entry_repo(tmp_path)
+    before_counts = repo.table_counts()
+    app = create_app(repo.db_path)
+
+    response = _get(app, "/home_human?as_of=2026-06-15")
+    body = response.text
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "今日系统状态" in body
+    assert "下一步建议" in body
+    assert "导航路径" in body
+    assert "recommended_endpoint" not in body
+    assert "reason_code" not in body
+    assert "navigation_plan" not in body
+    assert "above_target" not in body
+    assert "below_target" not in body
+    assert repo.table_counts() == before_counts
+    for forbidden in FORBIDDEN_TERMS:
+        assert forbidden not in body
+
+
 def _prepare_entry_repo(tmp_path) -> SQLiteRepository:
     repo = SQLiteRepository(tmp_path / "entry.sqlite")
     seed_multiday_repository(repo)
