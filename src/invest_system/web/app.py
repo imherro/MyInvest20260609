@@ -23,7 +23,12 @@ from invest_system.web.dashboard import (
     build_dashboard_state,
     build_portfolio_history_state,
 )
-from invest_system.web.portal import build_portal_state, build_usability_state, render_portal_page
+from invest_system.web.portal import (
+    build_portal_state,
+    build_research_valuation_review_state,
+    build_usability_state,
+    render_portal_page,
+)
 from invest_system.workflow import build_daily_workflow_state
 
 
@@ -55,6 +60,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "POST /portfolio/qmt/refresh",
                     "POST /research/import/validate",
                     "POST /research/import",
+                    "/research/valuation-review",
                     "/decision/proposal",
                     "/decision/explain",
                     "/research/latest",
@@ -194,6 +200,10 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     def research_latest() -> dict[str, Any]:
         payload = repo.latest_research()
         return _json_result(payload)
+
+    @app.get("/research/valuation-review")
+    def research_valuation_review_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return build_research_valuation_review_state(repo, as_of)
 
     @app.get("/market/latest")
     def market_latest() -> dict[str, Any]:

@@ -9,7 +9,7 @@ from invest_system.guidance import compute_guidance_state
 from invest_system.repositories import SQLiteRepository
 from invest_system.validators.policies import assert_no_sensitive_content
 from invest_system.web.dashboard import build_dashboard_state
-from invest_system.web.data_gap_display import unique_data_gap_descriptions
+from invest_system.web.data_gap_display import describe_data_gap, unique_data_gap_descriptions
 from invest_system.web.symbol_display import display_symbol
 from invest_system.workflow import build_daily_workflow_state
 
@@ -74,6 +74,7 @@ HUMAN_ENDPOINT_MAP = {
     "/market/latest": "/market/view",
     "/target-pool/latest": "/research/view",
     "/research/latest": "/research/view",
+    "/research/valuation-review": "/research/view#valuation-review",
     "/research/import": "/research/import/view",
     "/research/import/validate": "/research/import/view",
     "/decision/latest": "/decision/view",
@@ -97,6 +98,7 @@ def build_portal_state(repo: SQLiteRepository, as_of: str | None = None) -> dict
     guidance = compute_guidance_state(repo, as_of)
     decision_proposal = build_decision_proposal(repo, as_of)
     daily_workflow = build_daily_workflow_state(repo, as_of)
+    research_valuation_review = build_research_valuation_review_state(repo, as_of)["data"]
     usability = _build_usability_payload(dashboard, home, guidance)
     state = {
         "status": "ok",
@@ -110,6 +112,7 @@ def build_portal_state(repo: SQLiteRepository, as_of: str | None = None) -> dict
             "daily_workflow": daily_workflow,
             "decision_proposal": decision_proposal,
             "guidance": guidance,
+            "research_valuation_review": research_valuation_review,
             "usability": usability,
         },
     }
@@ -120,6 +123,41 @@ def build_portal_state(repo: SQLiteRepository, as_of: str | None = None) -> dict
 def build_usability_state(repo: SQLiteRepository, as_of: str | None = None) -> dict[str, Any]:
     portal = build_portal_state(repo, as_of)
     return {"status": "ok", "data": portal["data"]["usability"]}
+
+
+def build_research_valuation_review_state(repo: SQLiteRepository, as_of: str | None = None) -> dict[str, Any]:
+    repo.init_db()
+    guidance = compute_guidance_state(repo, as_of)
+    timeline = repo.timeline(as_of)
+    research_events = {
+        event["object_id"]: event
+        for event in timeline
+        if event["type"] == "research"
+    }
+    rows = [
+        _valuation_review_row(item, research_events.get(item["source"]))
+        for item in guidance["research_first"]["queue"]
+        if "valuation_gate_failed" in item.get("blockers", [])
+    ]
+    rows.sort(key=lambda item: item["symbol"])
+    payload = {
+        "status": "ok",
+        "data": {
+            "schema_version": "1.0",
+            "as_of": as_of,
+            "status": "review_required" if rows else "clear",
+            "blocked_count": len(rows),
+            "human_endpoint": "/research/view#valuation-review",
+            "json_endpoint": "/research/valuation-review",
+            "rows": rows,
+            "notes": [
+                "This is a read-only valuation review derived from ResearchFirst queue and research snapshots.",
+                "It does not change decisions, portfolio state, or any external execution system.",
+            ],
+        },
+    }
+    assert_no_sensitive_content(payload)
+    return payload
 
 
 def render_portal_page(state: dict[str, Any], page: str) -> str:
@@ -1061,6 +1099,7 @@ def _portfolio_content(data: dict[str, Any]) -> str:
 def _research_content(data: dict[str, Any]) -> str:
     research = data["dashboard"]["research"]
     guidance = data["guidance"]
+    valuation_review = data["research_valuation_review"]
     if not research["available"]:
         return _empty_section("研究队列", "研究快照暂不可用，请先查看系统状态。")
     rows = [
@@ -1088,7 +1127,7 @@ def _research_content(data: dict[str, Any]) -> str:
     return f"""
 <section class="panel">
   <h2>研究入口</h2>
-  <p><a href="/research/import/view">导入新的研究 JSON</a></p>
+  <p><a href="/research/import/view">导入新的研究 JSON</a>　<a href="#valuation-review">查看估值证据复核</a></p>
   <p class="detail">适合导入市场研究、主线研究或其它已校验研究快照。</p>
 </section>
 <section>
@@ -1099,7 +1138,134 @@ def _research_content(data: dict[str, Any]) -> str:
   <h2>ResearchFirst 队列</h2>
   {_table(["标的", "原因", "当前卡点", "来源"], queue_rows)}
 </section>
+{_valuation_review_section(valuation_review)}
 """
+
+
+def _valuation_review_section(review: dict[str, Any]) -> str:
+    rows = [
+        [
+            item["display_name"],
+            item["status_label"],
+            item["evidence_summary"],
+            "；".join(item["missing_evidence"]),
+            item["next_step"],
+            item["source_snapshot_id"] or "无",
+        ]
+        for item in review["rows"]
+    ]
+    if not rows:
+        rows = [["none", "当前没有估值阻断", "无", "无", "继续查看 ResearchFirst 队列。", "guidance"]]
+    return f"""
+<section id="valuation-review">
+  <h2>估值证据复核</h2>
+  <p class="detail">这里只读解释为什么“研究已做”但仍未从 ResearchFirst 放行。</p>
+  <p class="detail"><a href="/research/valuation-review">查看复核 JSON</a></p>
+  {_table(["标的", "状态", "已有证据", "缺什么", "下一步", "来源快照"], rows)}
+</section>
+"""
+
+
+def _valuation_review_row(queue_item: dict[str, Any], event: dict[str, Any] | None) -> dict[str, Any]:
+    snapshot = event["payload"] if event else {}
+    symbol = queue_item["symbol"]
+    blockers = queue_item.get("blockers", [])
+    data_gaps = [str(item) for item in snapshot.get("data_gaps", [])]
+    gap_descriptions = [describe_data_gap(item) for item in data_gaps]
+    row = {
+        "symbol": symbol,
+        "display_name": display_symbol(symbol),
+        "status": "blocked",
+        "status_label": "估值复核未通过",
+        "blockers": blockers,
+        "blocker_label": _research_blocker_label(blockers),
+        "evidence_summary": _valuation_evidence_summary(snapshot),
+        "missing_evidence": _valuation_missing_evidence(blockers, gap_descriptions),
+        "next_step": _valuation_next_step(gap_descriptions),
+        "source_snapshot_id": snapshot.get("snapshot_id") or queue_item.get("source"),
+        "source_module": snapshot.get("module"),
+        "source_basis_date": snapshot.get("basis_date") or (event["basis_date"] if event else None),
+        "confidence": snapshot.get("confidence"),
+        "actionability": snapshot.get("actionability"),
+        "data_gap_titles": [item["title"] for item in gap_descriptions],
+        "data_gap_actions": [item["next_step"] for item in gap_descriptions],
+    }
+    assert_no_sensitive_content(row)
+    return row
+
+
+def _valuation_evidence_summary(snapshot: dict[str, Any]) -> str:
+    if not snapshot:
+        return "没有找到对应研究快照，只保留队列来源。"
+    text = _snapshot_text(snapshot)
+    facts: list[str] = []
+    if _contains_any(text, ("profile gate passes", "profile and liquidity gates pass", "画像通过", "画像门槛通过")):
+        facts.append("画像证据通过")
+    if _contains_any(text, ("liquidity gate passes", "profile and liquidity gates pass", "流动性通过", "流动性门槛通过")):
+        facts.append("流动性证据通过")
+    if _contains_any(text, ("valuation gate fails", "valuation fails", "valuation pressure is high", "估值门槛未通过", "估值不通过")):
+        facts.append("估值证据未通过")
+
+    payload = snapshot.get("payload", {})
+    score = payload.get("valuation_score") if isinstance(payload, dict) else None
+    if isinstance(score, int | float):
+        facts.append(f"估值分 {float(score):.2f}/100")
+    risk_flag = payload.get("risk_flag") if isinstance(payload, dict) else None
+    if risk_flag:
+        facts.append(f"风险标记 {risk_flag}")
+    rating = payload.get("rating") if isinstance(payload, dict) else None
+    if rating:
+        facts.append(f"评级 {rating}")
+    if facts:
+        return "；".join(_unique_text(facts))
+    return "研究快照确认该标的仍需 ResearchFirst。"
+
+
+def _valuation_missing_evidence(blockers: list[str], gap_descriptions: list[dict[str, str]]) -> list[str]:
+    items: list[str] = []
+    if "valuation_gate_failed" in blockers:
+        items.append("缺少可放行的估值分位、同业对比或基本面支撑证据。")
+    if "profile_gate_incomplete" in blockers:
+        items.append("画像门槛仍需补证。")
+    if "liquidity_gate_incomplete" in blockers:
+        items.append("流动性门槛仍需补证。")
+    for description in gap_descriptions:
+        items.append(description["title"])
+    if not items:
+        items.append("研究快照没有列出明确缺口，需要复核来源。")
+    return _unique_text(items)
+
+
+def _valuation_next_step(gap_descriptions: list[dict[str, str]]) -> str:
+    if gap_descriptions:
+        first_action = gap_descriptions[0]["next_step"]
+        return f"{first_action} 完成后导入新的研究 JSON，再复核队列。"
+    return "补充估值证据并导入新的研究 JSON，再复核队列。"
+
+
+def _snapshot_text(snapshot: dict[str, Any]) -> str:
+    parts = [
+        str(snapshot.get("executive_summary", "")),
+        " ".join(str(item) for item in snapshot.get("key_facts", [])),
+        " ".join(str(item) for item in snapshot.get("reasoning", [])),
+        " ".join(str(item) for item in snapshot.get("risks", [])),
+        " ".join(str(item) for item in snapshot.get("data_gaps", [])),
+    ]
+    return " ".join(parts).lower()
+
+
+def _contains_any(text: str, needles: tuple[str, ...]) -> bool:
+    return any(needle.lower() in text for needle in needles)
+
+
+def _unique_text(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value not in seen:
+            seen.add(value)
+            result.append(value)
+    return result
 
 
 def _research_import_content(data: dict[str, Any]) -> str:
@@ -1213,6 +1379,7 @@ def _system_content(data: dict[str, Any]) -> str:
         ["/guidance/state", "今日行动边界 JSON"],
         ["POST /research/import/validate", "研究导入校验 JSON"],
         ["POST /research/import", "研究追加导入 JSON"],
+        ["/research/valuation-review", "估值复核 JSON"],
         ["/decision/proposal", "决策预览 JSON"],
         ["/decision/explain", "决策解释 JSON"],
         ["/portfolio/actual-vs-shadow", "实际/影子对照 JSON"],
@@ -1408,6 +1575,7 @@ def _endpoint_label(endpoint: str) -> str:
         "/portfolio/actual-vs-shadow": "实际/影子对照 JSON",
         "/research/view": "研究结论",
         "/research/import/view": "研究导入",
+        "/research/valuation-review": "估值复核 JSON",
         "/research/import/validate": "研究导入校验 JSON",
         "/research/import": "研究追加导入 JSON",
         "/research/latest": "研究 JSON",

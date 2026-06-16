@@ -125,11 +125,20 @@ def test_research_first_queue_reports_current_blockers(tmp_path) -> None:
     state = compute_guidance_state(repo, "2026-06-15")
     queued = next(item for item in state["research_first"]["queue"] if item["symbol"] == "301566.SZ")
     view_response = _get(app, "/research/view?as_of=2026-06-15")
+    review_response = _get(app, "/research/valuation-review?as_of=2026-06-15")
+    review = review_response.json()["data"]
 
     assert "valuation_gate_failed" in queued["blockers"]
     assert "data_gap" in queued["blockers"]
     assert "当前卡点" in view_response.text
     assert "估值门槛未通过" in view_response.text
+    assert "估值证据复核" in view_response.text
+    assert "缺少可放行的估值分位" in view_response.text
+    assert review_response.status_code == 200
+    assert review_response.headers["content-type"].startswith("application/json")
+    assert review["status"] == "review_required"
+    assert any(item["symbol"] == "301566.SZ" for item in review["rows"])
+    assert "缺少可放行的估值分位" in review["rows"][0]["missing_evidence"][0]
 
 
 def _prepare_guidance_repo(tmp_path) -> SQLiteRepository:
