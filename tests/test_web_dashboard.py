@@ -209,6 +209,13 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "怎样影响影子组合" in body
             assert "查看影子组合" in body
             assert "创业板ETF易方达（159915.SZ）" in body
+        if path == "/report/view":
+            assert "每日报告结论" in body
+            assert "阅读顺序" in body
+            assert "一页式摘要" in body
+            assert "今日边界" in body
+            assert "报告来源" in body
+            assert "来源追溯" in body
         for forbidden in FORBIDDEN_VIEW_TERMS:
             assert forbidden not in body
 

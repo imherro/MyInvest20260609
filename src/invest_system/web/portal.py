@@ -44,7 +44,7 @@ PAGE_TITLES = {
     "portfolio": "影子组合",
     "research": "研究队列",
     "research_import": "研究 JSON 导入",
-    "report": "报告预览",
+    "report": "每日报告",
     "system": "系统状态",
     "usability": "易用性检查",
 }
@@ -522,7 +522,7 @@ def _home_content(data: dict[str, Any]) -> str:
         ("影子组合", "/portfolio/view", "查看纸面模拟组合比例、偏离和回放来源。"),
         ("研究队列", "/research/view", "查看最新研究快照和 ResearchFirst 队列。"),
         ("研究导入", "/research/import/view", "粘贴研究 JSON，先校验，再追加写入系统。"),
-        ("报告预览", "/report/view", "查看可生成报告的章节与来源编号。"),
+        ("每日报告", "/report/view", "查看今天的结论摘要、阅读顺序和来源编号。"),
         ("系统状态", "/system/view", "查看自检、回放、记录数量和 JSON 入口。"),
         ("易用性检查", "/usability/view", "检查入口、页头、页脚、引导和执行边界。"),
     ]
@@ -2151,15 +2151,49 @@ def _report_content(data: dict[str, Any]) -> str:
     report = data["dashboard"]["report"]
     manifest = report["manifest_preview"]
     rows = [[section, "ready"] for section in report["sections"]]
+    summary_rows = _report_summary_rows(data)
+    source_rows = _report_source_rows(manifest)
     return f"""
+<section class="two-pane">
+  <div class="panel highlight">
+    <h2>每日报告结论</h2>
+    <p class="value">{html.escape(_report_headline(data))}</p>
+    <p class="detail">{html.escape(_report_detail(data))}</p>
+    <div class="badge-row">
+      <a class="step" href="/guidance/view">今日边界</a>
+      <a class="step" href="/decision/view">决策预览</a>
+      <a class="step" href="/portfolio/view">影子组合</a>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>阅读顺序</h2>
+    <div class="path">
+      <a class="step" href="/guidance/view">边界</a><span class="arrow">→</span>
+      <a class="step" href="/market/view">市场</a><span class="arrow">→</span>
+      <a class="step" href="/risk/view">风险</a><span class="arrow">→</span>
+      <a class="step" href="/research/view">研究</a><span class="arrow">→</span>
+      <a class="step" href="/decision/view">决策</a><span class="arrow">→</span>
+      <a class="step" href="/portfolio/view">组合</a>
+    </div>
+    <p class="detail">报告页只汇总当前状态；事实源仍是 SQLite 回放和 JSON 快照。</p>
+  </div>
+</section>
 <section>
-  <h2>报告预览</h2>
+  <h2>一页式摘要</h2>
+  {_table(["模块", "结论", "关键依据", "入口"], summary_rows, raw_columns={3})}
+</section>
+<section>
+  <h2>报告来源</h2>
   <div class="grid-4">
     {_metric_card("格式", "、".join(report["supported_formats"]))}
     {_metric_card("市场快照", manifest["market_snapshot_id"] or "暂无")}
     {_metric_card("组合快照", manifest["portfolio_id"] or "暂无")}
     {_metric_card("研究数量", len(manifest["research_snapshot_ids"]))}
   </div>
+</section>
+<section>
+  <h2>来源追溯</h2>
+  {_table(["来源", "编号"], source_rows)}
 </section>
 <section>
   <h2>章节</h2>
@@ -2171,6 +2205,136 @@ def _report_content(data: dict[str, Any]) -> str:
   <p class="detail">报告只是派生视图，追溯仍以 SQLite 与 JSON 快照为准。</p>
 </section>
 """
+
+
+def _report_headline(data: dict[str, Any]) -> str:
+    guidance = data["guidance"]
+    proposal = data["decision_proposal"]
+    research_queue = guidance["research_first"]["queue"]
+    if research_queue:
+        return f"先处理研究队列：{display_symbol(research_queue[0]['symbol'])}"
+    if proposal["status"] != "empty":
+        return _decision_conclusion_label(proposal)
+    return guidance.get("today_action", {}).get("headline") or "先看今日边界"
+
+
+def _report_detail(data: dict[str, Any]) -> str:
+    guidance = data["guidance"]
+    readiness = guidance["readiness"]
+    risk = data["dashboard"]["risk"]
+    research_queue = guidance["research_first"]["queue"]
+    parts = [
+        f"今日状态：{_readiness_label(readiness['overall_state'])}",
+        f"提高风险：{_yes_no(readiness['can_increase_risk'])}",
+        f"新增标的：{_yes_no(readiness['can_add_new_subject'])}",
+    ]
+    if risk["available"]:
+        parts.append(f"风险：{_risk_level_label(risk['risk_level'])}")
+    if research_queue:
+        parts.append(f"ResearchFirst 待办 {len(research_queue)} 项")
+    return "；".join(parts) + "。"
+
+
+def _report_summary_rows(data: dict[str, Any]) -> list[list[Any]]:
+    dashboard = data["dashboard"]
+    guidance = data["guidance"]
+    market = dashboard["market"]
+    risk = dashboard["risk"]
+    macro = dashboard["macro"]
+    portfolio = dashboard["portfolio"]
+    actual = dashboard["actual_vs_shadow"]
+    valuation_review = data["research_valuation_review"]
+    valuation_prompts = data["research_valuation_prompts"]
+    proposal = data["decision_proposal"]
+    queue = guidance["research_first"]["queue"]
+
+    rows: list[list[Any]] = [
+        [
+            "今日边界",
+            _readiness_label(guidance["readiness"]["overall_state"]),
+            _report_guidance_basis(guidance),
+            _link("/guidance/view"),
+        ]
+    ]
+    if market["available"]:
+        rows.append(
+            [
+                "市场",
+                _market_conclusion_label(market),
+                _market_equity_range_text(market),
+                _link("/market/view"),
+            ]
+        )
+    if macro["available"]:
+        consensus = macro["model_consensus"]
+        rows.append(
+            [
+                "宏观",
+                _macro_conclusion_label(consensus["consensus_state"]),
+                _macro_conclusion_detail(consensus, guidance),
+                _link("/macro/view"),
+            ]
+        )
+    if risk["available"]:
+        rows.append(
+            [
+                "风险",
+                _risk_conclusion_label(risk),
+                _risk_conclusion_detail(risk, guidance),
+                _link("/risk/view"),
+            ]
+        )
+    rows.append(
+        [
+            "研究",
+            _research_workbench_title(queue, valuation_review),
+            _research_workbench_detail(queue, valuation_review, valuation_prompts),
+            _link("/research/view"),
+        ]
+    )
+    if proposal["status"] != "empty":
+        rows.append(
+            [
+                "决策",
+                _decision_conclusion_label(proposal),
+                _decision_conclusion_detail(proposal),
+                _link("/decision/view"),
+            ]
+        )
+    if portfolio["available"]:
+        rows.append(
+            [
+                "组合",
+                _portfolio_conclusion_label(portfolio, actual, market),
+                _portfolio_conclusion_detail(portfolio, actual, _report_market_target(market)),
+                _link("/portfolio/view"),
+            ]
+        )
+    return rows
+
+
+def _report_guidance_basis(guidance: dict[str, Any]) -> str:
+    readiness = guidance["readiness"]
+    return (
+        f"提高风险 {_yes_no(readiness['can_increase_risk'])}；"
+        f"新增标的 {_yes_no(readiness['can_add_new_subject'])}；"
+        f"人工复核 {_need_label(readiness['requires_human_review'])}。"
+    )
+
+
+def _report_market_target(market: dict[str, Any]) -> str:
+    if not market["available"]:
+        return "暂无"
+    return f"{_percent(market['equity_min'])} 到 {_percent(market['equity_max'])}"
+
+
+def _report_source_rows(manifest: dict[str, Any]) -> list[list[Any]]:
+    return [
+        ["市场快照", manifest["market_snapshot_id"] or "暂无"],
+        ["决策记录", manifest["decision_id"] or "暂无"],
+        ["组合快照", manifest["portfolio_id"] or "暂无"],
+        ["研究快照", f"{len(manifest['research_snapshot_ids'])} 条"],
+    ]
 
 
 def _system_content(data: dict[str, Any]) -> str:
@@ -2388,7 +2552,7 @@ def _endpoint_label(endpoint: str) -> str:
         "/research/import/validate": "研究导入校验 JSON",
         "/research/import": "研究追加导入 JSON",
         "/research/latest": "研究 JSON",
-        "/report/view": "报告预览",
+        "/report/view": "每日报告",
         "/dashboard": "综合看板",
         "/overview": "总览",
         "/system/view": "系统状态",
