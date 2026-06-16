@@ -40,6 +40,7 @@ API_ENDPOINTS = [
     "/decision/explain",
     "/portfolio/state",
     "/portfolio/history",
+    "/portfolio/actual-vs-shadow",
     "/timeline/replay",
     "/comparison/state",
     "/comparison/history",

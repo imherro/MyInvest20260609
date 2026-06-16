@@ -30,6 +30,7 @@ def seed_multiday_repository(repo: SQLiteRepository) -> dict[str, Any]:
                 "generated_at": _utc_now(),
                 "status": "imported",
                 "symbols": _symbols_for_day(index),
+                "holdings_weight": _actual_weights_for_day(index),
                 "data_gaps": [],
                 "privacy": {"ratio_only": True, "paper_only": True},
             },
@@ -144,6 +145,12 @@ def _symbols_for_day(index: int) -> list[str]:
     return symbols
 
 
+def _actual_weights_for_day(index: int) -> dict[str, float]:
+    weights = _weights_for_day(index)
+    symbols = _symbols_for_day(index)
+    return {symbol: weights.get(symbol, 0.0) for symbol in sorted(symbols)}
+
+
 def _market_returns_for_day(index: int) -> dict[str, float]:
     if index == 0:
         return {}
@@ -160,4 +167,3 @@ def _next_date(index: int) -> str:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
-

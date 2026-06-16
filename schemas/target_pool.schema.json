@@ -15,7 +15,7 @@
     "target_pool_id": { "type": "string", "minLength": 1 },
     "basis_date": { "type": "string", "format": "date" },
     "generated_at": { "type": "string", "format": "date-time" },
-    "source": { "type": "string", "enum": ["decision", "system", "seed", "qmt_mock"] },
+    "source": { "type": "string", "enum": ["decision", "system", "seed", "qmt_mock", "qmt_live"] },
     "status": { "type": "string", "enum": ["active", "blocked"] },
     "entries": {
       "type": "array",
@@ -32,4 +32,3 @@
     }
   }
 }
-

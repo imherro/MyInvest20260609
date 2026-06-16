@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 
 from invest_system.adapters import append_market_snapshot_from_adapters
 from invest_system.comparison import compute_comparison_history, compute_comparison_state
+from invest_system.collectors import import_qmt_positions_from_qmt
 from invest_system.decision import build_decision_explain, build_decision_proposal
 from invest_system.entry import build_home_state
 from invest_system.guidance import compute_guidance_state
@@ -17,7 +18,11 @@ from invest_system.research.importer import append_research_import, validate_res
 from invest_system.risk import compute_risk_history, compute_risk_state
 from invest_system.self_check import system_status
 from invest_system.shadow import run_auto_shadow_portfolio
-from invest_system.web.dashboard import build_dashboard_state, build_portfolio_history_state
+from invest_system.web.dashboard import (
+    build_actual_vs_shadow_state,
+    build_dashboard_state,
+    build_portfolio_history_state,
+)
 from invest_system.web.portal import build_portal_state, build_usability_state, render_portal_page
 from invest_system.workflow import build_daily_workflow_state
 
@@ -47,6 +52,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/guidance/state",
                     "/usability/state",
                     "POST /market/refresh",
+                    "POST /portfolio/qmt/refresh",
                     "POST /research/import/validate",
                     "POST /research/import",
                     "/decision/proposal",
@@ -57,6 +63,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/decision/latest",
                     "/portfolio/state",
                     "/portfolio/history",
+                    "/portfolio/actual-vs-shadow",
                     "/timeline/replay",
                     "/comparison/state",
                     "/comparison/history",
@@ -219,6 +226,15 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/portfolio/history")
     def portfolio_history_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
         return build_portfolio_history_state(repo, as_of)
+
+    @app.get("/portfolio/actual-vs-shadow")
+    def portfolio_actual_vs_shadow_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return build_actual_vs_shadow_state(repo, as_of)
+
+    @app.post("/portfolio/qmt/refresh")
+    def portfolio_qmt_refresh_endpoint(basis_date: str = Query(...)) -> dict[str, Any]:
+        result = import_qmt_positions_from_qmt(repo, basis_date)
+        return {"status": "ok" if result["status"] == "ok" else "blocked", "data": result}
 
     @app.get("/timeline/replay")
     def timeline_replay(as_of: str | None = Query(default=None)) -> dict[str, Any]:

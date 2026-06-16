@@ -81,6 +81,7 @@ HUMAN_ENDPOINT_MAP = {
     "/decision/explain": "/decision/view",
     "/portfolio/state": "/portfolio/view",
     "/portfolio/history": "/portfolio/view",
+    "/portfolio/actual-vs-shadow": "/portfolio/view",
     "/risk/state": "/risk/view",
     "/macro/state": "/macro/view",
     "/comparison/state": "/comparison/view",
@@ -848,6 +849,7 @@ def _decision_content(data: dict[str, Any]) -> str:
 def _portfolio_content(data: dict[str, Any]) -> str:
     portfolio = data["dashboard"]["portfolio"]
     history = data["dashboard"]["portfolio_history"]
+    actual = data["dashboard"]["actual_vs_shadow"]
     market = data["dashboard"]["market"]
     if not portfolio["available"]:
         return _empty_section("影子组合", "组合快照暂不可用，请先查看系统状态。")
@@ -874,6 +876,18 @@ def _portfolio_content(data: dict[str, Any]) -> str:
     ]
     if not change_rows:
         change_rows = [["无", "不变", "无", "无", "0 pp"]]
+    actual_rows = [
+        [
+            item["display_name"],
+            _weight_or_missing(item["actual_weight"]),
+            _percent(item["shadow_weight"]),
+            _delta_or_missing(item["shadow_minus_actual_pp"]),
+            _actual_shadow_status_label(item["status"]),
+        ]
+        for item in actual["rows"]
+    ]
+    if not actual_rows:
+        actual_rows = [["暂无", "缺少实际比例", "无", "无", "待刷新"]]
     rebalance_rows = [
         [
             item["basis_date"],
@@ -923,6 +937,27 @@ def _portfolio_content(data: dict[str, Any]) -> str:
   <p>人看的历史快照就在本页下方；系统原始回放在 <a href="/timeline/replay">历史回放 JSON</a>。</p>
   <p class="detail">组合专用 JSON 在 <a href="/portfolio/history">组合历史 JSON</a>。输入历史日期时，也可以用 <a href="/portfolio/view?as_of=2026-06-15">按日期查看组合页</a>。</p>
 </section>
+<section id="qmt-refresh" class="panel">
+  <h2>刷新实际持仓</h2>
+  <p>从本机 QMT 只读读取持仓比例，追加为历史快照来源；页面只展示比例，不展示金额类字段、数量类字段或账户细节。</p>
+  <div class="badge-row">
+    <label class="inline-control">日期 <input id="qmt-refresh-date" type="date" aria-label="QMT 读取日期"></label>
+    <button type="button" id="qmt-refresh-button">从 QMT 刷新</button>
+  </div>
+  <pre id="qmt-refresh-result">等待刷新。</pre>
+</section>
+<section>
+  <h2>实际持仓 vs 影子组合</h2>
+  <div class="grid-4">
+    {_metric_card("实际权益", _weight_or_missing(actual["actual_equity_weight"]))}
+    {_metric_card("影子权益", _weight_or_missing(actual["shadow_equity_weight"]))}
+    {_metric_card("权益差异", _delta_or_missing(actual["active_exposure_pp"]))}
+    {_metric_card("最大单项差异", _delta_or_missing(actual["max_abs_delta_pp"]))}
+  </div>
+  <p class="detail">来源：{html.escape(str(actual["source_event_id"] or "缺少 QMT 比例快照"))}</p>
+  <p class="detail">结构化 JSON：<a href="/portfolio/actual-vs-shadow">实际/影子对照 JSON</a></p>
+  {_table(["标的", "实际比例", "影子比例", "影子-实际", "状态"], actual_rows)}
+</section>
 <section>
   <h2>持仓比例</h2>
   {_table(["标的", "比例", "分布"], rows, raw_columns={2})}
@@ -948,6 +983,37 @@ def _portfolio_content(data: dict[str, Any]) -> str:
     {_metric_card("现金比例", _percent(portfolio["cash_weight"]))}
   </div>
 </section>
+<script>
+(() => {{
+  const dateInput = document.getElementById('qmt-refresh-date');
+  const button = document.getElementById('qmt-refresh-button');
+  const result = document.getElementById('qmt-refresh-result');
+  if (dateInput && !dateInput.value) {{
+    dateInput.value = new Date().toISOString().slice(0, 10);
+  }}
+  button.addEventListener('click', async () => {{
+    const basisDate = dateInput.value;
+    if (!basisDate) {{
+      result.textContent = JSON.stringify({{ status: 'failed', data: {{ reason: 'missing_basis_date' }} }}, null, 2);
+      return;
+    }}
+    button.disabled = true;
+    result.textContent = '正在读取 QMT...';
+    try {{
+      const response = await fetch('/portfolio/qmt/refresh?basis_date=' + encodeURIComponent(basisDate), {{ method: 'POST' }});
+      const data = await response.json();
+      result.textContent = JSON.stringify(data, null, 2);
+      if (data.status === 'ok') {{
+        window.location.href = '/portfolio/view';
+      }}
+    }} catch (error) {{
+      result.textContent = JSON.stringify({{ status: 'failed', data: {{ reason: 'qmt_refresh_request_failed' }} }}, null, 2);
+    }} finally {{
+      button.disabled = false;
+    }}
+  }});
+}})();
+</script>
 """
 
 
@@ -1103,6 +1169,7 @@ def _system_content(data: dict[str, Any]) -> str:
         ["POST /research/import", "研究追加导入 JSON"],
         ["/decision/proposal", "决策预览 JSON"],
         ["/decision/explain", "决策解释 JSON"],
+        ["/portfolio/actual-vs-shadow", "实际/影子对照 JSON"],
         ["/system/dashboard_state", "综合看板 JSON"],
         ["/portfolio/history", "组合历史 JSON"],
         ["/usability/state", "易用性检查 JSON"],
@@ -1292,6 +1359,7 @@ def _endpoint_label(endpoint: str) -> str:
         "/portfolio/view": "影子组合",
         "/portfolio/state": "组合 JSON",
         "/portfolio/history": "组合历史 JSON",
+        "/portfolio/actual-vs-shadow": "实际/影子对照 JSON",
         "/research/view": "研究结论",
         "/research/import/view": "研究导入",
         "/research/import/validate": "研究导入校验 JSON",
@@ -1335,6 +1403,27 @@ def _change_label(value: str) -> str:
         "increase": "提高比例",
         "decrease": "降低比例",
         "hold": "保持不变",
+    }.get(value, value)
+
+
+def _weight_or_missing(value: float | int | None) -> str:
+    if value is None:
+        return "缺少实际比例"
+    return _percent(value)
+
+
+def _delta_or_missing(value: float | int | None) -> str:
+    if value is None:
+        return "缺少实际比例"
+    return f"{float(value):.4f} pp"
+
+
+def _actual_shadow_status_label(value: str) -> str:
+    return {
+        "actual_ratio_missing": "缺少实际比例",
+        "aligned": "一致",
+        "shadow_overweight": "影子更高",
+        "shadow_underweight": "影子更低",
     }.get(value, value)
 
 

@@ -5,6 +5,7 @@ import asyncio
 import httpx
 
 from invest_system.demo import seed_demo_repository
+from invest_system.golden import seed_multiday_repository
 from invest_system.repositories import SQLiteRepository
 from invest_system.web import create_app
 
@@ -29,6 +30,7 @@ def test_required_api_endpoints_return_json(tmp_path) -> None:
         "/decision/explain",
         "/portfolio/state",
         "/portfolio/history",
+        "/portfolio/actual-vs-shadow",
         "/timeline/replay",
         "/comparison/state",
         "/comparison/history",
@@ -126,6 +128,23 @@ def test_portfolio_history_endpoint_returns_snapshots_and_rebalances(tmp_path) -
     assert data["snapshots"][0]["portfolio_id"] == "shadow-2026-06-15-decision-2026-06-15-demo"
     assert data["snapshots"][0]["source_decision_id"] == "decision-2026-06-15-demo"
     assert data["json_replay_endpoint"] == "/timeline/replay"
+
+
+def test_portfolio_actual_vs_shadow_endpoint_returns_ratio_rows(tmp_path) -> None:
+    db_path = tmp_path / "api.sqlite"
+    repo = SQLiteRepository(db_path)
+    seed_multiday_repository(repo)
+    app = create_app(db_path)
+
+    response = _get(app, "/portfolio/actual-vs-shadow?as_of=2026-06-15")
+    data = response.json()["data"]
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert data["source_status"] == "actual_ratio_available"
+    assert data["actual_equity_weight"] == 0.75
+    assert data["shadow_equity_weight"] == 0.75
+    assert any(item["display_name"].endswith("（159915.SZ）") for item in data["rows"])
 
 
 def test_system_status_reports_self_check(tmp_path) -> None:

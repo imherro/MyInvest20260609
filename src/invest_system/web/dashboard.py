@@ -53,6 +53,7 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
             "target_pool": _target_pool_state(target_pool),
             "portfolio": _portfolio_state(portfolio, market),
             "portfolio_history": build_portfolio_history_state(repo, as_of)["data"],
+            "actual_vs_shadow": build_actual_vs_shadow_state(repo, as_of)["data"],
             "research": _research_state(research_items),
             "risk": _risk_state(risk),
             "comparison": _comparison_state(comparison),
@@ -62,6 +63,61 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
                 "trace": replay.get("trace", {}),
                 "event_count": len(timeline),
             },
+        },
+    }
+    assert_no_sensitive_content(state)
+    return state
+
+
+def build_actual_vs_shadow_state(repo: SQLiteRepository, as_of: str | None = None) -> dict[str, Any]:
+    repo.init_db()
+    replay = repo.replay_state(as_of)
+    portfolio = replay.get("portfolio")
+    timeline = repo.timeline(as_of)
+    qmt_event = _latest_qmt_position_event(timeline)
+    shadow_weights = portfolio.get("holdings_weight", {}) if portfolio else {}
+    shadow_cash_weight = float(portfolio.get("cash_weight", 0)) if portfolio else 0.0
+    actual_weights = _qmt_holdings_weight(qmt_event["payload"]) if qmt_event else {}
+    actual_has_ratio = bool(actual_weights)
+    symbols = sorted(set(shadow_weights) | set(actual_weights) | _qmt_symbols(qmt_event))
+    rows = [
+        _actual_vs_shadow_row(symbol, actual_weights, shadow_weights, actual_has_ratio)
+        for symbol in symbols
+    ]
+    if actual_has_ratio or shadow_cash_weight > 0:
+        rows.append(
+            _cash_actual_vs_shadow_row(
+                actual_weights=actual_weights,
+                shadow_cash_weight=shadow_cash_weight,
+                actual_has_ratio=actual_has_ratio,
+            )
+        )
+    data_gap = None
+    if qmt_event is None:
+        data_gap = "qmt_position_import_missing"
+    elif not actual_has_ratio:
+        data_gap = "qmt_holding_weight_missing"
+    state = {
+        "status": "ok",
+        "data": {
+            "schema_version": "1.0",
+            "as_of": as_of,
+            "available": portfolio is not None,
+            "source_status": "actual_ratio_available" if actual_has_ratio else "actual_ratio_missing",
+            "source_event_id": qmt_event["object_id"] if qmt_event else None,
+            "source_basis_date": qmt_event["basis_date"] if qmt_event else None,
+            "shadow_portfolio_id": portfolio["portfolio_id"] if portfolio else None,
+            "actual_equity_weight": _equity_weight(actual_weights) if actual_has_ratio else None,
+            "shadow_equity_weight": _equity_weight(shadow_weights) if portfolio else None,
+            "active_exposure_pp": (
+                round((_equity_weight(shadow_weights) - _equity_weight(actual_weights)) * 100, 4)
+                if actual_has_ratio and portfolio
+                else None
+            ),
+            "max_abs_delta_pp": _max_abs_delta(rows),
+            "rows": rows,
+            "data_gaps": [data_gap] if data_gap else [],
+            "notes": _actual_vs_shadow_notes(qmt_event, actual_has_ratio),
         },
     }
     assert_no_sensitive_content(state)
@@ -271,6 +327,94 @@ def _portfolio_rebalance_history_item(event: dict[str, Any], trade: dict[str, An
         "reason": trade["reason"],
         "is_paper": trade["is_paper"],
     }
+
+
+def _latest_qmt_position_event(timeline: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for event in reversed(timeline):
+        if event["type"] == "market_event" and event["payload"].get("event_subtype") == "qmt_position_import":
+            return event
+    return None
+
+
+def _qmt_holdings_weight(payload: dict[str, Any]) -> dict[str, float]:
+    raw = payload.get("holdings_weight", {})
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        str(symbol): round(float(weight), 6)
+        for symbol, weight in raw.items()
+        if float(weight) >= 0
+    }
+
+
+def _qmt_symbols(event: dict[str, Any] | None) -> set[str]:
+    if event is None:
+        return set()
+    return {str(symbol) for symbol in event["payload"].get("symbols", [])}
+
+
+def _actual_vs_shadow_row(
+    symbol: str,
+    actual_weights: dict[str, float],
+    shadow_weights: dict[str, float],
+    actual_has_ratio: bool,
+) -> dict[str, Any]:
+    actual_weight = actual_weights.get(symbol) if actual_has_ratio else None
+    shadow_weight = round(float(shadow_weights.get(symbol, 0)), 6)
+    delta_pp = round((shadow_weight - float(actual_weight)) * 100, 4) if actual_weight is not None else None
+    return {
+        "symbol": symbol,
+        "display_name": display_symbol(symbol),
+        "actual_weight": actual_weight,
+        "shadow_weight": shadow_weight,
+        "shadow_minus_actual_pp": delta_pp,
+        "status": _actual_vs_shadow_status(actual_weight, shadow_weight, delta_pp),
+    }
+
+
+def _cash_actual_vs_shadow_row(
+    *,
+    actual_weights: dict[str, float],
+    shadow_cash_weight: float,
+    actual_has_ratio: bool,
+) -> dict[str, Any]:
+    actual_cash = round(max(0.0, 1 - sum(actual_weights.values())), 6) if actual_has_ratio else None
+    delta_pp = round((shadow_cash_weight - float(actual_cash)) * 100, 4) if actual_cash is not None else None
+    return {
+        "symbol": "CASH",
+        "display_name": "现金/未配置",
+        "actual_weight": actual_cash,
+        "shadow_weight": round(shadow_cash_weight, 6),
+        "shadow_minus_actual_pp": delta_pp,
+        "status": _actual_vs_shadow_status(actual_cash, shadow_cash_weight, delta_pp),
+    }
+
+
+def _actual_vs_shadow_status(actual_weight: float | None, shadow_weight: float, delta_pp: float | None) -> str:
+    if actual_weight is None:
+        return "actual_ratio_missing"
+    if abs(delta_pp or 0) < 0.01:
+        return "aligned"
+    if shadow_weight > actual_weight:
+        return "shadow_overweight"
+    return "shadow_underweight"
+
+
+def _actual_vs_shadow_notes(qmt_event: dict[str, Any] | None, actual_has_ratio: bool) -> list[str]:
+    if qmt_event is None:
+        return ["No QMT read-only holding import event is available for actual-weight comparison."]
+    if not actual_has_ratio:
+        return ["The latest QMT holding import lists symbols but does not include holding ratios."]
+    return ["Actual weights come from the latest QMT read-only ratio import; comparison is display-only."]
+
+
+def _max_abs_delta(rows: list[dict[str, Any]]) -> float | None:
+    values = [
+        abs(float(row["shadow_minus_actual_pp"]))
+        for row in rows
+        if row["shadow_minus_actual_pp"] is not None
+    ]
+    return round(max(values), 4) if values else None
 
 
 def _research_state(research_items: list[dict[str, Any]]) -> dict[str, Any]:
@@ -623,6 +767,10 @@ def _percent(value: float | int) -> str:
 
 def _bar_width(value: float | int) -> str:
     return f"{max(0, min(100, float(value) * 100)):.2f}"
+
+
+def _equity_weight(weights: dict[str, float]) -> float:
+    return round(sum(weight for symbol, weight in weights.items() if _is_equity_symbol(symbol)), 6)
 
 
 def _is_equity_symbol(symbol: str) -> bool:
