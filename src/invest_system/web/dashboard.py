@@ -9,6 +9,7 @@ from invest_system.repositories import SQLiteRepository
 from invest_system.risk import compute_risk_state
 from invest_system.self_check import system_status
 from invest_system.validators.policies import assert_no_sensitive_content
+from invest_system.web.symbol_display import display_symbol, symbol_name
 
 
 VIEW_ROUTES = [
@@ -131,6 +132,7 @@ def _target_pool_state(target_pool: dict[str, Any] | None) -> dict[str, Any]:
         {
             "pool_type": entry["pool_type"],
             "symbols": entry["symbols"],
+            "display_symbols": [display_symbol(symbol) for symbol in entry["symbols"]],
             "count": len(entry["symbols"]),
         }
         for entry in target_pool["entries"]
@@ -147,7 +149,12 @@ def _portfolio_state(portfolio: dict[str, Any] | None, market: dict[str, Any] | 
     if portfolio is None:
         return {"available": False, "holdings": []}
     holdings = [
-        {"symbol": symbol, "weight": weight}
+        {
+            "symbol": symbol,
+            "name": symbol_name(symbol),
+            "display_name": display_symbol(symbol),
+            "weight": weight,
+        }
         for symbol, weight in sorted(portfolio["holdings_weight"].items())
     ]
     equity_weight = round(sum(item["weight"] for item in holdings if _is_equity_symbol(item["symbol"])), 6)
@@ -341,7 +348,7 @@ def _portfolio_section(data: dict[str, Any]) -> str:
         return "<section><h2>Portfolio</h2><p class=\"muted\">Portfolio unavailable.</p></section>"
     rows = "".join(
         "<tr>"
-        f"<td>{html.escape(item['symbol'])}</td>"
+        f"<td>{html.escape(item['display_name'])}</td>"
         f"<td>{_percent(item['weight'])}</td>"
         f"<td><div class=\"bar\"><div class=\"fill\" style=\"width:{_bar_width(item['weight'])}%\"></div></div></td>"
         "</tr>"
@@ -360,7 +367,7 @@ def _portfolio_section(data: dict[str, Any]) -> str:
     {_metric('Target Range', target)}
     {_metric('Deviation', deviation)}
   </div>
-  <table><thead><tr><th>Symbol</th><th>Weight</th><th>Allocation</th></tr></thead><tbody>{rows}</tbody></table>
+  <table><thead><tr><th>Holding</th><th>Weight</th><th>Allocation</th></tr></thead><tbody>{rows}</tbody></table>
 </section>
 """
 

@@ -4,6 +4,7 @@ import html
 from typing import Any
 
 from invest_system.validators.policies import assert_no_sensitive_content
+from invest_system.web.symbol_display import display_symbol
 
 
 ENDPOINT_LABELS = {
@@ -99,7 +100,7 @@ def _theme_interpretation(card: dict[str, Any]) -> dict[str, Any]:
         "title": theme,
         "detail": clarity_text,
         "strength": "暂无" if card.get("strength_score") is None else f"{card['strength_score']:.0f}/100",
-        "leaders": "、".join(leaders) if leaders else "暂无",
+        "leaders": "、".join(display_symbol(symbol) for symbol in leaders) if leaders else "暂无",
     }
 
 

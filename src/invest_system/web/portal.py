@@ -9,6 +9,7 @@ from invest_system.guidance import compute_guidance_state
 from invest_system.repositories import SQLiteRepository
 from invest_system.validators.policies import assert_no_sensitive_content
 from invest_system.web.dashboard import build_dashboard_state
+from invest_system.web.symbol_display import display_symbol
 from invest_system.workflow import build_daily_workflow_state
 
 
@@ -593,7 +594,7 @@ def _market_content(data: dict[str, Any]) -> str:
     if not market["available"]:
         return _empty_section("市场状态", "市场快照暂不可用，请先查看系统状态。")
     pool_rows = [
-        [entry["pool_type"], "、".join(entry["symbols"]), str(entry["count"])]
+        [entry["pool_type"], "、".join(entry.get("display_symbols", entry["symbols"])), str(entry["count"])]
         for entry in target_pool["entries"]
     ]
     return f"""
@@ -740,7 +741,7 @@ def _decision_content(data: dict[str, Any]) -> str:
     gate_rows = [[key, _workflow_status_label(value)] for key, value in proposal["gate_summary"].items()]
     preview_rows = [
         [
-            item["symbol"],
+            display_symbol(item["symbol"]),
             _endpoint_action_label(item["proposal"]),
             _percent(item["current_weight"]),
             _percent(item["target_weight"]),
@@ -803,7 +804,7 @@ def _portfolio_content(data: dict[str, Any]) -> str:
         target = f"{_percent(market['equity_min'])} 到 {_percent(market['equity_max'])}"
     rows = [
         [
-            item["symbol"],
+            item["display_name"],
             _percent(item["weight"]),
             f"<div class=\"bar\"><div class=\"fill\" style=\"width:{_bar_width(item['weight'])}%\"></div></div>",
         ]
@@ -852,7 +853,7 @@ def _research_content(data: dict[str, Any]) -> str:
     ]
     queue = guidance["research_first"]["queue"]
     queue_rows = [
-        [item["symbol"], _research_reason_label(item["reason"]), item["source"]]
+        [display_symbol(item["symbol"]), _research_reason_label(item["reason"]), item["source"]]
         for item in queue
     ]
     if not queue_rows:
