@@ -161,12 +161,13 @@ def _decision_preview(
     if not symbols:
         symbols = ["portfolio_review"]
     decision_actions = _decision_actions_by_symbol(decision)
+    research_by_symbol = _research_by_symbol(research_items)
     research_first_symbols = _research_first_symbols(guidance, research_items)
     current_weights = portfolio.get("holdings_weight", {}) if portfolio else {}
     preview = []
     for symbol in symbols[:12]:
         action = decision_actions.get(symbol)
-        gates = _symbol_gates(symbol, action, research_first_symbols, gate_summary)
+        gates = _symbol_gates(symbol, action, research_by_symbol.get(symbol), research_first_symbols, gate_summary)
         current_weight = float(current_weights.get(symbol, 0))
         target_weight = _target_weight(symbol, action, current_weight, gates, recommended_action)
         proposal = _symbol_proposal(recommended_action, gates, current_weight, target_weight)
@@ -192,6 +193,9 @@ def _candidate_symbols(
     symbols: list[str] = []
     for item in research_items:
         payload = item.get("payload", {})
+        symbol = payload.get("symbol") or item.get("symbol")
+        if symbol:
+            symbols.append(symbol)
         for candidate in payload.get("action_candidates", []):
             symbol = candidate.get("symbol")
             if symbol:
@@ -221,6 +225,15 @@ def _research_first_symbols(guidance: dict[str, Any], research_items: list[dict[
     return symbols
 
 
+def _research_by_symbol(research_items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for item in research_items:
+        symbol = item.get("payload", {}).get("symbol") or item.get("symbol")
+        if symbol:
+            result[symbol] = item
+    return result
+
+
 def _decision_actions_by_symbol(decision: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
     if not decision:
         return {}
@@ -230,6 +243,7 @@ def _decision_actions_by_symbol(decision: dict[str, Any] | None) -> dict[str, di
 def _symbol_gates(
     symbol: str,
     action: dict[str, Any] | None,
+    research: dict[str, Any] | None,
     research_first_symbols: set[str],
     gate_summary: dict[str, str],
 ) -> dict[str, Any]:
@@ -239,6 +253,11 @@ def _symbol_gates(
         valuation = gates["valuation"]
         liquidity = gates["liquidity"]
         research_first = bool(gates["research_first"])
+    elif research:
+        profile = _research_gate_value(research, "profile")
+        valuation = _research_gate_value(research, "valuation")
+        liquidity = _research_gate_value(research, "liquidity")
+        research_first = _research_requires_first(research)
     else:
         profile = "unknown"
         valuation = "unknown"
@@ -259,6 +278,39 @@ def _symbol_gates(
         "research_first": research_first,
         "risk_boundary": gate_summary["risk_boundary"],
     }
+
+
+def _research_gate_value(research: dict[str, Any], gate: str) -> str:
+    text = _research_evidence_text(research)
+    pass_markers = [
+        f"{gate} gate passes",
+        f"{gate} evidence pass",
+        f"{gate} evidence passes",
+    ]
+    block_markers = [
+        f"{gate} gate fails",
+        f"{gate} fails",
+        f"{gate} is blocked",
+        f"{gate} gate remains blocked",
+    ]
+    if any(marker in text for marker in pass_markers):
+        return "pass"
+    if any(marker in text for marker in block_markers):
+        return "blocked"
+    if research.get("actionability") in {"observe", "rebalance_candidate"} and research.get("status") != "blocked":
+        return "pass"
+    return "blocked" if _research_requires_first(research) else "unknown"
+
+
+def _research_requires_first(research: dict[str, Any]) -> bool:
+    return research.get("actionability") == "research_first" or research.get("status") == "blocked"
+
+
+def _research_evidence_text(research: dict[str, Any]) -> str:
+    parts = [research.get("executive_summary", "")]
+    parts.extend(research.get("key_facts", []))
+    parts.extend(research.get("reasoning", []))
+    return " ".join(str(part).lower() for part in parts)
 
 
 def _target_weight(
@@ -283,8 +335,12 @@ def _symbol_proposal(
 ) -> str:
     if gates["research_first"] or any(gates[name] != "pass" for name in ("profile", "valuation", "liquidity")):
         return "research_first"
+    if gates["risk_boundary"] == "block":
+        return "no_action"
     if recommended_action == "rebalance_candidate" and abs(target_weight - current_weight) >= 0.0001:
         return "rebalance_candidate"
+    if recommended_action == "research_first":
+        return "observe"
     if recommended_action in PROPOSAL_ACTIONS:
         return recommended_action if recommended_action != "rebalance_candidate" else "observe"
     return "observe"
@@ -299,6 +355,8 @@ def _symbol_rationale(
     rationale = []
     if gates["research_first"]:
         rationale.append(f"{symbol} remains blocked by ResearchFirst or incomplete profile gates.")
+    elif gates["risk_boundary"] == "block":
+        rationale.append(f"{symbol} has passed symbol gates, but portfolio risk boundary is blocked.")
     elif proposal == "rebalance_candidate":
         rationale.append(f"{symbol} has passed profile, valuation, and liquidity gates in the current decision context.")
     elif proposal == "observe":
@@ -496,8 +554,16 @@ def _latest_research_by_module(timeline: list[dict[str, Any]]) -> list[dict[str,
     for event in timeline:
         if event["type"] == "research":
             payload = event["payload"]
-            latest_by_module[payload.get("module", "unknown")] = payload
+            latest_by_module[_research_current_key(payload)] = payload
     return list(latest_by_module.values())
+
+
+def _research_current_key(payload: dict[str, Any]) -> str:
+    module = payload.get("module", "unknown")
+    symbol = payload.get("payload", {}).get("symbol") or payload.get("symbol")
+    if symbol:
+        return f"{module}:{symbol}"
+    return module
 
 
 def _research_source_id(research_items: list[dict[str, Any]]) -> str | None:

@@ -36,10 +36,15 @@ def test_decision_proposal_is_schema_valid_and_read_only(tmp_path) -> None:
     before_counts = repo.table_counts()
 
     proposal = build_decision_proposal(repo, "2026-06-15")
+    preview_by_symbol = {item["symbol"]: item for item in proposal["decision_preview"]}
 
     assert proposal["status"] == "ok"
     assert proposal["recommended_action"] in {"observe", "research_first", "rebalance_candidate", "no_action"}
     assert proposal["decision_preview"]
+    assert preview_by_symbol["510300.SH"]["proposal"] == "no_action"
+    assert preview_by_symbol["159915.SZ"]["proposal"] == "no_action"
+    assert preview_by_symbol["511360.SH"]["proposal"] == "no_action"
+    assert preview_by_symbol["159999.SZ"]["proposal"] == "research_first"
     assert proposal["explanation"]["why"]
     validate_or_raise(proposal, "decision_proposal.schema.json")
     assert repo.table_counts() == before_counts
@@ -61,6 +66,26 @@ def test_decision_explain_endpoint_returns_traceable_json(tmp_path) -> None:
     assert explain_response.json()["data"]["explanation"]["why"]
     _assert_no_forbidden_terms(proposal_response.json())
     _assert_no_forbidden_terms(explain_response.json())
+
+
+def test_symbol_research_snapshots_are_not_collapsed_by_module(tmp_path) -> None:
+    repo = SQLiteRepository(tmp_path / "decision_symbol_research.sqlite")
+    seed_multiday_repository(repo)
+    repo.append_research_snapshot(_symbol_research("301566.SZ", 0.7))
+    repo.append_research_snapshot(_symbol_research("688603.SH", 0.69))
+
+    proposal = build_decision_proposal(repo, "2026-06-15")
+    preview_by_symbol = {item["symbol"]: item for item in proposal["decision_preview"]}
+
+    assert {"301566.SZ", "688603.SH"}.issubset(preview_by_symbol)
+    assert preview_by_symbol["301566.SZ"]["proposal"] == "research_first"
+    assert preview_by_symbol["301566.SZ"]["gates"] == {
+        "profile": "pass",
+        "valuation": "blocked",
+        "liquidity": "pass",
+        "research_first": True,
+        "risk_boundary": "block",
+    }
 
 
 def test_decision_view_uses_portal_shell(tmp_path) -> None:
@@ -97,6 +122,51 @@ def _prepare_decision_repo(tmp_path) -> SQLiteRepository:
     market_data = append_market_snapshot_from_adapters(repo, basis_date="2026-06-15", source="mock")
     generate_p0c_research(repo, "2026-06-15", price_data=build_p0c_price_data_from_bundle(market_data["bundle"]))
     return repo
+
+
+def _symbol_research(symbol: str, confidence: float) -> dict[str, Any]:
+    return {
+        "schema_version": "1.0",
+        "snapshot_id": f"stock-valuation-2026-06-15-{symbol}-test",
+        "basis_date": "2026-06-15",
+        "generated_at": "2026-06-16T04:20:17Z",
+        "module": "stock_valuation",
+        "data_sources": ["test:fixture"],
+        "data_gaps": ["long_horizon_valuation_unavailable"],
+        "conflicts": [],
+        "executive_summary": f"{symbol} profile and liquidity pass, while valuation remains blocked.",
+        "key_facts": [
+            "Profile gate passes because identity is confirmed.",
+            "Liquidity gate passes because recent activity evidence is present.",
+            "Valuation gate fails because valuation pressure remains high.",
+        ],
+        "reasoning": [
+            "Profile gate passes.",
+            "Valuation gate fails.",
+            "Liquidity gate passes.",
+        ],
+        "risks": ["Valuation pressure remains unresolved."],
+        "conclusion_strength": "medium",
+        "actionability": "research_first",
+        "confidence": confidence,
+        "invalidation_conditions": ["A newer complete-day valuation record changes the gate."],
+        "next_review_date": "2026-06-23",
+        "must_not_do": ["Do not use this snapshot as external execution output."],
+        "required_human_review": True,
+        "status": "blocked",
+        "trace": {"fact_pack_id": f"test-{symbol}"},
+        "payload": {
+            "symbol": symbol,
+            "valuation_score": 20,
+            "fair_value_band_pct": {"low": -0.1, "mid": 0, "high": 0.1},
+            "observed_to_fair_value_ratio": 1.5,
+            "deviation": 0.5,
+            "risk_flag": "high",
+            "confidence": confidence,
+            "method": "test_fixture",
+            "rating": "Watch",
+        },
+    }
 
 
 def _assert_no_forbidden_terms(payload: Any) -> None:

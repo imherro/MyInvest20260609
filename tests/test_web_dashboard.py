@@ -10,6 +10,7 @@ from invest_system.golden import seed_multiday_repository
 from invest_system.repositories import SQLiteRepository
 from invest_system.research import generate_p0c_research
 from invest_system.web import create_app
+from invest_system.web.symbol_display import display_symbol
 
 
 FORBIDDEN_VIEW_TERMS = [
@@ -52,6 +53,11 @@ def test_dashboard_state_endpoint_returns_json_without_sensitive_fields(tmp_path
     assert payload["data"]["macro"]["available"] is True
     assert payload["data"]["report"]["available"] is True
     _assert_no_forbidden_terms(payload)
+
+
+def test_researched_stock_symbols_have_human_readable_names() -> None:
+    assert display_symbol("301566.SZ") == "达利凯普（301566.SZ）"
+    assert display_symbol("688603.SH") == "天承科技（688603.SH）"
 
 
 def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
