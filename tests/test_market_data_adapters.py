@@ -92,7 +92,7 @@ def test_market_data_bundle_builds_p0c_price_data_shape() -> None:
     assert price_data["stocks"]
     assert price_data["themes"][0]["leading_indicators"]
     assert "symbols" not in price_data["themes"][0]
-    assert price_data["leaders"]
+    assert "leaders" not in price_data
 
 
 def test_collect_market_data_cli_outputs_json_and_can_run_p0c(tmp_path) -> None:
@@ -117,7 +117,7 @@ def test_collect_market_data_cli_outputs_json_and_can_run_p0c(tmp_path) -> None:
 
     assert payload["status"] == "ok"
     assert payload["market_snapshot_id"] == "market-2026-06-15-mock-adapter"
-    assert len(payload["p0c_research"]["inserted"]) == 5
+    assert len(payload["p0c_research"]["inserted"]) == 4
     repo = SQLiteRepository(db_path)
     assert repo.table_counts()["market_snapshot"] == 1
-    assert repo.table_counts()["research_snapshot"] == 5
+    assert repo.table_counts()["research_snapshot"] == 4

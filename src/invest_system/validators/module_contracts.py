@@ -8,6 +8,10 @@ class ModuleContractViolation(ValueError):
     pass
 
 
+class ThemeValidationError(ModuleContractViolation):
+    pass
+
+
 SIGNAL_TYPES = ("liquidity", "valuation", "momentum", "structural", "risk_event")
 THEME_STATES = ("emerging", "strengthening", "dominant", "weakening", "exhausted")
 
@@ -81,9 +85,11 @@ def validate_no_cross_layer_leak(output: Any, layer: str) -> None:
     forbidden = _forbidden_keys(layer)
     for path, key, value in _walk(output):
         if key and _key_is_forbidden(layer, key, forbidden):
+            if layer == "theme":
+                raise ThemeValidationError(f"{path}: theme层禁止包含任何股票代码或股票字段")
             raise ModuleContractViolation(f"{path}: {layer} layer forbids {key}")
         if layer == "theme" and isinstance(value, str) and _A_SHARE_CODE.search(value):
-            raise ModuleContractViolation(f"{path}: theme layer forbids stock codes")
+            raise ThemeValidationError("theme层禁止包含任何股票代码")
         if layer == "market" and key and key.lower() == "symbol":
             raise ModuleContractViolation(f"{path}: market layer forbids symbol output")
 

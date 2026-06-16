@@ -7,7 +7,7 @@ import pytest
 from invest_system.demo import make_decision_record, make_research_snapshot, make_target_pool_snapshot
 from invest_system.repositories import SQLiteRepository
 from invest_system.research.importer import validate_research_import
-from invest_system.validators.module_contracts import ModuleContractViolation, validate_module_contract
+from invest_system.validators.module_contracts import ModuleContractViolation, ThemeValidationError, validate_module_contract
 from invest_system.validators.policies import PolicyViolation, assert_decision_policy, assert_target_pool_policy
 from invest_system.validators.schema_validator import SchemaValidationError, validate_or_raise
 
@@ -69,7 +69,7 @@ def test_theme_contract_rejects_stock_code_text() -> None:
     snapshot = _research_snapshot("theme_research", _theme_payload())
     snapshot["key_facts"] = ["Theme text must not leak 301566.SZ."]
 
-    with pytest.raises(ModuleContractViolation):
+    with pytest.raises(ThemeValidationError):
         validate_module_contract(snapshot)
 
 
@@ -83,6 +83,26 @@ def test_research_import_fails_closed_on_theme_contract_violation(tmp_path) -> N
     assert validation["status"] == "failed"
     assert validation["append_allowed"] is False
     assert any(item["check_id"] == "module_payload_schema" for item in validation["checks"])
+
+
+def test_research_import_rejects_legacy_leader_ranking_module(tmp_path) -> None:
+    repo = SQLiteRepository(tmp_path / "leader_ranking_gate.sqlite")
+    snapshot = _research_snapshot(
+        "leader_ranking",
+        {
+            "theme": "advanced_electronics_manufacturing_chain",
+            "rankings": [{"symbol": "301566.SZ", "score": 80, "reason": ["legacy mixed layer"]}],
+        },
+    )
+
+    validation = validate_research_import(repo, snapshot)
+
+    assert validation["status"] == "failed"
+    assert validation["append_allowed"] is False
+    assert any(
+        item["check_id"] == "module_payload_schema" and item["status"] == "failed"
+        for item in validation["checks"]
+    )
 
 
 def test_stock_research_first_gate_requires_blocked_status(tmp_path) -> None:

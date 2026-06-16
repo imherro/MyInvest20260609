@@ -175,7 +175,7 @@ def _collect_theme_evidence(pro: Any, basis_date: str) -> dict[str, Any]:
             }
         )
 
-    clusters.sort(key=lambda item: item["strength_score"], reverse=True)
+    clusters.sort(key=_theme_sort_key)
     if not clusters:
         data_gaps.append("theme_cluster_evidence_empty")
     return {"clusters": clusters[:3], "data_gaps": _dedupe_strings(data_gaps)}
@@ -390,7 +390,6 @@ def _snapshot_from_evidence(
             "tushare:daily",
             "tushare:ths_index",
             "tushare:ths_daily",
-            "tushare:ths_member",
             "tushare:sw_daily",
             "tushare:limit_list_d",
         ],
@@ -515,6 +514,33 @@ def _theme_state(score: float, continuity: str) -> str:
     if score >= 58:
         return "strengthening"
     return "weakening"
+
+
+def _theme_sort_key(cluster: dict[str, Any]) -> tuple[int, int, str]:
+    return (
+        _theme_state_rank(cluster.get("theme_state")),
+        _continuity_rank(cluster.get("continuity")),
+        str(cluster.get("name", "")),
+    )
+
+
+def _theme_state_rank(value: Any) -> int:
+    return {
+        "dominant": 0,
+        "strengthening": 1,
+        "emerging": 2,
+        "weakening": 3,
+        "exhausted": 4,
+    }.get(str(value), 5)
+
+
+def _continuity_rank(value: Any) -> int:
+    return {
+        "strong_continuation": 0,
+        "continuation_watch": 1,
+        "single_day_surge_watch": 2,
+        "blocked_by_data_gap": 3,
+    }.get(str(value), 4)
 
 
 def _signal_types(metrics: dict[str, Any], score: float) -> list[str]:

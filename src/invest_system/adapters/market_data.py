@@ -295,17 +295,6 @@ def build_p0c_price_data_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
                 "leading_indicators": ["positive-record ratio", "average return", "turnover proxy"],
             }
         ],
-        "leaders": {
-            theme_name: [
-                {
-                    "symbol": row["symbol"],
-                    "momentum": round(_bounded(0.5 + row["daily_return"] * 15, 0.05, 0.95), 4),
-                    "liquidity": round(_bounded(row["turnover_ratio"] * 30, 0.05, 0.95), 4),
-                    "valuation": round(_bounded(0.62 - row["daily_return"] * 3, 0.05, 0.95), 4),
-                }
-                for row in bundle["symbols"][:3]
-            ]
-        },
     }
 
 

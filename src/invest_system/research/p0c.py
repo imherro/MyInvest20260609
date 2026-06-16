@@ -35,28 +35,6 @@ DEFAULT_PRICE_DATA = {
             "leading_indicators": ["index breadth", "turnover resilience", "risk appetite"],
         }
     ],
-    "leaders": {
-        "broad_market_recovery": [
-            {
-                "symbol": "510300.SH",
-                "momentum": 0.58,
-                "liquidity": 0.92,
-                "valuation": 0.66,
-            },
-            {
-                "symbol": "159915.SZ",
-                "momentum": 0.64,
-                "liquidity": 0.86,
-                "valuation": 0.58,
-            },
-            {
-                "symbol": "002920.SZ",
-                "momentum": 0.54,
-                "liquidity": 0.62,
-                "valuation": 0.64,
-            },
-        ]
-    },
 }
 
 
@@ -77,7 +55,6 @@ def generate_p0c_research(
         _etf_valuation_snapshot(basis_date, fact_pack_id, market_id, data),
         _stock_valuation_snapshot(basis_date, fact_pack_id, market_id, data),
         _theme_research_snapshot(basis_date, fact_pack_id, market_id, data),
-        _leader_ranking_snapshot(basis_date, fact_pack_id, market_id, data),
         _review_score_snapshot(basis_date, fact_pack_id, market_id, decision, portfolio),
     ]
 
@@ -170,41 +147,6 @@ def _theme_research_snapshot(
         payload=payload,
     )
     return snapshot, "theme_research_payload.schema.json"
-
-
-def _leader_ranking_snapshot(
-    basis_date: str, fact_pack_id: str, market_id: str, data: dict[str, Any]
-) -> tuple[dict[str, Any], str]:
-    theme_name = data["themes"][0]["theme_id"]
-    rows = data["leaders"][theme_name]
-    rankings = []
-    for row in rows:
-        score = round((row["momentum"] * 0.4 + row["liquidity"] * 0.35 + row["valuation"] * 0.25) * 100, 4)
-        rankings.append(
-            {
-                "symbol": row["symbol"],
-                "score": score,
-                "reason": [
-                    "Score combines momentum, liquidity, and valuation signals.",
-                    "Ranking is research-only and does not create an execution order.",
-                ],
-            }
-        )
-    rankings.sort(key=lambda item: item["score"], reverse=True)
-    payload = {"theme": theme_name, "rankings": rankings}
-    snapshot = _research_snapshot(
-        basis_date=basis_date,
-        module="leader_ranking",
-        snapshot_id=f"leader-ranking-{basis_date}-{theme_name}",
-        fact_pack_id=fact_pack_id,
-        market_id=market_id,
-        summary=f"Leader ranking for {theme_name} is generated as JSON.",
-        key_facts=[f"Top ranked symbol is {rankings[0]['symbol']}."],
-        reasoning=["Ranking remains separate from decision and shadow execution layers."],
-        risks=["Ranking can drift if source signals are stale."],
-        payload=payload,
-    )
-    return snapshot, "leader_ranking_payload.schema.json"
 
 
 def _review_score_snapshot(

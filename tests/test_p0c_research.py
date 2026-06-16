@@ -18,14 +18,15 @@ def test_generate_p0c_research_appends_structured_snapshots(tmp_path) -> None:
     result = generate_p0c_research(repo, "2026-06-15")
 
     assert result["status"] == "ok"
-    assert len(result["inserted"]) == 5
+    assert len(result["inserted"]) == 4
     rows = repo.all_payload_rows()
     modules = {row["payload"]["module"] for row in rows if row["type"] == "research"}
-    assert {"etf_valuation", "stock_valuation", "theme_research", "leader_ranking", "review_score"} <= modules
+    assert {"etf_valuation", "stock_valuation", "theme_research", "review_score"} <= modules
+    assert "leader_ranking" not in modules
     latest = repo.latest_research()
     assert latest["module"] == "review_score"
     assert latest["payload"]["total_score"] >= 0
-    assert repo.table_counts()["event_log"] == 23
+    assert repo.table_counts()["event_log"] == 22
 
 
 def test_p0c_payload_schemas_are_valid(tmp_path) -> None:
@@ -37,7 +38,6 @@ def test_p0c_payload_schemas_are_valid(tmp_path) -> None:
         "etf_valuation": "etf_valuation_payload.schema.json",
         "stock_valuation": "stock_valuation_payload.schema.json",
         "theme_research": "theme_research_payload.schema.json",
-        "leader_ranking": "leader_ranking_payload.schema.json",
         "review_score": "review_score_payload.schema.json",
     }
 
@@ -94,4 +94,4 @@ def test_generate_p0c_research_cli_outputs_json(tmp_path) -> None:
     payload = json.loads(completed.stdout)
 
     assert payload["status"] == "ok"
-    assert len(payload["inserted"]) == 5
+    assert len(payload["inserted"]) == 4
