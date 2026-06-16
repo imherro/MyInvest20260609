@@ -55,18 +55,53 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
     db_path = _prepare_dashboard_db(tmp_path)
     app = create_app(db_path)
 
-    for path in ["/home_human", "/guidance/view", "/dashboard", "/overview", "/portfolio/view", "/research/view", "/report/view"]:
+    for path in [
+        "/app",
+        "/home_human",
+        "/guidance/view",
+        "/dashboard",
+        "/overview",
+        "/market/view",
+        "/risk/view",
+        "/macro/view",
+        "/comparison/view",
+        "/portfolio/view",
+        "/research/view",
+        "/report/view",
+        "/system/view",
+        "/usability/view",
+    ]:
         response = _get(app, f"{path}?as_of=2026-06-15")
         body = response.text
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/html")
         assert "MyInvest" in body
+        assert "data-page-shell=\"portal\"" in body
+        assert "统一页脚" in body
+        assert "/app" in body
+        assert "/guidance/view" in body
         if path == "/dashboard":
-            assert "Risk" in body
-            assert "Comparison" in body
-            assert "Macro" in body
+            assert "风险" in body
+            assert "对比" in body
+            assert "宏观" in body
         for forbidden in FORBIDDEN_VIEW_TERMS:
             assert forbidden not in body
+
+
+def test_usability_state_describes_human_entrypoints(tmp_path) -> None:
+    db_path = _prepare_dashboard_db(tmp_path)
+    app = create_app(db_path)
+
+    response = _get(app, "/usability/state?as_of=2026-06-15")
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert payload["status"] == "ok"
+    assert payload["data"]["primary_home"] == "/app"
+    assert "/usability/view" in payload["data"]["feature_entrypoints"]
+    assert all(item["status"] == "pass" for item in payload["data"]["checks"])
+    _assert_no_forbidden_terms(payload)
 
 
 def _prepare_dashboard_db(tmp_path) -> str:

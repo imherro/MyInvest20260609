@@ -12,8 +12,9 @@ The delivered MVP supports:
 - Shadow portfolio paper simulation
 - Multi-day replay by `basis_date`
 - JSON-only read APIs
-- Read-only HTML dashboard and human-entry views
+- Read-only HTML B/S portal and human-entry views
 - Read-only investment guidance boundary layer
+- Read-only usability check layer
 - JSON-only CLI validation and append workflows
 
 ## Hard Boundaries
@@ -151,6 +152,7 @@ Read-only JSON endpoints:
 - `GET /home`
 - `GET /entry/home_state`
 - `GET /guidance/state`
+- `GET /usability/state`
 - `GET /market/latest`
 - `GET /research/latest`
 - `GET /target-pool/latest`
@@ -173,15 +175,23 @@ HTML docs are intentionally disabled.
 
 Read-only view endpoints:
 
+- `GET /app`
 - `GET /home_human`
 - `GET /guidance/view`
 - `GET /dashboard`
 - `GET /overview`
+- `GET /market/view`
+- `GET /risk/view`
+- `GET /macro/view`
+- `GET /comparison/view`
 - `GET /portfolio/view`
 - `GET /research/view`
 - `GET /report/view`
+- `GET /system/view`
+- `GET /usability/view`
 
 View endpoints are presentation only. They must not write to SQLite, change replay, expose trading controls, or display account IDs, amounts, shares, order IDs, fill IDs, trade amounts, or profit amounts.
+The primary natural-person browser entry is `/app`. Main view endpoints share the same header, footer, module navigation, and read-only boundary copy.
 
 ## Replay Rule
 
@@ -251,27 +261,39 @@ Report generation rules:
 - reports must not change replay, shadow execution, or `event_log`
 - reports must remain ratio-only and must not include account IDs, amounts, shares, orders, fills, or local absolute paths
 
-## Web Dashboard Contract
+## Web Portal Contract
 
-The P1 dashboard reads from SQLite and JSON state only.
+The P1 B/S portal reads from SQLite and JSON state only.
 
-Dashboard JSON:
+Portal JSON:
 
 - `GET /system/dashboard_state`
+- `GET /usability/state`
 
-Dashboard views:
+Portal views:
 
+- `/app`
 - `/home_human`
 - `/guidance/view`
 - `/dashboard`
 - `/overview`
+- `/market/view`
+- `/risk/view`
+- `/macro/view`
+- `/comparison/view`
 - `/portfolio/view`
 - `/research/view`
 - `/report/view`
+- `/system/view`
+- `/usability/view`
 
-Dashboard rules:
+Portal rules:
 
 - read-only presentation only
+- unified header and footer for main pages
+- `/app` is the natural-person entrypoint
+- feature entrances must be visible without knowing raw JSON paths
+- usability checks must be available at `/usability/state` and `/usability/view`
 - no database writes
 - no trading forms or order controls
 - no replay, shadow engine, or `event_log` changes
@@ -289,6 +311,7 @@ Entry JSON APIs:
 Entry human view:
 
 - `GET /home_human`
+- `GET /app`
 
 Entry input sources:
 
@@ -311,7 +334,7 @@ Entry output includes:
 Entry rules:
 
 - JSON APIs output JSON only
-- `/home_human` is a derived HTML view of the `/home` state
+- `/home_human` and `/app` are derived HTML views of the `/home` state
 - read-only computation only
 - no SQLite writes
 - no trading or execution output
@@ -361,6 +384,38 @@ Guidance rules:
 - no replay, shadow engine, risk engine, macro engine, comparison system, research system, or `event_log` changes
 - no sensitive account, amount, share, order, fill, trade amount, profit amount, or local absolute path exposure
 - ratio-only policy values only
+
+## Usability Layer Contract
+
+The usability layer verifies that the browser portal remains understandable for a natural person.
+
+Usability JSON:
+
+- `GET /usability/state`
+
+Usability view:
+
+- `GET /usability/view`
+
+Usability output includes:
+
+- primary home endpoint
+- feature entrypoints
+- shared header and footer checks
+- next-step guidance visibility
+- guidance boundary visibility
+- JSON source availability
+- read-only boundary status
+
+Usability rules:
+
+- JSON endpoint output remains JSON only
+- view endpoint is derived HTML only
+- read-only computation only
+- no SQLite writes
+- no external execution
+- no replay, shadow engine, risk engine, macro engine, comparison system, research system, or `event_log` changes
+- no sensitive account, amount, share, order, fill, trade amount, profit amount, or local absolute path exposure
 
 ## Risk Monitoring Contract
 

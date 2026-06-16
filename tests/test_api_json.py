@@ -19,6 +19,7 @@ def test_required_api_endpoints_return_json(tmp_path) -> None:
         "/home",
         "/entry/home_state",
         "/guidance/state",
+        "/usability/state",
         "/research/latest",
         "/market/latest",
         "/target-pool/latest",
@@ -41,6 +42,7 @@ def test_required_api_endpoints_return_json(tmp_path) -> None:
         assert response.json()["status"] == "ok"
 
     assert _get(app, "/").json()["data"]["json_only"] is True
+    assert _get(app, "/").json()["data"]["primary_human_entry"] == "/app"
 
 
 def test_fastapi_html_docs_are_disabled(tmp_path) -> None:

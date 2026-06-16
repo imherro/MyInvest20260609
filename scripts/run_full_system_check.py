@@ -30,6 +30,7 @@ API_ENDPOINTS = [
     "/home",
     "/entry/home_state",
     "/guidance/state",
+    "/usability/state",
     "/market/latest",
     "/research/latest",
     "/target-pool/latest",
@@ -47,13 +48,20 @@ API_ENDPOINTS = [
     "/system/status",
 ]
 VIEW_ENDPOINTS = [
+    "/app",
     "/home_human",
     "/guidance/view",
     "/dashboard",
     "/overview",
+    "/market/view",
+    "/risk/view",
+    "/macro/view",
+    "/comparison/view",
     "/portfolio/view",
     "/research/view",
     "/report/view",
+    "/system/view",
+    "/usability/view",
 ]
 FORBIDDEN_VIEW_TERMS = [
     "account_id",

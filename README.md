@@ -22,9 +22,11 @@ Open:
 
 ```text
 http://127.0.0.1:8008/
+http://127.0.0.1:8008/app
 http://127.0.0.1:8008/home
 http://127.0.0.1:8008/home_human
 http://127.0.0.1:8008/guidance/view
+http://127.0.0.1:8008/usability/view
 http://127.0.0.1:8008/system/status
 http://127.0.0.1:8008/timeline/replay
 http://127.0.0.1:8008/dashboard
@@ -36,6 +38,7 @@ http://127.0.0.1:8008/dashboard
 - `GET /home`
 - `GET /entry/home_state`
 - `GET /guidance/state`
+- `GET /usability/state`
 - `GET /market/latest`
 - `GET /research/latest`
 - `GET /target-pool/latest`
@@ -56,15 +59,22 @@ API responses are JSON. Read-only dashboard pages are view-layer HTML. FastAPI H
 
 Read-only view endpoints:
 
+- `GET /app`
 - `GET /home_human`
 - `GET /guidance/view`
 - `GET /dashboard`
 - `GET /overview`
+- `GET /market/view`
+- `GET /risk/view`
+- `GET /macro/view`
+- `GET /comparison/view`
 - `GET /portfolio/view`
 - `GET /research/view`
 - `GET /report/view`
+- `GET /system/view`
+- `GET /usability/view`
 
-View endpoints never write data and do not expose trading controls. `/home_human` renders the existing `/home` state into a plain-language entry page for human review.
+View endpoints never write data and do not expose trading controls. `/app` is the unified natural-person browser entry with shared header, footer, feature entrances, next-step guidance, and usability checks. `/home_human` remains as a compatible human entry route and renders through the same portal shell.
 
 ## Validation
 
@@ -152,17 +162,22 @@ Reports are derived views. They are generated from `research_snapshot`, `decisio
 
 ## Web Dashboard
 
-P1 read-only dashboard pages include:
+P1 read-only B/S portal pages include:
 
-- overview
-- comparison
-- macro
-- portfolio
-- research
+- unified home
+- today's action boundary
+- market
 - risk
+- macro
+- comparison
+- shadow portfolio
+- research
 - report preview
+- system status
+- usability checks
 
 The shared JSON state is available at `GET /system/dashboard_state`. Pages render from SQLite and JSON state only, do not write to the database, and do not include trade controls.
+The primary browser entry is `GET /app`. All main portal pages use a shared header and footer so a non-technical user can move between modules without remembering raw API paths.
 
 ## Entry Layer
 
@@ -178,6 +193,7 @@ P1 entry layer JSON APIs are read-only and JSON-only. They compute:
 Entry APIs are `GET /home` and `GET /entry/home_state`. They derive guidance from existing dashboard, risk, macro, comparison, portfolio, and research state without writing to SQLite or changing core replay behavior.
 
 The human entry view is `GET /home_human`. It is a derived HTML presentation of the same `/home` state. It does not add analysis logic, write SQLite, change replay, or create execution output.
+The B/S portal uses the same entry state and exposes it at `GET /app` with feature entrances and a recommended-use flow.
 
 ## Guidance Layer
 
@@ -197,6 +213,15 @@ The layer checks:
 - paper-only execution boundary
 
 It does not place orders, write SQLite, change replay, change the shadow engine, or produce external execution instructions.
+
+## Usability Layer
+
+The usability layer checks whether the browser system is usable by a natural person.
+
+- `GET /usability/state` returns stable JSON.
+- `GET /usability/view` renders the same checks in the unified portal shell.
+
+It checks the primary home, shared header, shared footer, visible feature entrances, next-step guidance, guidance boundary visibility, JSON source availability, and read-only boundary.
 
 ## Risk Monitoring
 

@@ -8,13 +8,13 @@ from fastapi.responses import HTMLResponse
 
 from invest_system.comparison import compute_comparison_history, compute_comparison_state
 from invest_system.entry import build_home_state
-from invest_system.entry.human import render_home_human_page
-from invest_system.guidance import compute_guidance_state, render_guidance_page
+from invest_system.guidance import compute_guidance_state
 from invest_system.macro import compute_macro_history, compute_macro_state, compute_model_consensus
 from invest_system.repositories import DEFAULT_DB_PATH, SQLiteRepository
 from invest_system.risk import compute_risk_history, compute_risk_state
 from invest_system.self_check import system_status
-from invest_system.web.dashboard import build_dashboard_state, render_dashboard_page
+from invest_system.web.dashboard import build_dashboard_state
+from invest_system.web.portal import build_portal_state, build_usability_state, render_portal_page
 
 
 def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
@@ -34,10 +34,12 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
             "data": {
                 "service": "MyInvest JSON API",
                 "json_only": True,
+                "primary_human_entry": "/app",
                 "endpoints": [
                     "/home",
                     "/entry/home_state",
                     "/guidance/state",
+                    "/usability/state",
                     "/research/latest",
                     "/market/latest",
                     "/target-pool/latest",
@@ -55,13 +57,20 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/system/status",
                 ],
                 "view_endpoints": [
+                    "/app",
                     "/home_human",
                     "/guidance/view",
                     "/dashboard",
                     "/overview",
+                    "/market/view",
+                    "/risk/view",
+                    "/macro/view",
+                    "/comparison/view",
                     "/portfolio/view",
                     "/research/view",
                     "/report/view",
+                    "/system/view",
+                    "/usability/view",
                 ],
             },
         }
@@ -76,7 +85,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
 
     @app.get("/home_human", response_class=HTMLResponse)
     def home_human_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
-        return HTMLResponse(render_home_human_page(build_home_state(repo, as_of)))
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "entry"))
 
     @app.get("/guidance/state")
     def guidance_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
@@ -84,7 +93,11 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
 
     @app.get("/guidance/view", response_class=HTMLResponse)
     def guidance_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
-        return HTMLResponse(render_guidance_page(compute_guidance_state(repo, as_of)))
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "guidance"))
+
+    @app.get("/usability/state")
+    def usability_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return build_usability_state(repo, as_of)
 
     @app.get("/research/latest")
     def research_latest() -> dict[str, Any]:
@@ -157,25 +170,53 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     def dashboard_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
         return build_dashboard_state(repo, as_of)
 
+    @app.get("/app", response_class=HTMLResponse)
+    def app_home_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "home"))
+
     @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
-        return HTMLResponse(render_dashboard_page(build_dashboard_state(repo, as_of), "dashboard"))
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "dashboard"))
 
     @app.get("/overview", response_class=HTMLResponse)
     def overview_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
-        return HTMLResponse(render_dashboard_page(build_dashboard_state(repo, as_of), "overview"))
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "overview"))
+
+    @app.get("/market/view", response_class=HTMLResponse)
+    def market_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "market"))
+
+    @app.get("/risk/view", response_class=HTMLResponse)
+    def risk_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "risk"))
+
+    @app.get("/macro/view", response_class=HTMLResponse)
+    def macro_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "macro"))
+
+    @app.get("/comparison/view", response_class=HTMLResponse)
+    def comparison_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "comparison"))
 
     @app.get("/portfolio/view", response_class=HTMLResponse)
     def portfolio_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
-        return HTMLResponse(render_dashboard_page(build_dashboard_state(repo, as_of), "portfolio"))
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "portfolio"))
 
     @app.get("/research/view", response_class=HTMLResponse)
     def research_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
-        return HTMLResponse(render_dashboard_page(build_dashboard_state(repo, as_of), "research"))
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "research"))
 
     @app.get("/report/view", response_class=HTMLResponse)
     def report_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
-        return HTMLResponse(render_dashboard_page(build_dashboard_state(repo, as_of), "report"))
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "report"))
+
+    @app.get("/system/view", response_class=HTMLResponse)
+    def system_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "system"))
+
+    @app.get("/usability/view", response_class=HTMLResponse)
+    def usability_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "usability"))
 
     return app
 
