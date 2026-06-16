@@ -46,7 +46,7 @@ def test_dashboard_state_endpoint_returns_json_without_sensitive_fields(tmp_path
     assert payload["data"]["portfolio"]["equity_weight"] == 0.75
     assert payload["data"]["portfolio"]["holdings"][0]["display_name"].endswith("（159915.SZ）")
     assert payload["data"]["portfolio"]["holdings"][0]["name"] != "159915.SZ"
-    assert "华泰柏瑞沪深300交易型开放式指数证券投资基金（510300.SH）" in payload["data"]["target_pool"]["entries"][0]["display_symbols"]
+    assert "沪深300ETF华泰柏瑞（510300.SH）" in payload["data"]["target_pool"]["entries"][0]["display_symbols"]
     assert payload["data"]["research"]["available"] is True
     assert payload["data"]["risk"]["available"] is True
     assert payload["data"]["comparison"]["available"] is True
@@ -104,17 +104,17 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert 'href="/portfolio/view"' in body
             assert 'href="/portfolio/state"' not in body
         if path == "/portfolio/view":
-            assert "易方达创业板交易型开放式指数证券投资基金（159915.SZ）" in body
-            assert "华泰柏瑞沪深300交易型开放式指数证券投资基金（510300.SH）" in body
-            assert "海富通中证短融交易型开放式指数证券投资基金（511360.SH）" in body
+            assert "创业板ETF易方达（159915.SZ）" in body
+            assert "沪深300ETF华泰柏瑞（510300.SH）" in body
+            assert "短融ETF海富通（511360.SH）" in body
             assert ">159915.SZ<" not in body
         if path == "/market/view":
-            assert "永赢中证500交易型开放式指数证券投资基金（退市）（159999.SZ）" in body
-            assert "华夏上证科创板50成份交易型开放式指数证券投资基金（588000.SH）" in body
+            assert "永赢中证500ETF（退市）（159999.SZ）" in body
+            assert "科创50ETF华夏（588000.SH）" in body
         if path == "/research/view":
-            assert "永赢中证500交易型开放式指数证券投资基金（退市）（159999.SZ）" in body
+            assert "永赢中证500ETF（退市）（159999.SZ）" in body
         if path == "/decision/view":
-            assert "易方达创业板交易型开放式指数证券投资基金（159915.SZ）" in body
+            assert "创业板ETF易方达（159915.SZ）" in body
         for forbidden in FORBIDDEN_VIEW_TERMS:
             assert forbidden not in body
 
