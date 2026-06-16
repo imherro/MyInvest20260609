@@ -18,6 +18,7 @@ def test_required_api_endpoints_return_json(tmp_path) -> None:
         "/",
         "/home",
         "/entry/home_state",
+        "/workflow/daily/state",
         "/guidance/state",
         "/usability/state",
         "/research/latest",

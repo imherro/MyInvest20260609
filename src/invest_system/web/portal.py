@@ -8,10 +8,12 @@ from invest_system.guidance import compute_guidance_state
 from invest_system.repositories import SQLiteRepository
 from invest_system.validators.policies import assert_no_sensitive_content
 from invest_system.web.dashboard import build_dashboard_state
+from invest_system.workflow import build_daily_workflow_state
 
 
 NAV_ITEMS = [
     {"label": "首页", "href": "/app", "page": "home"},
+    {"label": "每日", "href": "/workflow/daily/view", "page": "daily"},
     {"label": "今日边界", "href": "/guidance/view", "page": "guidance"},
     {"label": "市场", "href": "/market/view", "page": "market"},
     {"label": "风险", "href": "/risk/view", "page": "risk"},
@@ -28,6 +30,7 @@ PAGE_TITLES = {
     "entry": "自然人首页",
     "dashboard": "综合看板",
     "overview": "总览",
+    "daily": "每日研究工作流",
     "guidance": "今日行动边界",
     "market": "市场状态",
     "risk": "风险状态",
@@ -35,6 +38,7 @@ PAGE_TITLES = {
     "comparison": "对比分析",
     "portfolio": "影子组合",
     "research": "研究队列",
+    "research_import": "研究 JSON 导入",
     "report": "报告预览",
     "system": "系统状态",
     "usability": "易用性检查",
@@ -42,6 +46,7 @@ PAGE_TITLES = {
 
 USABILITY_ENDPOINTS = [
     "/app",
+    "/workflow/daily/view",
     "/guidance/view",
     "/market/view",
     "/risk/view",
@@ -49,6 +54,7 @@ USABILITY_ENDPOINTS = [
     "/comparison/view",
     "/portfolio/view",
     "/research/view",
+    "/research/import/view",
     "/report/view",
     "/system/view",
     "/usability/view",
@@ -59,6 +65,7 @@ def build_portal_state(repo: SQLiteRepository, as_of: str | None = None) -> dict
     dashboard = build_dashboard_state(repo, as_of)["data"]
     home = build_home_state(repo, as_of)
     guidance = compute_guidance_state(repo, as_of)
+    daily_workflow = build_daily_workflow_state(repo, as_of)
     usability = _build_usability_payload(dashboard, home, guidance)
     state = {
         "status": "ok",
@@ -69,6 +76,7 @@ def build_portal_state(repo: SQLiteRepository, as_of: str | None = None) -> dict
             "primary_home": "/app",
             "dashboard": dashboard,
             "home": home,
+            "daily_workflow": daily_workflow,
             "guidance": guidance,
             "usability": usability,
         },
@@ -92,6 +100,9 @@ def render_portal_page(state: dict[str, Any], page: str) -> str:
     elif page == "overview":
         content = _overview_content(data)
         active = "home"
+    elif page == "daily":
+        content = _daily_workflow_content(data)
+        active = "daily"
     elif page == "guidance":
         content = _guidance_content(data)
         active = "guidance"
@@ -112,6 +123,9 @@ def render_portal_page(state: dict[str, Any], page: str) -> str:
         active = "portfolio"
     elif page == "research":
         content = _research_content(data)
+        active = "research"
+    elif page == "research_import":
+        content = _research_import_content(data)
         active = "research"
     elif page == "report":
         content = _report_content(data)
@@ -163,6 +177,20 @@ def _build_usability_payload(
             "/app",
         ),
         _usability_check(
+            "daily_workflow_visible",
+            "pass",
+            "每日工作流",
+            "每日研究闭环有独立状态页和统一导航入口。",
+            "/workflow/daily/view",
+        ),
+        _usability_check(
+            "research_import_visible",
+            "pass",
+            "研究导入",
+            "研究 JSON 可先校验，再追加写入。",
+            "/research/import/view",
+        ),
+        _usability_check(
             "next_action_visible",
             "pass" if home.get("next_action", {}).get("recommended_endpoint") else "warn",
             "下一步引导",
@@ -200,6 +228,7 @@ def _build_usability_payload(
         "checks": checks,
         "human_flow": [
             {"step": "打开首页", "endpoint": "/app"},
+            {"step": "查看每日工作流", "endpoint": "/workflow/daily/view"},
             {"step": "查看今日边界", "endpoint": "/guidance/view"},
             {"step": "按下一步引导进入模块", "endpoint": home["next_action"]["recommended_endpoint"]},
             {"step": "查看组合、风险、研究或报告", "endpoint": "/dashboard"},
@@ -281,6 +310,10 @@ def _page_shell(title: str, active: str, content: str, data: dict[str, Any]) -> 
     .bar {{ height:10px; background:#e4e7ec; border-radius:5px; overflow:hidden; min-width:120px; }}
     .fill {{ height:100%; background:var(--accent); }}
     .two-pane {{ display:grid; grid-template-columns:minmax(0, 1fr) minmax(260px, 0.7fr); gap:12px; }}
+    textarea {{ width:100%; min-height:300px; resize:vertical; border:1px solid var(--line); border-radius:8px; padding:12px; font:13px/1.45 Consolas, "Courier New", monospace; color:var(--ink); background:#fff; }}
+    button {{ border:1px solid #8ec8c1; border-radius:6px; padding:8px 11px; background:var(--soft); color:var(--accent-ink); font-weight:800; cursor:pointer; }}
+    button.secondary {{ border-color:var(--line); background:#fff; color:var(--ink); }}
+    pre {{ white-space:pre-wrap; overflow:auto; margin:0; border:1px solid var(--line); border-radius:8px; background:#fff; padding:12px; font:13px/1.45 Consolas, "Courier New", monospace; }}
     @media (max-width:900px) {{ .top {{ align-items:flex-start; flex-direction:column; }} nav {{ justify-content:flex-start; }} .hero, .two-pane, .footer-grid {{ grid-template-columns:1fr; }} .footer-links {{ justify-content:flex-start; }} .feature-grid, .grid-4 {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }} .grid-3 {{ grid-template-columns:1fr; }} }}
     @media (max-width:560px) {{ .wrap, main {{ padding-left:12px; padding-right:12px; }} .feature-grid, .grid-4, .grid-2 {{ grid-template-columns:1fr; }} h1 {{ font-size:22px; }} }}
   </style>
@@ -351,6 +384,7 @@ def _home_content(data: dict[str, Any]) -> str:
     dashboard = data["dashboard"]
     next_action = home["next_action"]
     features = [
+        ("每日工作流", "/workflow/daily/view", "检查今天市场、主线、边界、组合和报告是否形成闭环。"),
         ("今日行动边界", "/guidance/view", "先判断今天能不能提高风险、新增标的或只读复核。"),
         ("市场状态", "/market/view", "查看市场评分、风险等级、权益比例边界和数据缺口。"),
         ("风险状态", "/risk/view", "查看风控分数、暴露提示、集中度和风险警告。"),
@@ -358,6 +392,7 @@ def _home_content(data: dict[str, Any]) -> str:
         ("对比分析", "/comparison/view", "比较影子组合、真实代理和基准的比例表现。"),
         ("影子组合", "/portfolio/view", "查看纸面模拟组合比例、偏离和回放来源。"),
         ("研究队列", "/research/view", "查看最新研究快照和 ResearchFirst 队列。"),
+        ("研究导入", "/research/import/view", "粘贴研究 JSON，先校验，再追加写入系统。"),
         ("报告预览", "/report/view", "查看可生成报告的章节与来源编号。"),
         ("系统状态", "/system/view", "查看自检、回放、记录数量和 JSON 入口。"),
         ("易用性检查", "/usability/view", "检查入口、页头、页脚、引导和只读边界。"),
@@ -423,6 +458,54 @@ def _overview_content(data: dict[str, Any]) -> str:
 <section class="grid-2">
   <div class="panel"><h2>数据缺口</h2>{gaps}</div>
   <div class="panel"><h2>冲突提示</h2>{conflicts}</div>
+</section>
+"""
+
+
+def _daily_workflow_content(data: dict[str, Any]) -> str:
+    workflow = data["daily_workflow"]
+    primary = workflow["primary_next_action"]
+    rows = [
+        [
+            item["title"],
+            _workflow_status_label(item["status"]),
+            item["detail"],
+            item["basis_date"] or "暂无",
+            _link(item["view_endpoint"]),
+            _link(item["json_endpoint"]),
+        ]
+        for item in workflow["steps"]
+    ]
+    source_rows = [[key, value or "暂无"] for key, value in workflow["source_ids"].items()]
+    return f"""
+<section class="two-pane">
+  <div class="panel highlight">
+    <h2>今天先做什么</h2>
+    <p class="value"><a href="{html.escape(primary['endpoint'])}">{html.escape(primary['label'])}</a></p>
+    <p class="detail">{html.escape(primary['reason'])}</p>
+    <div class="badge-row">
+      <span class="badge">状态 {_workflow_status_label(workflow['status'])}</span>
+      <span class="badge">参考日期 {html.escape(str(workflow['reference_date'] or '暂无'))}</span>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>工作流边界</h2>
+    {_list_items(workflow["safe_operations"], "暂无可用操作。")}
+  </div>
+</section>
+<section>
+  <h2>每日闭环</h2>
+  {_table(["步骤", "状态", "说明", "日期", "页面", "JSON"], rows, raw_columns={4, 5})}
+</section>
+<section class="grid-2">
+  <div class="panel">
+    <h2>来源编号</h2>
+    {_table(["字段", "编号"], source_rows)}
+  </div>
+  <div class="panel">
+    <h2>不要做</h2>
+    {_list_items(workflow["blocked_operations"], "暂无额外限制。")}
+  </div>
 </section>
 """
 
@@ -673,6 +756,11 @@ def _research_content(data: dict[str, Any]) -> str:
     if not queue_rows:
         queue_rows = [["none", "当前没有 ResearchFirst 队列。", "guidance"]]
     return f"""
+<section class="panel">
+  <h2>研究入口</h2>
+  <p><a href="/research/import/view">导入新的研究 JSON</a></p>
+  <p class="detail">适合导入市场研究、主线研究或其它已校验研究快照。</p>
+</section>
 <section>
   <h2>最新研究快照</h2>
   {_table(["模块", "摘要", "置信度", "行动性", "下次复核"], rows)}
@@ -681,6 +769,78 @@ def _research_content(data: dict[str, Any]) -> str:
   <h2>ResearchFirst 队列</h2>
   {_table(["标的", "原因", "来源"], queue_rows)}
 </section>
+"""
+
+
+def _research_import_content(data: dict[str, Any]) -> str:
+    workflow = data["daily_workflow"]
+    mainline_step = next(
+        (item for item in workflow["steps"] if item["step_id"] == "mainline_research"),
+        None,
+    )
+    current_status = mainline_step["detail"] if mainline_step else "等待研究 JSON。"
+    return f"""
+<section class="two-pane">
+  <div class="panel highlight">
+    <h2>研究 JSON 导入</h2>
+    <p>只接受 research_snapshot JSON。先校验，再追加写入。</p>
+    <p class="detail">{html.escape(current_status)}</p>
+  </div>
+  <div class="panel">
+    <h2>导入边界</h2>
+    <p>导入只写入 research_snapshot 和 event_log，保持 append-only。</p>
+    <p class="detail">代表标的只能作为研究对象，仍受 ResearchFirst、估值和流动性门槛约束。</p>
+  </div>
+</section>
+<section class="grid-2">
+  <div class="panel">
+    <h2>粘贴 JSON</h2>
+    <textarea id="research-json" spellcheck="false" aria-label="研究 JSON"></textarea>
+    <div class="badge-row">
+      <button type="button" id="validate-research">校验 JSON</button>
+      <button type="button" id="append-research" class="secondary">追加导入</button>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>结果</h2>
+    <pre id="research-import-result">等待输入。</pre>
+  </div>
+</section>
+<section class="panel">
+  <h2>需要满足</h2>
+  <ul>
+    <li>必须符合 research.schema.json。</li>
+    <li>已知模块必须符合对应 payload schema。</li>
+    <li>不得包含策略禁止字段或外部执行指令。</li>
+    <li>snapshot_id 不得与历史研究重复。</li>
+  </ul>
+</section>
+<script>
+(() => {{
+  const input = document.getElementById('research-json');
+  const result = document.getElementById('research-import-result');
+  const validateButton = document.getElementById('validate-research');
+  const appendButton = document.getElementById('append-research');
+  const run = async (url) => {{
+    let payload;
+    try {{
+      payload = JSON.parse(input.value);
+    }} catch (error) {{
+      result.textContent = JSON.stringify({{ status: 'failed', data: {{ reason: 'JSON 解析失败' }} }}, null, 2);
+      return;
+    }}
+    const response = await fetch(url, {{
+      method: 'POST',
+      headers: {{ 'Content-Type': 'application/json' }},
+      body: JSON.stringify(payload)
+    }});
+    const data = await response.json();
+    result.textContent = JSON.stringify(data, null, 2);
+  }};
+  validateButton.addEventListener('click', () => run('/research/import/validate'));
+  appendButton.addEventListener('click', () => run('/research/import'));
+}})();
+</script>
 """
 
 
@@ -719,7 +879,10 @@ def _system_content(data: dict[str, Any]) -> str:
         rows = [["trace", "暂无回放链路。"]]
     api_rows = [
         ["/home", "自然人入口 JSON"],
+        ["/workflow/daily/state", "每日工作流 JSON"],
         ["/guidance/state", "今日行动边界 JSON"],
+        ["POST /research/import/validate", "研究导入校验 JSON"],
+        ["POST /research/import", "研究追加导入 JSON"],
         ["/system/dashboard_state", "综合看板 JSON"],
         ["/usability/state", "易用性检查 JSON"],
         ["/timeline/replay", "历史回放 JSON"],
@@ -870,6 +1033,8 @@ def _link(endpoint: str) -> str:
 def _endpoint_label(endpoint: str) -> str:
     return {
         "/app": "首页",
+        "/workflow/daily/view": "每日工作流",
+        "/workflow/daily/state": "每日工作流 JSON",
         "/home": "首页 JSON",
         "/home_human": "自然人首页",
         "/guidance/view": "今日行动边界",
@@ -885,6 +1050,9 @@ def _endpoint_label(endpoint: str) -> str:
         "/portfolio/view": "影子组合",
         "/portfolio/state": "组合 JSON",
         "/research/view": "研究队列",
+        "/research/import/view": "研究导入",
+        "/research/import/validate": "研究导入校验 JSON",
+        "/research/import": "研究追加导入 JSON",
         "/research/latest": "研究 JSON",
         "/report/view": "报告预览",
         "/dashboard": "综合看板",
@@ -947,6 +1115,18 @@ def _status_label(value: str) -> str:
         "missing": "缺失",
         "passed": "通过",
         "review_required": "需要复核",
+    }.get(value, value)
+
+
+def _workflow_status_label(value: str) -> str:
+    return {
+        "pass": "通过",
+        "warn": "需复核",
+        "block": "阻断",
+        "missing": "缺失",
+        "ready": "已就绪",
+        "review_required": "需要复核",
+        "action_required": "需要处理",
     }.get(value, value)
 
 

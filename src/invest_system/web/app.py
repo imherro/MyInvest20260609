@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Query
+from fastapi import Body, FastAPI, Query
 from fastapi.responses import HTMLResponse
 
 from invest_system.comparison import compute_comparison_history, compute_comparison_state
@@ -11,10 +11,12 @@ from invest_system.entry import build_home_state
 from invest_system.guidance import compute_guidance_state
 from invest_system.macro import compute_macro_history, compute_macro_state, compute_model_consensus
 from invest_system.repositories import DEFAULT_DB_PATH, SQLiteRepository
+from invest_system.research.importer import append_research_import, validate_research_import
 from invest_system.risk import compute_risk_history, compute_risk_state
 from invest_system.self_check import system_status
 from invest_system.web.dashboard import build_dashboard_state
 from invest_system.web.portal import build_portal_state, build_usability_state, render_portal_page
+from invest_system.workflow import build_daily_workflow_state
 
 
 def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
@@ -38,8 +40,11 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                 "endpoints": [
                     "/home",
                     "/entry/home_state",
+                    "/workflow/daily/state",
                     "/guidance/state",
                     "/usability/state",
+                    "POST /research/import/validate",
+                    "POST /research/import",
                     "/research/latest",
                     "/market/latest",
                     "/target-pool/latest",
@@ -59,6 +64,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                 "view_endpoints": [
                     "/app",
                     "/home_human",
+                    "/workflow/daily/view",
                     "/guidance/view",
                     "/dashboard",
                     "/overview",
@@ -68,6 +74,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/comparison/view",
                     "/portfolio/view",
                     "/research/view",
+                    "/research/import/view",
                     "/report/view",
                     "/system/view",
                     "/usability/view",
@@ -82,6 +89,10 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/entry/home_state")
     def entry_home_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
         return {"status": "ok", "data": build_home_state(repo, as_of)}
+
+    @app.get("/workflow/daily/state")
+    def daily_workflow_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
+        return {"status": "ok", "data": build_daily_workflow_state(repo, as_of)}
 
     @app.get("/home_human", response_class=HTMLResponse)
     def home_human_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
@@ -98,6 +109,16 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/usability/state")
     def usability_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
         return build_usability_state(repo, as_of)
+
+    @app.post("/research/import/validate")
+    def research_import_validate_endpoint(payload: Any = Body(...)) -> dict[str, Any]:
+        validation = validate_research_import(repo, payload)
+        status = "ok" if validation["status"] in {"pass", "warn"} else "failed"
+        return {"status": status, "data": validation}
+
+    @app.post("/research/import")
+    def research_import_endpoint(payload: Any = Body(...)) -> dict[str, Any]:
+        return append_research_import(repo, payload)
 
     @app.get("/research/latest")
     def research_latest() -> dict[str, Any]:
@@ -174,6 +195,10 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     def app_home_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
         return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "home"))
 
+    @app.get("/workflow/daily/view", response_class=HTMLResponse)
+    def daily_workflow_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "daily"))
+
     @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
         return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "dashboard"))
@@ -205,6 +230,10 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/research/view", response_class=HTMLResponse)
     def research_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
         return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "research"))
+
+    @app.get("/research/import/view", response_class=HTMLResponse)
+    def research_import_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "research_import"))
 
     @app.get("/report/view", response_class=HTMLResponse)
     def report_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:

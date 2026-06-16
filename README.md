@@ -23,9 +23,11 @@ Open:
 ```text
 http://127.0.0.1:8008/
 http://127.0.0.1:8008/app
+http://127.0.0.1:8008/workflow/daily/view
 http://127.0.0.1:8008/home
 http://127.0.0.1:8008/home_human
 http://127.0.0.1:8008/guidance/view
+http://127.0.0.1:8008/research/import/view
 http://127.0.0.1:8008/usability/view
 http://127.0.0.1:8008/system/status
 http://127.0.0.1:8008/timeline/replay
@@ -37,8 +39,11 @@ http://127.0.0.1:8008/dashboard
 - `GET /`
 - `GET /home`
 - `GET /entry/home_state`
+- `GET /workflow/daily/state`
 - `GET /guidance/state`
 - `GET /usability/state`
+- `POST /research/import/validate`
+- `POST /research/import`
 - `GET /market/latest`
 - `GET /research/latest`
 - `GET /target-pool/latest`
@@ -61,6 +66,7 @@ Read-only view endpoints:
 
 - `GET /app`
 - `GET /home_human`
+- `GET /workflow/daily/view`
 - `GET /guidance/view`
 - `GET /dashboard`
 - `GET /overview`
@@ -70,11 +76,12 @@ Read-only view endpoints:
 - `GET /comparison/view`
 - `GET /portfolio/view`
 - `GET /research/view`
+- `GET /research/import/view`
 - `GET /report/view`
 - `GET /system/view`
 - `GET /usability/view`
 
-View endpoints never write data and do not expose trading controls. `/app` is the unified natural-person browser entry with shared header, footer, feature entrances, next-step guidance, and usability checks. `/home_human` remains as a compatible human entry route and renders through the same portal shell.
+GET view endpoints do not write data and do not expose trading controls. `/research/import/view` can call the JSON import APIs after the user provides research JSON; those APIs append only to `research_snapshot` and `event_log`. `/app` is the unified natural-person browser entry with shared header, footer, feature entrances, next-step guidance, and usability checks. `/home_human` remains as a compatible human entry route and renders through the same portal shell.
 
 ## Validation
 
@@ -165,6 +172,7 @@ Reports are derived views. They are generated from `research_snapshot`, `decisio
 P1 read-only B/S portal pages include:
 
 - unified home
+- daily research workflow
 - today's action boundary
 - market
 - risk
@@ -172,12 +180,40 @@ P1 read-only B/S portal pages include:
 - comparison
 - shadow portfolio
 - research
+- research JSON import
 - report preview
 - system status
 - usability checks
 
 The shared JSON state is available at `GET /system/dashboard_state`. Pages render from SQLite and JSON state only, do not write to the database, and do not include trade controls.
 The primary browser entry is `GET /app`. All main portal pages use a shared header and footer so a non-technical user can move between modules without remembering raw API paths.
+
+## Daily Workflow
+
+The daily workflow answers what is missing before the system can be used for the day.
+
+- `GET /workflow/daily/state` returns stable JSON.
+- `GET /workflow/daily/view` renders the same status in the unified portal shell.
+
+It checks:
+
+- market snapshot
+- mainline `theme_research`
+- today's action boundary
+- shadow portfolio replay
+- report preview readiness
+
+The workflow is a status and guidance layer. It does not collect data, generate research, write SQLite, or create execution output.
+
+## Research Import
+
+Research import standardizes how externally generated research enters the system.
+
+- `POST /research/import/validate` validates research JSON without writing.
+- `POST /research/import` validates and appends a research snapshot.
+- `GET /research/import/view` provides the browser page for paste, validate, and append.
+
+The import path validates `research.schema.json`, known module payload schemas, ratio-only policy, ResearchFirst policy, and duplicate `snapshot_id`. Successful import writes append-only records to `research_snapshot` and `event_log`.
 
 ## Entry Layer
 

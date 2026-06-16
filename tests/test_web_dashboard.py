@@ -58,6 +58,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
     for path in [
         "/app",
         "/home_human",
+        "/workflow/daily/view",
         "/guidance/view",
         "/dashboard",
         "/overview",
@@ -67,6 +68,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
         "/comparison/view",
         "/portfolio/view",
         "/research/view",
+        "/research/import/view",
         "/report/view",
         "/system/view",
         "/usability/view",

@@ -29,6 +29,7 @@ API_ENDPOINTS = [
     "/",
     "/home",
     "/entry/home_state",
+    "/workflow/daily/state",
     "/guidance/state",
     "/usability/state",
     "/market/latest",
@@ -50,6 +51,7 @@ API_ENDPOINTS = [
 VIEW_ENDPOINTS = [
     "/app",
     "/home_human",
+    "/workflow/daily/view",
     "/guidance/view",
     "/dashboard",
     "/overview",
@@ -59,6 +61,7 @@ VIEW_ENDPOINTS = [
     "/comparison/view",
     "/portfolio/view",
     "/research/view",
+    "/research/import/view",
     "/report/view",
     "/system/view",
     "/usability/view",

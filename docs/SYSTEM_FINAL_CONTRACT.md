@@ -15,6 +15,8 @@ The delivered MVP supports:
 - Read-only HTML B/S portal and human-entry views
 - Read-only investment guidance boundary layer
 - Read-only usability check layer
+- Daily research workflow status layer
+- Research JSON import validation and append path
 - JSON-only CLI validation and append workflows
 
 ## Hard Boundaries
@@ -151,8 +153,11 @@ Read-only JSON endpoints:
 - `GET /`
 - `GET /home`
 - `GET /entry/home_state`
+- `GET /workflow/daily/state`
 - `GET /guidance/state`
 - `GET /usability/state`
+- `POST /research/import/validate`
+- `POST /research/import`
 - `GET /market/latest`
 - `GET /research/latest`
 - `GET /target-pool/latest`
@@ -177,6 +182,7 @@ Read-only view endpoints:
 
 - `GET /app`
 - `GET /home_human`
+- `GET /workflow/daily/view`
 - `GET /guidance/view`
 - `GET /dashboard`
 - `GET /overview`
@@ -186,12 +192,14 @@ Read-only view endpoints:
 - `GET /comparison/view`
 - `GET /portfolio/view`
 - `GET /research/view`
+- `GET /research/import/view`
 - `GET /report/view`
 - `GET /system/view`
 - `GET /usability/view`
 
-View endpoints are presentation only. They must not write to SQLite, change replay, expose trading controls, or display account IDs, amounts, shares, order IDs, fill IDs, trade amounts, or profit amounts.
+GET view endpoints are presentation only. They must not write to SQLite, change replay, expose trading controls, or display account IDs, amounts, shares, order IDs, fill IDs, trade amounts, or profit amounts.
 The primary natural-person browser entry is `/app`. Main view endpoints share the same header, footer, module navigation, and read-only boundary copy.
+`/research/import/view` can call JSON import APIs after the user provides research JSON. The append action is limited to `research_snapshot` and `event_log`.
 
 ## Replay Rule
 
@@ -268,12 +276,14 @@ The P1 B/S portal reads from SQLite and JSON state only.
 Portal JSON:
 
 - `GET /system/dashboard_state`
+- `GET /workflow/daily/state`
 - `GET /usability/state`
 
 Portal views:
 
 - `/app`
 - `/home_human`
+- `/workflow/daily/view`
 - `/guidance/view`
 - `/dashboard`
 - `/overview`
@@ -283,6 +293,7 @@ Portal views:
 - `/comparison/view`
 - `/portfolio/view`
 - `/research/view`
+- `/research/import/view`
 - `/report/view`
 - `/system/view`
 - `/usability/view`
@@ -292,9 +303,12 @@ Portal rules:
 - read-only presentation only
 - unified header and footer for main pages
 - `/app` is the natural-person entrypoint
+- `/workflow/daily/view` shows the daily research loop status
+- `/research/import/view` provides validation-first research import
 - feature entrances must be visible without knowing raw JSON paths
 - usability checks must be available at `/usability/state` and `/usability/view`
 - no database writes
+- except user-triggered append-only `POST /research/import` writes to `research_snapshot` and `event_log`
 - no trading forms or order controls
 - no replay, shadow engine, or `event_log` changes
 - no sensitive account, amount, share, order, fill, or local absolute path exposure
@@ -341,6 +355,64 @@ Entry rules:
 - no replay, shadow engine, risk engine, comparison system, macro system, or `event_log` changes
 - schema validation through `entry_home_state.schema.json`
 - `next_action` may point only to existing read-only JSON endpoints
+
+## Daily Workflow Contract
+
+The daily workflow layer shows whether the day's research loop is complete.
+
+Workflow JSON:
+
+- `GET /workflow/daily/state`
+
+Workflow view:
+
+- `GET /workflow/daily/view`
+
+Workflow output includes:
+
+- reference date
+- primary next action
+- market snapshot status
+- mainline `theme_research` status
+- guidance boundary status
+- shadow portfolio replay status
+- report preview status
+- trace source IDs
+
+Workflow rules:
+
+- JSON endpoint output remains JSON only
+- view endpoint is derived HTML only
+- read-only computation only
+- no SQLite writes
+- no external execution
+- no replay, shadow engine, risk engine, macro engine, comparison system, research system, or `event_log` changes
+- no sensitive account, amount, share, order, fill, trade amount, profit amount, or local absolute path exposure
+
+## Research Import Contract
+
+The research import path is the only browser-assisted append path added for research snapshots.
+
+Import JSON:
+
+- `POST /research/import/validate`
+- `POST /research/import`
+
+Import view:
+
+- `GET /research/import/view`
+
+Import rules:
+
+- validation endpoint never writes
+- append endpoint writes only through `SQLiteRepository.append_research_snapshot`
+- successful append writes `research_snapshot` and matching `event_log`
+- duplicate `snapshot_id` is rejected by the import layer
+- `research.schema.json` is required
+- known module payload schemas are required
+- ratio-only and ResearchFirst policy checks are required
+- no broker integration, no external execution, no decision generation, and no shadow portfolio mutation
+- error responses must be JSON and must not echo sensitive fields or local absolute paths
 
 ## Guidance Layer Contract
 
