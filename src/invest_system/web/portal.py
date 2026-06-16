@@ -1282,7 +1282,24 @@ def _decision_content(data: dict[str, Any]) -> str:
         [item["stage"], item["source_id"] or "derived", item["finding"]]
         for item in proposal["explanation"]["why"]
     ]
+    source_rows = _decision_source_rows(proposal["source_ids"])
     return f"""
+<section class="two-pane">
+  <div class="panel highlight">
+    <h2>决策结论</h2>
+    <p class="value">{html.escape(_decision_conclusion_label(proposal))}</p>
+    <p class="detail">{html.escape(_decision_conclusion_detail(proposal))}</p>
+    <div class="badge-row">
+      <a class="step" href="/guidance/view">查看今日边界</a>
+      <a class="step" href="/portfolio/view">查看影子组合</a>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>决策依据链</h2>
+    <p>{html.escape(_decision_boundary_text(proposal))}</p>
+    {_table(["来源", "当前记录"], source_rows)}
+  </div>
+</section>
 <section>
   <h2>今日决策预览</h2>
   <div class="grid-4">
@@ -1290,6 +1307,18 @@ def _decision_content(data: dict[str, Any]) -> str:
     {_metric_card("复核状态", _workflow_status_label(proposal["review_state"]))}
     {_metric_card("置信度", _percent(proposal["confidence"]))}
     {_metric_card("人工复核", _need_label(proposal["requires_human_review"]))}
+  </div>
+</section>
+<section class="grid-2">
+  <div class="panel">
+    <h2>如何读标的预览</h2>
+    <p>当前比例是影子组合现在的比例，目标比例是本次只读预览给出的参照比例，变化使用百分点表示。</p>
+    <p class="detail">如果建议显示“先补研究”，说明 ResearchFirst 或门槛仍未放行，不进入纸面调仓参照。</p>
+  </div>
+  <div class="panel">
+    <h2>怎样影响影子组合</h2>
+    <p>影子组合只读取已经记录的决策和目标池，自动生成纸面组合快照。</p>
+    <p class="detail">本页是预览和解释；是否已经进入影子组合，以组合页的来源决策和纸面变化记录为准。</p>
   </div>
 </section>
 <section>
@@ -1320,6 +1349,67 @@ def _decision_content(data: dict[str, Any]) -> str:
   <p class="detail"><a href="/decision/explain">查看解释链 JSON</a></p>
 </section>
 """
+
+
+def _decision_conclusion_label(proposal: dict[str, Any]) -> str:
+    action = proposal["recommended_action"]
+    review_state = proposal["review_state"]
+    if review_state == "blocked":
+        return "当前决策被阻断"
+    if action == "research_first":
+        return "先补研究，再看决策"
+    if action == "rebalance_candidate":
+        return "存在再平衡候选"
+    if action == "observe":
+        return "保持观察"
+    return "今日不行动"
+
+
+def _decision_conclusion_detail(proposal: dict[str, Any]) -> str:
+    action = _endpoint_action_label(proposal["recommended_action"])
+    review_state = _workflow_status_label(proposal["review_state"])
+    confidence = _percent(proposal["confidence"])
+    blocked_count = len(proposal["explanation"]["blocked_reasons"])
+    review = _need_label(proposal["requires_human_review"])
+    base = f"建议为{action}，复核状态为{review_state}，置信度 {confidence}，人工复核{review}。"
+    if blocked_count:
+        return base + f" 当前有 {blocked_count} 条阻断原因，先看下方阻断原因和门槛状态。"
+    return base + " 当前没有阻断原因，继续用标的级预览和组合页核对。"
+
+
+def _decision_boundary_text(proposal: dict[str, Any]) -> str:
+    gate_summary = proposal["gate_summary"]
+    blocked = [key for key, value in gate_summary.items() if value in {"block", "missing"}]
+    warned = [key for key, value in gate_summary.items() if value == "warn"]
+    if blocked:
+        labels = "、".join(_decision_gate_label(item) for item in blocked)
+        return f"存在阻断门槛：{labels}。先处理这些来源，再看是否进入组合参照。"
+    if warned:
+        labels = "、".join(_decision_gate_label(item) for item in warned)
+        return f"存在需要复核的门槛：{labels}。本页只能作为只读预览。"
+    return "研究、风险、宏观、组合和数据门槛当前没有阻断，可继续看组合页核对纸面结果。"
+
+
+def _decision_source_rows(source_ids: dict[str, Any]) -> list[list[Any]]:
+    research_count = len(source_ids.get("research_snapshot_ids", []))
+    return [
+        ["市场快照", source_ids.get("market_snapshot_id") or "暂无"],
+        ["研究快照", f"{research_count} 条"],
+        ["决策记录", source_ids.get("decision_id") or "暂无"],
+        ["组合快照", source_ids.get("portfolio_id") or "暂无"],
+        ["风险状态", source_ids.get("risk_state_id") or "暂无"],
+        ["宏观状态", source_ids.get("macro_state_id") or "暂无"],
+    ]
+
+
+def _decision_gate_label(value: str) -> str:
+    return {
+        "research_first": "ResearchFirst",
+        "risk_boundary": "风险边界",
+        "macro": "宏观状态",
+        "portfolio": "组合匹配",
+        "data": "数据新鲜度",
+    }.get(value, value)
 
 
 def _portfolio_content(data: dict[str, Any]) -> str:
@@ -1394,6 +1484,22 @@ def _portfolio_content(data: dict[str, Any]) -> str:
     if not snapshot_rows:
         snapshot_rows = [["暂无", "无", "无", "无", 0, "无", "无"]]
     return f"""
+<section class="two-pane">
+  <div class="panel highlight">
+    <h2>组合结论</h2>
+    <p class="value">{html.escape(_portfolio_conclusion_label(portfolio, actual, market))}</p>
+    <p class="detail">{html.escape(_portfolio_conclusion_detail(portfolio, actual, target))}</p>
+    <div class="badge-row">
+      <a class="step" href="/decision/view">查看决策依据</a>
+      <a class="step" href="/portfolio/history">查看组合历史 JSON</a>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>自动调仓依据</h2>
+    <p>{html.escape(_portfolio_auto_rebalance_text(portfolio, history))}</p>
+    <p class="detail">来源决策：{html.escape(str(portfolio["source_decision_id"]))}；来源目标池：{html.escape(str(portfolio["source_target_pool_id"]))}。</p>
+  </div>
+</section>
 <section>
   <h2>影子组合状态</h2>
   <div class="grid-4">
@@ -1401,6 +1507,18 @@ def _portfolio_content(data: dict[str, Any]) -> str:
     {_metric_card("权益比例", _percent(portfolio["equity_weight"]))}
     {_metric_card("目标范围", target)}
     {_metric_card("偏离", "暂无" if portfolio["deviation_pp"] is None else f"{portfolio['deviation_pp']} pp")}
+  </div>
+</section>
+<section class="grid-2">
+  <div class="panel">
+    <h2>怎么核对自动调仓</h2>
+    <p>先看“最近纸面变化”，确认本次每个标的的原比例、目标比例和变化；再看“每次纸面调仓记录”，核对历史来源决策。</p>
+    <p class="detail">影子组合是实际持仓的参照物，不需要你手动维护影子比例。</p>
+  </div>
+  <div class="panel">
+    <h2>怎么核对实际差异</h2>
+    <p>“实际持仓 vs 影子组合”只比较比例差异，用来告诉你实际配置和系统参照之间偏在哪里。</p>
+    <p class="detail">如果 QMT 读取状态不是已读取，先刷新实际持仓比例，再看差异。</p>
   </div>
 </section>
 <section class="panel">
@@ -1502,6 +1620,56 @@ def _portfolio_content(data: dict[str, Any]) -> str:
 }})();
 </script>
 """
+
+
+def _portfolio_conclusion_label(
+    portfolio: dict[str, Any],
+    actual: dict[str, Any],
+    market: dict[str, Any],
+) -> str:
+    deviation = portfolio["deviation_pp"]
+    if deviation is not None and abs(float(deviation)) <= 5:
+        label = "影子组合接近目标范围"
+    elif deviation is not None and float(deviation) > 0:
+        label = "影子权益高于目标中枢"
+    elif deviation is not None:
+        label = "影子权益低于目标中枢"
+    elif market["available"]:
+        label = "影子组合等待目标核对"
+    else:
+        label = "影子组合等待市场边界"
+    if actual["source_status"] != "actual_ratio_available":
+        return label + "，实际对照待刷新"
+    return label
+
+
+def _portfolio_conclusion_detail(
+    portfolio: dict[str, Any],
+    actual: dict[str, Any],
+    target: str,
+) -> str:
+    deviation = "暂无" if portfolio["deviation_pp"] is None else f"{portfolio['deviation_pp']} pp"
+    change_count = len(portfolio["paper_changes"])
+    actual_status = (
+        "实际持仓比例已读取"
+        if actual["source_status"] == "actual_ratio_available"
+        else "实际持仓比例尚未读取"
+    )
+    return (
+        f"影子权益比例 {_percent(portfolio['equity_weight'])}，目标范围 {target}，"
+        f"相对目标中枢偏离 {deviation}，本次纸面变化 {change_count} 条。{actual_status}。"
+    )
+
+
+def _portfolio_auto_rebalance_text(
+    portfolio: dict[str, Any],
+    history: dict[str, Any],
+) -> str:
+    change_count = len(portfolio["paper_changes"])
+    rebalance_count = history["rebalance_count"]
+    if change_count:
+        return f"系统按已记录决策自动生成 {change_count} 条本次纸面变化，并保留 {rebalance_count} 条历史纸面调仓记录。"
+    return f"本次没有新的纸面变化；历史中保留 {rebalance_count} 条纸面调仓记录，可继续用于回放核对。"
 
 
 def _research_content(data: dict[str, Any]) -> str:

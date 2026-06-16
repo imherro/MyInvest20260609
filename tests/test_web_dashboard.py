@@ -143,6 +143,10 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert 'href="/research/import/view"' in body
             assert 'href="/portfolio/view#qmt-refresh"' in body
         if path == "/portfolio/view":
+            assert "组合结论" in body
+            assert "自动调仓依据" in body
+            assert "怎么核对自动调仓" in body
+            assert "怎么核对实际差异" in body
             assert "创业板ETF易方达（159915.SZ）" in body
             assert "沪深300ETF华泰柏瑞（510300.SH）" in body
             assert "短融ETF海富通（511360.SH）" in body
@@ -194,6 +198,11 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "补充研究提示词" in body
             assert "/research/valuation-prompts" in body
         if path == "/decision/view":
+            assert "决策结论" in body
+            assert "决策依据链" in body
+            assert "如何读标的预览" in body
+            assert "怎样影响影子组合" in body
+            assert "查看影子组合" in body
             assert "创业板ETF易方达（159915.SZ）" in body
         for forbidden in FORBIDDEN_VIEW_TERMS:
             assert forbidden not in body
