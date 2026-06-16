@@ -285,6 +285,7 @@ def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
     seed_multiday_repository(repo)
     repo.append_research_snapshot(_strategic_mainline_theme_research())
     repo.append_research_snapshot(_mainline_theme_research())
+    _append_theme_scope_target_pool(repo)
     app = create_app(db_path)
 
     state_response = _get(app, "/theme/state?as_of=2026-06-15")
@@ -302,6 +303,17 @@ def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
     assert watch["半导体"]["status"] == "included"
     assert watch["电力设备"]["status"] == "not_in_top_mainlines"
     assert watch["机器人"]["status"] == "not_in_top_mainlines"
+    scope_rows = {
+        item["symbol"]: item
+        for item in state["representative_scope"]["rows"]
+        if item["display_theme"] == "先进电子制造链"
+    }
+    assert state["representative_scope"]["source_target_pool_id"] == "target-pool-2026-06-15-theme-scope-test"
+    assert scope_rows["301566.SZ"]["scope_status"] == "approved_not_in_shadow"
+    assert scope_rows["301566.SZ"]["shadow_weight"] == 0
+    assert scope_rows["688603.SH"]["scope_status"] == "research_first_only"
+    assert scope_rows["688167.SH"]["scope_status"] == "blocked_candidate"
+    assert scope_rows["688170.SH"]["scope_status"] == "watch_only"
 
     history_response = _get(app, "/theme/history?as_of=2026-06-15")
     history = history_response.json()["data"]
@@ -324,6 +336,11 @@ def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
     assert "机器人" in body
     assert "未进入前三主线" in body
     assert "主线变化记录" in body
+    assert "代表标的当前状态" in body
+    assert "已通过但未配置" in body
+    assert "ResearchFirst" in body
+    assert "目标池阻断" in body
+    assert "观察档案" in body
     assert "切换" in body
     assert "强度变化 -11.74 分" in body
     assert "达利凯普（301566.SZ）" in body
@@ -420,6 +437,19 @@ def _mainline_theme_research() -> dict[str, Any]:
             ],
         },
     }
+
+
+def _append_theme_scope_target_pool(repo: SQLiteRepository) -> None:
+    target_pool = deepcopy(repo.latest_target_pool("2026-06-15"))
+    target_pool["target_pool_id"] = "target-pool-2026-06-15-theme-scope-test"
+    for entry in target_pool["entries"]:
+        if entry["pool_type"] == "approved":
+            entry["symbols"] = sorted({*entry["symbols"], "301566.SZ"})
+        elif entry["pool_type"] == "research_first":
+            entry["symbols"] = sorted({*entry["symbols"], "688603.SH"})
+        elif entry["pool_type"] == "blocked":
+            entry["symbols"] = sorted({*entry["symbols"], "688167.SH"})
+    repo.append_target_pool_snapshot(target_pool)
 
 
 def _strategic_mainline_theme_research() -> dict[str, Any]:

@@ -881,6 +881,20 @@ def _theme_content(data: dict[str, Any]) -> str:
     ]
     if not history_rows:
         history_rows = [["暂无", "暂无主线", "暂无", "暂无", "暂无", "当前没有主线变化记录。", "无"]]
+    scope = theme["representative_scope"]
+    scope_rows = [
+        [
+            item["display_theme"],
+            item["display_symbol"],
+            _theme_scope_status_label(item["scope_status"]),
+            _theme_target_pool_status_label(item["target_pool_status"]),
+            _theme_shadow_weight_text(item["shadow_weight"]),
+            item["scope_detail"],
+        ]
+        for item in scope["rows"]
+    ]
+    if not scope_rows:
+        scope_rows = [["暂无", "暂无代表标的", "暂无", "暂无", "无", "当前没有可关联的代表标的。"]]
     return f"""
 <section class="two-pane">
   <div class="panel highlight">
@@ -920,6 +934,11 @@ def _theme_content(data: dict[str, Any]) -> str:
   <h2>你关心的方向</h2>
   <p class="detail">这张表专门回答 AI、半导体、电力设备、机器人是否进入当前主线。</p>
   {_table(["方向", "状态", "对应主线", "说明"], watch_rows)}
+</section>
+<section>
+  <h2>代表标的当前状态</h2>
+  <p class="detail">这张表把主线代表标的和当前策略目标池、影子组合对齐；ResearchFirst、阻断和观察档案都不会产生真实交易动作。</p>
+  {_table(["主线", "标的", "当前状态", "目标池范围", "影子比例", "说明"], scope_rows)}
 </section>
 <section>
   <h2>主线变化记录</h2>
@@ -3085,6 +3104,31 @@ def _theme_delta_text(value: Any) -> str:
     if value is None:
         return "暂无"
     return f"{float(value):+.2f} 分"
+
+
+def _theme_scope_status_label(value: str) -> str:
+    return {
+        "approved_in_shadow": "已进影子参照",
+        "approved_not_in_shadow": "已通过但未配置",
+        "research_first_only": "ResearchFirst",
+        "blocked_candidate": "目标池阻断",
+        "watch_only": "观察档案",
+    }.get(value, value)
+
+
+def _theme_target_pool_status_label(value: str) -> str:
+    return {
+        "approved": "已通过目标池",
+        "research_first": "ResearchFirst",
+        "blocked": "目标池阻断",
+        "watch_only": "不在当前目标池",
+    }.get(value, value)
+
+
+def _theme_shadow_weight_text(value: Any) -> str:
+    if value is None:
+        return "暂无影子组合"
+    return _percent(value)
 
 
 def _target_pool_source_label(value: str) -> str:

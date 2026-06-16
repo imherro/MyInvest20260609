@@ -60,7 +60,7 @@ def build_dashboard_state(repo: SQLiteRepository, as_of: str | None = None) -> d
             "portfolio_history": build_portfolio_history_state(repo, as_of)["data"],
             "actual_vs_shadow": actual_vs_shadow,
             "daily_refresh": _daily_refresh_state(timeline, as_of, actual_vs_shadow),
-            "research": _research_state(research_items, timeline),
+            "research": _research_state(research_items, timeline, target_pool, portfolio),
             "risk": _risk_state(risk),
             "comparison": _comparison_state(comparison),
             "macro": _macro_state(macro),
@@ -570,10 +570,15 @@ def _max_abs_delta(rows: list[dict[str, Any]]) -> float | None:
     return round(max(values), 4) if values else None
 
 
-def _research_state(research_items: list[dict[str, Any]], timeline: list[dict[str, Any]]) -> dict[str, Any]:
+def _research_state(
+    research_items: list[dict[str, Any]],
+    timeline: list[dict[str, Any]],
+    target_pool: dict[str, Any] | None,
+    portfolio: dict[str, Any] | None,
+) -> dict[str, Any]:
     return {
         "available": bool(research_items),
-        "theme": _theme_research_state(research_items),
+        "theme": _theme_research_state(research_items, target_pool, portfolio),
         "theme_history": _theme_history_state(timeline),
         "items": [
             {
@@ -721,7 +726,11 @@ WATCH_THEME_KEYWORDS = [
 ]
 
 
-def _theme_research_state(research_items: list[dict[str, Any]]) -> dict[str, Any]:
+def _theme_research_state(
+    research_items: list[dict[str, Any]],
+    target_pool: dict[str, Any] | None,
+    portfolio: dict[str, Any] | None,
+) -> dict[str, Any]:
     item = _theme_research_item(research_items)
     if item is None:
         return {
@@ -731,11 +740,13 @@ def _theme_research_state(research_items: list[dict[str, Any]]) -> dict[str, Any
             "primary": None,
             "mainlines": [],
             "watchlist": _theme_watchlist([]),
+            "representative_scope": _empty_theme_representative_scope(target_pool, portfolio),
             "data_gaps": [],
             "notes": ["当前没有 theme_research 快照。"],
         }
 
     mainlines = _theme_mainlines(item)
+    representative_scope = _theme_representative_scope(mainlines, target_pool, portfolio)
     primary = mainlines[0] if mainlines else None
     return {
         "available": True,
@@ -748,6 +759,7 @@ def _theme_research_state(research_items: list[dict[str, Any]]) -> dict[str, Any
         "primary": primary,
         "mainlines": mainlines,
         "watchlist": _theme_watchlist(mainlines),
+        "representative_scope": representative_scope,
         "data_gaps": item.get("data_gaps", []),
         "conflicts": item.get("conflicts", []),
         "notes": [
@@ -770,6 +782,115 @@ def _theme_mainlines(item: dict[str, Any]) -> list[dict[str, Any]]:
         rows = [_theme_mainline_from_payload(item)]
     _fill_theme_rows_from_evidence(rows, item.get("payload", {}).get("evidence", []))
     return rows
+
+
+def _empty_theme_representative_scope(
+    target_pool: dict[str, Any] | None,
+    portfolio: dict[str, Any] | None,
+) -> dict[str, Any]:
+    return {
+        "available": False,
+        "source_target_pool_id": target_pool["target_pool_id"] if target_pool else None,
+        "source_portfolio_id": portfolio["portfolio_id"] if portfolio else None,
+        "record_count": 0,
+        "status_counts": {},
+        "rows": [],
+        "notes": [
+            "当前没有主线代表标的可关联。",
+            "这里不会生成真实交易动作，也不会写入 QMT。",
+        ],
+    }
+
+
+def _theme_representative_scope(
+    mainlines: list[dict[str, Any]],
+    target_pool: dict[str, Any] | None,
+    portfolio: dict[str, Any] | None,
+) -> dict[str, Any]:
+    pool_by_symbol = _target_pool_symbol_map(target_pool)
+    shadow_weights = portfolio.get("holdings_weight", {}) if portfolio else {}
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[int, str]] = set()
+    for mainline in mainlines:
+        for symbol in mainline.get("symbols", []):
+            key = (int(mainline["rank"]), str(symbol))
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(_theme_representative_row(mainline, str(symbol), pool_by_symbol, shadow_weights, portfolio))
+    status_counts = _theme_representative_status_counts(rows)
+    return {
+        "available": bool(rows),
+        "source_target_pool_id": target_pool["target_pool_id"] if target_pool else None,
+        "source_portfolio_id": portfolio["portfolio_id"] if portfolio else None,
+        "record_count": len(rows),
+        "status_counts": status_counts,
+        "rows": rows,
+        "notes": [
+            "代表标的状态只来自当前策略目标池和影子组合快照。",
+            "approved 代表可进入纸面参照；ResearchFirst、blocked、观察档案都不产生买卖建议。",
+            "QMT 实际持仓不会覆盖策略目标池，也不会触发真实交易。",
+        ],
+    }
+
+
+def _theme_representative_row(
+    mainline: dict[str, Any],
+    symbol: str,
+    pool_by_symbol: dict[str, str],
+    shadow_weights: dict[str, Any],
+    portfolio: dict[str, Any] | None,
+) -> dict[str, Any]:
+    pool_type = pool_by_symbol.get(symbol)
+    shadow_weight = round(float(shadow_weights.get(symbol, 0)), 6) if portfolio else None
+    shadow_status = "in_shadow" if shadow_weight and shadow_weight > 0 else "not_in_shadow"
+    if portfolio is None:
+        shadow_status = "shadow_missing"
+    scope_status, scope_detail = _theme_representative_status(pool_type, shadow_status)
+    return {
+        "mainline_rank": mainline["rank"],
+        "theme": mainline["theme"],
+        "display_theme": mainline["display_theme"],
+        "symbol": symbol,
+        "display_symbol": display_symbol(symbol),
+        "target_pool_status": pool_type or "watch_only",
+        "shadow_status": shadow_status,
+        "shadow_weight": shadow_weight,
+        "scope_status": scope_status,
+        "scope_detail": scope_detail,
+        "paper_only": True,
+    }
+
+
+def _theme_representative_status(pool_type: str | None, shadow_status: str) -> tuple[str, str]:
+    if pool_type == "approved":
+        if shadow_status == "in_shadow":
+            return ("approved_in_shadow", "已进入 approved 目标池，并已出现在影子组合参照中。")
+        return ("approved_not_in_shadow", "已进入 approved 目标池，但当前影子组合比例为 0。")
+    if pool_type == "research_first":
+        return ("research_first_only", "仍在 ResearchFirst，只能继续补研究，不能进入纸面调仓参照。")
+    if pool_type == "blocked":
+        return ("blocked_candidate", "当前目标池阻断，不进入影子组合，也不产生买卖建议。")
+    return ("watch_only", "只是主线研究代表标的，未进入当前策略目标池，只作为观察档案。")
+
+
+def _target_pool_symbol_map(target_pool: dict[str, Any] | None) -> dict[str, str]:
+    if target_pool is None:
+        return {}
+    symbol_map: dict[str, str] = {}
+    for entry in target_pool.get("entries", []):
+        pool_type = str(entry.get("pool_type", "unknown"))
+        for symbol in entry.get("symbols", []):
+            symbol_map[str(symbol)] = pool_type
+    return symbol_map
+
+
+def _theme_representative_status_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        status = str(row["scope_status"])
+        counts[status] = counts.get(status, 0) + 1
+    return counts
 
 
 def _theme_mainlines_from_key_facts(key_facts: list[str]) -> list[dict[str, Any]]:
