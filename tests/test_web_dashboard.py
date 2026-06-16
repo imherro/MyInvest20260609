@@ -192,6 +192,11 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "利率压力" in body
             assert "今日边界" in body
         if path == "/research/view":
+            assert "研究工作台" in body
+            assert "下一项该研究什么" in body
+            assert "为什么还没放行" in body
+            assert "放行规则" in body
+            assert 'href="/research/import/view"' in body
             assert "永赢中证500ETF（退市）（159999.SZ）" in body
             assert "估值证据复核" in body
             assert "/research/valuation-review" in body

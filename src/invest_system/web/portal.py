@@ -1702,6 +1702,23 @@ def _research_content(data: dict[str, Any]) -> str:
     if not queue_rows:
         queue_rows = [["none", "当前没有 ResearchFirst 队列。", "无", "guidance"]]
     return f"""
+<section class="two-pane">
+  <div class="panel highlight">
+    <h2>研究工作台</h2>
+    <p class="value">{html.escape(_research_workbench_title(queue, valuation_review))}</p>
+    <p class="detail">{html.escape(_research_workbench_detail(queue, valuation_review, valuation_prompts))}</p>
+    <div class="badge-row">
+      <a class="step" href="#research-workbench">查看研究清单</a>
+      <a class="step" href="/research/import/view">导入研究 JSON</a>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>放行规则</h2>
+    <p>标的只有画像、估值、流动性门槛都通过，才会从 ResearchFirst 队列移出。</p>
+    <p class="detail">研究页只负责补证和导入研究快照；是否进入决策和影子组合，以决策页和组合页为准。</p>
+  </div>
+</section>
+{_research_workbench_section(queue, valuation_review, valuation_prompts)}
 <section class="panel">
   <h2>研究入口</h2>
   <p><a href="/research/import/view">导入新的研究 JSON</a>　<a href="#valuation-review">查看估值证据复核</a>　<a href="#valuation-prompts">生成补充研究提示词</a></p>
@@ -1718,6 +1735,110 @@ def _research_content(data: dict[str, Any]) -> str:
 {_valuation_review_section(valuation_review)}
 {_valuation_prompt_section(valuation_prompts)}
 """
+
+
+def _research_workbench_title(
+    queue: list[dict[str, Any]],
+    valuation_review: dict[str, Any],
+) -> str:
+    if queue:
+        return f"下一项：{display_symbol(queue[0]['symbol'])}"
+    if valuation_review["rows"]:
+        return f"下一项：{valuation_review['rows'][0]['display_name']}"
+    return "当前没有 ResearchFirst 待办"
+
+
+def _research_workbench_detail(
+    queue: list[dict[str, Any]],
+    valuation_review: dict[str, Any],
+    valuation_prompts: dict[str, Any],
+) -> str:
+    queue_count = len(queue)
+    review_count = valuation_review["blocked_count"]
+    prompt_count = valuation_prompts["prompt_count"]
+    if queue_count:
+        first = queue[0]
+        reason = _research_reason_label(first["reason"])
+        blockers = _research_blocker_label(first.get("blockers", []))
+        return (
+            f"队列里还有 {queue_count} 个标的。优先处理 {display_symbol(first['symbol'])}，"
+            f"原因是{reason}，当前卡点是{blockers}。估值复核 {review_count} 项，提示词 {prompt_count} 条。"
+        )
+    if review_count:
+        return f"ResearchFirst 队列未列出新标的，但仍有 {review_count} 项估值复核需要确认。"
+    return "当前没有需要先补研究的标的；可以继续看决策页和组合页。"
+
+
+def _research_workbench_section(
+    queue: list[dict[str, Any]],
+    valuation_review: dict[str, Any],
+    valuation_prompts: dict[str, Any],
+) -> str:
+    rows = _research_workbench_rows(queue, valuation_review, valuation_prompts)
+    return f"""
+<section id="research-workbench">
+  <h2>下一项该研究什么</h2>
+  <p class="detail">这张表把 ResearchFirst 队列、估值复核和补充研究提示词合在一起，按当前队列顺序给出下一步。</p>
+  {_table(["标的", "状态", "为什么还没放行", "下一步", "入口"], rows, raw_columns={4})}
+</section>
+"""
+
+
+def _research_workbench_rows(
+    queue: list[dict[str, Any]],
+    valuation_review: dict[str, Any],
+    valuation_prompts: dict[str, Any],
+) -> list[list[Any]]:
+    review_by_symbol = {
+        item["symbol"]: item
+        for item in valuation_review["rows"]
+    }
+    prompt_symbols = {
+        item["symbol"]
+        for item in valuation_prompts["prompts"]
+    }
+    rows: list[list[Any]] = []
+    for item in queue:
+        symbol = item["symbol"]
+        review = review_by_symbol.get(symbol)
+        next_step = review["next_step"] if review else _research_queue_next_step(item)
+        entry = _research_workbench_entry(review is not None, symbol in prompt_symbols)
+        rows.append(
+            [
+                display_symbol(symbol),
+                _research_reason_label(item["reason"]),
+                _research_blocker_label(item.get("blockers", [])),
+                next_step,
+                entry,
+            ]
+        )
+    if not rows:
+        rows = [["无", "已清空", "当前没有 ResearchFirst 队列。", "继续查看决策页或组合页。", _link("/decision/view")]]
+    return rows
+
+
+def _research_queue_next_step(item: dict[str, Any]) -> str:
+    blockers = item.get("blockers", [])
+    if "valuation_gate_failed" in blockers:
+        return "先看估值证据复核，再复制提示词补充研究。"
+    if "profile_gate_incomplete" in blockers or "profile_or_gate_incomplete" in blockers:
+        return "补充画像、估值和流动性证据，导入新的研究 JSON。"
+    if "liquidity_gate_incomplete" in blockers:
+        return "补充流动性证据，导入新的研究 JSON。"
+    if "duration_credit_incomplete" in blockers:
+        return "补充久期和信用质量风险证据，导入新的研究 JSON。"
+    if "target_pool_blocked" in blockers:
+        return "先确认目标池阻断原因，再决定是否继续研究。"
+    return "补充研究证据并导入新的研究 JSON，再复核队列。"
+
+
+def _research_workbench_entry(has_review: bool, has_prompt: bool) -> str:
+    links = ['<a href="/research/import/view">导入研究 JSON</a>']
+    if has_review:
+        links.insert(0, '<a href="#valuation-review">看复核</a>')
+    if has_prompt:
+        links.insert(0, '<a href="#valuation-prompts">复制提示词</a>')
+    return "　".join(links)
 
 
 def _valuation_review_section(review: dict[str, Any]) -> str:
