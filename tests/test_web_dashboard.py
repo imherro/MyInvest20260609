@@ -60,6 +60,7 @@ def test_dashboard_state_endpoint_returns_json_without_sensitive_fields(tmp_path
     assert payload["data"]["actual_vs_shadow"]["actual_equity_weight"] == 0.75
     assert payload["data"]["actual_vs_shadow"]["shadow_equity_weight"] == 0.75
     assert "沪深300ETF华泰柏瑞（510300.SH）" in payload["data"]["target_pool"]["entries"][0]["display_symbols"]
+    assert payload["data"]["target_pool"]["source"] == "seed"
     assert payload["data"]["research"]["available"] is True
     assert payload["data"]["risk"]["available"] is True
     assert payload["data"]["comparison"]["available"] is True
@@ -98,6 +99,7 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
         "/dashboard",
         "/overview",
         "/market/view",
+        "/target-pool/view",
         "/risk/view",
         "/macro/view",
         "/comparison/view",
@@ -173,6 +175,10 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert "市场分数怎么读" in body
             assert "权益目标区间" in body
             assert "行动边界" in body
+            assert "策略目标池" in body
+            assert "QMT 实际持仓只在组合页做对照" in body
+            assert "/target-pool/view" in body
+            assert "/target-pool/latest" in body
             assert "查看今日边界" in body
             assert "永赢中证500ETF（退市）（159999.SZ）" in body
             assert "科创50ETF华夏（588000.SH）" in body
@@ -181,6 +187,16 @@ def test_dashboard_view_pages_are_read_only_html(tmp_path) -> None:
             assert 'id="market-refresh"' in body
             assert 'id="market-refresh-button"' in body
             assert "/market/refresh" in body
+        if path == "/target-pool/view":
+            assert "策略目标池" in body
+            assert "当前策略目标池" in body
+            assert "QMT 实际持仓对照" in body
+            assert "不是系统推荐池" in body
+            assert "种子数据" in body
+            assert "/target-pool/latest" in body
+            assert "/portfolio/actual-vs-shadow" in body
+            assert "沪深300ETF华泰柏瑞（510300.SH）" in body
+            assert "实际持仓不是目标池来源" in body
         if path == "/risk/view":
             assert "风险结论" in body
             assert "风险分数怎么读" in body
@@ -236,6 +252,7 @@ def test_usability_state_describes_human_entrypoints(tmp_path) -> None:
     assert response.headers["content-type"].startswith("application/json")
     assert payload["status"] == "ok"
     assert payload["data"]["primary_home"] == "/app"
+    assert "/target-pool/view" in payload["data"]["feature_entrypoints"]
     assert "/usability/view" in payload["data"]["feature_entrypoints"]
     assert all(item["status"] == "pass" for item in payload["data"]["checks"])
     _assert_no_forbidden_terms(payload)

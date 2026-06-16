@@ -15,6 +15,7 @@ from invest_system.web.symbol_display import display_symbol, symbol_name
 
 VIEW_ROUTES = [
     {"label": "Overview", "href": "/overview"},
+    {"label": "Target Pool", "href": "/target-pool/view"},
     {"label": "Portfolio", "href": "/portfolio/view"},
     {"label": "Research", "href": "/research/view"},
     {"label": "Report", "href": "/report/view"},
@@ -334,6 +335,7 @@ def _target_pool_state(target_pool: dict[str, Any] | None) -> dict[str, Any]:
         "available": True,
         "target_pool_id": target_pool["target_pool_id"],
         "basis_date": target_pool["basis_date"],
+        "source": target_pool.get("source", "strategy"),
         "entries": entries,
     }
 

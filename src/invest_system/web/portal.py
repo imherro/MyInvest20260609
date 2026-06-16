@@ -23,6 +23,7 @@ NAV_ITEMS = [
     {"label": "宏观", "href": "/macro/view", "page": "macro"},
     {"label": "对比", "href": "/comparison/view", "page": "comparison"},
     {"label": "决策", "href": "/decision/view", "page": "decision"},
+    {"label": "目标池", "href": "/target-pool/view", "page": "target_pool"},
     {"label": "组合", "href": "/portfolio/view", "page": "portfolio"},
     {"label": "研究", "href": "/research/view", "page": "research"},
     {"label": "报告", "href": "/report/view", "page": "report"},
@@ -41,6 +42,7 @@ PAGE_TITLES = {
     "macro": "宏观状态",
     "comparison": "对比分析",
     "decision": "决策预览",
+    "target_pool": "策略目标池",
     "portfolio": "影子组合",
     "research": "研究队列",
     "research_import": "研究 JSON 导入",
@@ -58,6 +60,7 @@ USABILITY_ENDPOINTS = [
     "/macro/view",
     "/comparison/view",
     "/decision/view",
+    "/target-pool/view",
     "/portfolio/view",
     "/research/view",
     "/research/import/view",
@@ -72,7 +75,7 @@ HUMAN_ENDPOINT_MAP = {
     "/workflow/daily/state": "/workflow/daily/view",
     "/guidance/state": "/guidance/view",
     "/market/latest": "/market/view",
-    "/target-pool/latest": "/research/view",
+    "/target-pool/latest": "/target-pool/view",
     "/research/latest": "/research/view",
     "/research/valuation-review": "/research/view#valuation-review",
     "/research/valuation-prompts": "/research/view#valuation-prompts",
@@ -228,6 +231,9 @@ def render_portal_page(state: dict[str, Any], page: str) -> str:
     elif page == "decision":
         content = _decision_content(data)
         active = "decision"
+    elif page == "target_pool":
+        content = _target_pool_content(data)
+        active = "target_pool"
     elif page == "portfolio":
         content = _portfolio_content(data)
         active = "portfolio"
@@ -307,6 +313,13 @@ def _build_usability_payload(
             "决策预览",
             "可解释决策草案有独立入口，并保持只读。",
             "/decision/view",
+        ),
+        _usability_check(
+            "target_pool_scope_visible",
+            "pass",
+            "目标池边界",
+            "策略目标池和 QMT 实际持仓对照分开展示，不把实际持仓当成系统推荐池。",
+            "/target-pool/view",
         ),
         _usability_check(
             "next_action_visible",
@@ -561,6 +574,7 @@ def _home_content(data: dict[str, Any]) -> str:
         ("宏观状态", "/macro/view", "查看流动性、利率压力、风险周期和模型共识。"),
         ("对比分析", "/comparison/view", "比较影子组合、真实代理和基准的比例表现。"),
         ("决策预览", "/decision/view", "查看只读建议、门槛状态和解释追溯链。"),
+        ("策略目标池", "/target-pool/view", "区分系统策略候选、ResearchFirst 范围和 QMT 实际持仓对照。"),
         ("影子组合", "/portfolio/view", "查看纸面模拟组合比例、偏离和回放来源。"),
         ("研究队列", "/research/view", "查看最新研究快照和 ResearchFirst 队列。"),
         ("研究导入", "/research/import/view", "粘贴研究 JSON，先校验，再追加写入系统。"),
@@ -806,10 +820,13 @@ def _market_content(data: dict[str, Any]) -> str:
     target_pool = data["dashboard"]["target_pool"]
     if not market["available"]:
         return _empty_section("市场状态", "市场快照暂不可用，请先查看系统状态。")
+    pool_entries = target_pool["entries"] if target_pool.get("available") else []
     pool_rows = [
         [entry["pool_type"], "、".join(entry.get("display_symbols", entry["symbols"])), str(entry["count"])]
-        for entry in target_pool["entries"]
+        for entry in pool_entries
     ]
+    if not pool_rows:
+        pool_rows = [["暂无", "策略目标池暂不可用", "0"]]
     return f"""
 <section class="two-pane">
   <div class="panel highlight">
@@ -870,7 +887,12 @@ def _market_content(data: dict[str, Any]) -> str:
   </div>
 </section>
 <section>
-  <h2>目标池</h2>
+  <h2>策略目标池</h2>
+  <p class="detail">这里是系统用于 ResearchFirst、决策预览和影子组合的策略候选范围。QMT 实际持仓只在组合页做对照，不会覆盖这里。</p>
+  <div class="badge-row">
+    <a class="step" href="/target-pool/view">查看目标池说明</a>
+    <a class="step" href="/target-pool/latest">策略目标池 JSON</a>
+  </div>
   {_table(["类型", "标的", "数量"], pool_rows)}
 </section>
 <script>
@@ -903,6 +925,78 @@ def _market_content(data: dict[str, Any]) -> str:
   }});
 }})();
 </script>
+"""
+
+
+def _target_pool_content(data: dict[str, Any]) -> str:
+    target_pool = data["dashboard"]["target_pool"]
+    actual = data["dashboard"]["actual_vs_shadow"]
+    available = target_pool.get("available", False)
+    source = _target_pool_source_label(str(target_pool.get("source", "unknown"))) if available else "暂无"
+    pool_id = str(target_pool.get("target_pool_id", "暂无"))
+    basis_date = str(target_pool.get("basis_date", "暂无"))
+    pool_rows = [
+        [entry["pool_type"], "、".join(entry.get("display_symbols", entry["symbols"])), str(entry["count"])]
+        for entry in target_pool.get("entries", [])
+    ]
+    if not pool_rows:
+        pool_rows = [["暂无", "策略目标池暂不可用", "0"]]
+    actual_rows = [
+        [
+            item["display_name"],
+            _weight_or_missing(item["actual_weight"]),
+            _weight_or_missing(item["shadow_weight"]),
+            _delta_or_missing(item["shadow_minus_actual_pp"]),
+            _actual_shadow_status_label(item["status"]),
+        ]
+        for item in actual["rows"]
+    ]
+    if not actual_rows:
+        actual_rows = [["暂无", "缺少实际比例", "无", "无", "待刷新"]]
+    qmt_status = actual["qmt_read_status"]
+    return f"""
+<section class="two-pane">
+  <div class="panel highlight">
+    <h2>策略目标池</h2>
+    <p class="value">{html.escape(source)}</p>
+    <p class="detail">策略目标池是系统当前承认的候选范围，用于 ResearchFirst、决策预览和影子组合生成。</p>
+    <div class="badge-row">
+      <span class="badge">目标池 {html.escape(pool_id)}</span>
+      <span class="badge">日期 {html.escape(basis_date)}</span>
+      <a class="step" href="/target-pool/latest">查看策略目标池 JSON</a>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>QMT 实际持仓对照</h2>
+    <p class="value">{html.escape(_qmt_read_status_label(qmt_status["status"]))}</p>
+    <p class="detail">QMT 实际持仓对照来自只读比例读取，只用于核对实际配置；它不是系统推荐池，也不会覆盖策略目标池。</p>
+    <div class="badge-row">
+      <a class="step" href="/portfolio/view">查看组合页</a>
+      <a class="step" href="/portfolio/actual-vs-shadow">查看实际/影子对照 JSON</a>
+    </div>
+  </div>
+</section>
+<section class="grid-2">
+  <div class="panel">
+    <h2>怎么区分</h2>
+    <p>策略目标池回答“系统当前允许哪些候选进入研究、决策和影子组合”。</p>
+    <p class="detail">QMT 实际持仓回答“你现在实际配置比例和影子组合差在哪里”。两者都只展示比例，不包含金额、数量或账户细节。</p>
+  </div>
+  <div class="panel">
+    <h2>什么时候影响全局提示</h2>
+    <p>只有当前持仓、当前策略目标池、当前决策里的 ResearchFirst 会影响全局 readiness。</p>
+    <p class="detail">历史失败研究或已排除候选只作为研究档案保留，不应卡住全站提示。</p>
+  </div>
+</section>
+<section>
+  <h2>当前策略目标池</h2>
+  {_table(["类型", "标的", "数量"], pool_rows)}
+</section>
+<section>
+  <h2>QMT 实际持仓 vs 影子组合</h2>
+  <p class="detail">这一块是组合核对信息，实际持仓不是目标池来源；需要刷新实际持仓时请进入组合页。</p>
+  {_table(["标的", "QMT 实际比例", "影子比例", "影子-实际", "状态"], actual_rows)}
+</section>
 """
 
 
@@ -2438,6 +2532,7 @@ def _system_content(data: dict[str, Any]) -> str:
         ["/home", "自然人入口 JSON"],
         ["/workflow/daily/state", "每日工作流 JSON"],
         ["/guidance/state", "今日行动边界 JSON"],
+        ["/target-pool/latest", "策略目标池 JSON"],
         ["POST /research/import/validate", "研究导入校验 JSON"],
         ["POST /research/import", "研究追加导入 JSON"],
         ["/research/valuation-review", "估值复核 JSON"],
@@ -2622,6 +2717,8 @@ def _endpoint_label(endpoint: str) -> str:
         "/guidance/state": "今日边界 JSON",
         "/market/view": "市场状态",
         "/market/latest": "市场 JSON",
+        "/target-pool/view": "策略目标池",
+        "/target-pool/latest": "策略目标池 JSON",
         "/risk/view": "风险状态",
         "/risk/state": "风险 JSON",
         "/macro/view": "宏观状态",
@@ -2748,6 +2845,18 @@ def _qmt_reason_label(value: str | None) -> str:
         "qmt_total_asset_unavailable": "QMT 比例基准不可用",
         "qmt_position_missing": "未读到持仓比例",
         "qmt_weight_total_invalid": "持仓比例合计异常",
+    }.get(value, value)
+
+
+def _target_pool_source_label(value: str) -> str:
+    return {
+        "strategy": "策略研究与决策",
+        "market_research": "市场研究生成",
+        "decision": "决策记录生成",
+        "demo": "演示数据",
+        "seed": "种子数据",
+        "golden": "验收基准数据",
+        "qmt_position_import": "QMT 只读导入记录",
     }.get(value, value)
 
 

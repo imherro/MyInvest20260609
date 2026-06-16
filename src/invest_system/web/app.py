@@ -91,6 +91,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/dashboard",
                     "/overview",
                     "/market/view",
+                    "/target-pool/view",
                     "/risk/view",
                     "/macro/view",
                     "/comparison/view",
@@ -317,6 +318,10 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/market/view", response_class=HTMLResponse)
     def market_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
         return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "market"))
+
+    @app.get("/target-pool/view", response_class=HTMLResponse)
+    def target_pool_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:
+        return HTMLResponse(render_portal_page(build_portal_state(repo, as_of), "target_pool"))
 
     @app.get("/risk/view", response_class=HTMLResponse)
     def risk_view_page(as_of: str | None = Query(default=None)) -> HTMLResponse:

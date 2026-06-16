@@ -62,6 +62,7 @@ VIEW_ENDPOINTS = [
     "/dashboard",
     "/overview",
     "/market/view",
+    "/target-pool/view",
     "/risk/view",
     "/macro/view",
     "/comparison/view",
