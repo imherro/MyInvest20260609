@@ -49,7 +49,9 @@ def run_auto_shadow_portfolio(
     )
     if not target_weights:
         return _result("skipped", trigger=trigger, reason="no_eligible_shadow_holdings", basis_date=market["basis_date"])
-    if _target_unchanged(previous.get("holdings_weight", {}), target_weights):
+    target_unchanged = _target_unchanged(previous.get("holdings_weight", {}), target_weights)
+    has_return_refresh = bool(market_returns) or bool(benchmark_returns)
+    if target_unchanged and not has_return_refresh:
         return _result(
             "skipped",
             trigger=trigger,
@@ -57,6 +59,7 @@ def run_auto_shadow_portfolio(
             basis_date=market["basis_date"],
             target_weights=target_weights,
         )
+    result_reason = "market_return_refresh" if target_unchanged else "model_target_changed"
 
     decision = _model_decision(
         market=market,
@@ -78,7 +81,7 @@ def run_auto_shadow_portfolio(
     result = _result(
         "applied",
         trigger=trigger,
-        reason="model_target_changed",
+        reason=result_reason,
         basis_date=market["basis_date"],
         target_weights=target_weights,
         decision_id=decision["decision_id"],

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 
@@ -52,6 +53,34 @@ def test_auto_market_data_uses_mock_fallback_when_network_disabled() -> None:
     assert snapshot["status"] == "json_validated"
     assert "adapter:mock" in snapshot["data_sources"]
     assert snapshot["payload"]["headline_index"]["name"] == "上证指数"
+
+
+def test_market_data_gaps_summarize_identifiers_without_codes() -> None:
+    bundle = market_data._bundle_from_results(
+        basis_date="2026-06-22",
+        requested_source="auto",
+        results=[
+            {
+                "source": "tushare",
+                "status": "ok",
+                "indices": [],
+                "symbols": [],
+                "macro": [],
+                "conflicts": [],
+                "data_gaps": [
+                    "missing_symbol:510300.SH",
+                    "missing_symbol:159915.SZ",
+                    "missing_index:000001.SH",
+                ],
+            }
+        ],
+    )
+
+    text = json.dumps(bundle, ensure_ascii=False)
+    assert not re.search(r"\b(?:[036]\d{5}|[15]\d{5})\.(?:SH|SZ)\b", text)
+    assert "tushare:missing_symbol_records:2" in bundle["data_gaps"]
+    assert "tushare:missing_index_records:1" in bundle["data_gaps"]
+    assert bundle["source_results"][0]["data_gap"] == "tushare:missing_index_records:1"
 
 
 def test_market_data_collection_loads_local_env(monkeypatch) -> None:

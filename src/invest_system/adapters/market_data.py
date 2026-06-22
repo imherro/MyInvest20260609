@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -16,6 +17,7 @@ from invest_system.validators.schema_validator import validate_or_raise
 DEFAULT_SYMBOLS = ("510300.SH", "159915.SZ", "002920.SZ", "511360.SH")
 DEFAULT_INDICES = ("000001.SH", "000300.SH", "000905.SH")
 SOURCE_ORDER = ("tushare", "baostock", "yfinance", "fred")
+MARKET_IDENTIFIER_RE = re.compile(r"\b(?:[036]\d{5}|[15]\d{5})\.(?:SH|SZ)\b", re.IGNORECASE)
 
 
 def collect_market_data_bundle(
@@ -368,7 +370,8 @@ def _bundle_from_results(
     results: list[dict[str, Any]],
 ) -> dict[str, Any]:
     successful = [result["source"] for result in results if result["status"] == "ok"]
-    data_gaps = [f"{result['source']}:{gap}" for result in results for gap in result.get("data_gaps", [])]
+    raw_data_gaps = [f"{result['source']}:{gap}" for result in results for gap in result.get("data_gaps", [])]
+    data_gaps = _summarize_identifier_gaps(raw_data_gaps)
     conflicts = [f"{result['source']}:{conflict}" for result in results for conflict in result.get("conflicts", [])]
     indices = _dedupe_market_rows("symbol", [row for result in results for row in result.get("indices", [])])
     symbols = _dedupe_market_rows("symbol", [row for result in results for row in result.get("symbols", [])])
@@ -406,7 +409,7 @@ def _bundle_from_results(
                 "record_count": len(result.get("indices", []))
                 + len(result.get("symbols", []))
                 + len(result.get("macro", [])),
-                "data_gap": result.get("data_gaps", [None])[0] if result.get("data_gaps") else None,
+                "data_gap": _source_result_gap(result),
             }
             for result in results
         ],
@@ -431,6 +434,28 @@ def _dedupe_market_rows(key: str, rows: list[dict[str, Any]]) -> list[dict[str, 
         seen.add(value)
         deduped.append(row)
     return deduped
+
+
+def _source_result_gap(result: dict[str, Any]) -> str | None:
+    gaps = [f"{result['source']}:{gap}" for gap in result.get("data_gaps", [])]
+    summarized = _summarize_identifier_gaps(gaps)
+    return summarized[0] if summarized else None
+
+
+def _summarize_identifier_gaps(gaps: list[str]) -> list[str]:
+    identifier_counts: dict[tuple[str, str], int] = {}
+    sanitized: list[str] = []
+    for gap in gaps:
+        if MARKET_IDENTIFIER_RE.search(gap):
+            parts = gap.split(":")
+            source = parts[0] if parts else "source"
+            reason = parts[1] if len(parts) > 1 else "identifier"
+            identifier_counts[(source, reason)] = identifier_counts.get((source, reason), 0) + 1
+            continue
+        sanitized.append(gap)
+    for (source, reason), count in sorted(identifier_counts.items()):
+        sanitized.append(f"{source}:{reason}_records:{count}")
+    return _dedupe_strings(sanitized)
 
 
 def _dedupe_strings(values: list[str]) -> list[str]:
