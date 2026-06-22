@@ -4,8 +4,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from fastapi import Body, FastAPI, Query
-from fastapi.responses import HTMLResponse
+from fastapi import Body, FastAPI, Query, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from invest_system.adapters import append_market_snapshot_from_adapters
 from invest_system.comparison import compute_comparison_history, compute_comparison_state
@@ -45,7 +45,10 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     )
 
     @app.get("/")
-    def api_index() -> dict[str, Any]:
+    def api_index(request: Request):
+        accept = request.headers.get("accept", "")
+        if "text/html" in accept and "application/json" not in accept:
+            return RedirectResponse(url="/app", status_code=302)
         return {
             "status": "ok",
             "data": {

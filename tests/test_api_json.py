@@ -58,6 +58,17 @@ def test_required_api_endpoints_return_json(tmp_path) -> None:
     assert "POST /workflow/daily/run" in _get(app, "/").json()["data"]["endpoints"]
 
 
+def test_root_redirects_browser_requests_to_human_home(tmp_path) -> None:
+    db_path = tmp_path / "api.sqlite"
+    seed_demo_repository(SQLiteRepository(db_path))
+    app = create_app(db_path)
+
+    response = _get(app, "/", headers={"accept": "text/html"})
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/app"
+
+
 def test_daily_auto_research_run_appends_market_research_and_returns_json(tmp_path) -> None:
     db_path = tmp_path / "api.sqlite"
     repo = SQLiteRepository(db_path)
@@ -219,18 +230,18 @@ def test_system_status_reports_self_check(tmp_path) -> None:
     assert data["replay_available"] is True
 
 
-def _get(app, path: str) -> httpx.Response:
-    return asyncio.run(_async_get(app, path))
+def _get(app, path: str, headers: dict[str, str] | None = None) -> httpx.Response:
+    return asyncio.run(_async_get(app, path, headers=headers))
 
 
 def _post(app, path: str) -> httpx.Response:
     return asyncio.run(_async_post(app, path))
 
 
-async def _async_get(app, path: str) -> httpx.Response:
+async def _async_get(app, path: str, headers: dict[str, str] | None = None) -> httpx.Response:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-        return await client.get(path)
+        return await client.get(path, headers=headers)
 
 
 async def _async_post(app, path: str) -> httpx.Response:
