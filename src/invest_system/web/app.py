@@ -31,7 +31,7 @@ from invest_system.web.portal import (
     build_usability_state,
     render_portal_page,
 )
-from invest_system.workflow import build_daily_workflow_state
+from invest_system.workflow import build_daily_workflow_state, run_daily_auto_research
 
 
 def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
@@ -56,6 +56,7 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
                     "/home",
                     "/entry/home_state",
                     "/workflow/daily/state",
+                    "POST /workflow/daily/run",
                     "/guidance/state",
                     "/usability/state",
                     "POST /market/refresh",
@@ -121,6 +122,38 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/workflow/daily/state")
     def daily_workflow_state_endpoint(as_of: str | None = Query(default=None)) -> dict[str, Any]:
         return {"status": "ok", "data": build_daily_workflow_state(repo, as_of)}
+
+    @app.post("/workflow/daily/run")
+    def daily_workflow_run_endpoint(
+        basis_date: str | None = Query(default=None),
+        source: str = Query(default="auto"),
+        allow_network: bool = Query(default=True),
+    ) -> dict[str, Any]:
+        refresh_date = basis_date or date.today().isoformat()
+        try:
+            result = run_daily_auto_research(
+                repo,
+                basis_date=refresh_date,
+                source=source,
+                allow_network=allow_network,
+            )
+        except ValueError as exc:
+            return {
+                "status": "failed",
+                "data": {
+                    "reason": "invalid_daily_workflow_request",
+                    "message": str(exc),
+                },
+            }
+        except Exception:
+            return {
+                "status": "failed",
+                "data": {
+                    "reason": "daily_workflow_run_failed",
+                    "message": "每日自动研究流水线失败，请检查本地数据源配置后重试。",
+                },
+            }
+        return {"status": "ok" if result["status"] == "ok" else "failed", "data": result}
 
     @app.get("/home_human", response_class=HTMLResponse)
     def home_human_page(as_of: str | None = Query(default=None)) -> HTMLResponse:

@@ -315,7 +315,10 @@ def test_daily_refresh_counts_research_written_today_with_prior_basis_date(tmp_p
     db_path = tmp_path / "dashboard_research_activity.sqlite"
     repo = SQLiteRepository(db_path)
     seed_multiday_repository(repo)
-    repo.append_research_snapshot(_symbol_research("588000.SH", "observe"))
+    snapshot = _symbol_research("588000.SH", "observe")
+    snapshot["basis_date"] = "2026-06-16"
+    snapshot["generated_at"] = "2026-06-16T09:30:00Z"
+    repo.append_research_snapshot(snapshot)
 
     state = build_dashboard_state(repo, "2026-06-16")["data"]["daily_refresh"]
     research_item = next(item for item in state["items"] if item["item_id"] == "research")
@@ -342,6 +345,10 @@ def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
     assert [item["display_theme"] for item in state["mainlines"]] == ["先进电子制造链"]
     assert state["primary"]["theme_state"] == "strengthening"
     assert "momentum" in state["primary"]["signal_type"]
+    assert state["source_profile"]["source_type"] == "program_auto"
+    assert state["source_profile"]["program_data_contribution"] == 1.0
+    assert state["source_profile"]["llm_supplement_contribution"] == 0.0
+    assert state["source_profile"]["position_weight_impact"] == 0.0
     assert "representative_scope" not in state
     watch = {item["theme"]: item for item in state["watchlist"]}
     assert watch["AI"]["status"] == "included"
@@ -377,6 +384,10 @@ def test_theme_view_expands_mainline_research_for_humans(tmp_path) -> None:
     assert "辅助强度" in body
     assert "达利凯普（301566.SZ）" not in body
     assert "主题层禁止输出股票代码" in body
+    assert "程序数据贡献" in body
+    assert "大模型补充贡献" in body
+    assert "仓位直接影响" in body
+    assert "不生成标的，不决定仓位" in body
     _assert_no_forbidden_terms(body)
 
 

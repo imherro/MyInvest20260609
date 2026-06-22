@@ -55,6 +55,33 @@ def test_required_api_endpoints_return_json(tmp_path) -> None:
 
     assert _get(app, "/").json()["data"]["json_only"] is True
     assert _get(app, "/").json()["data"]["primary_human_entry"] == "/app"
+    assert "POST /workflow/daily/run" in _get(app, "/").json()["data"]["endpoints"]
+
+
+def test_daily_auto_research_run_appends_market_research_and_returns_json(tmp_path) -> None:
+    db_path = tmp_path / "api.sqlite"
+    repo = SQLiteRepository(db_path)
+    seed_demo_repository(repo)
+    before_counts = repo.table_counts()
+    app = create_app(db_path)
+
+    response = _post(app, "/workflow/daily/run?basis_date=2026-06-16&source=mock&allow_network=false")
+    payload = response.json()
+    after_counts = repo.table_counts()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert payload["status"] == "ok"
+    assert payload["data"]["mode"] == "automatic_baseline"
+    assert [item["actor"] for item in payload["data"]["stages"]] == ["program_rule"] * 6
+    assert payload["data"]["research"]["theme_impact"]["source_type"] == "program_auto"
+    assert payload["data"]["research"]["theme_impact"]["llm_supplement_contribution"] == 0.0
+    assert payload["data"]["research"]["theme_impact"]["position_weight_impact"] == 0.0
+    assert payload["data"]["llm_supplement"]["status"] in {"not_required", "recommended"}
+    assert payload["data"]["self_check"]["status"] == "passed"
+    assert after_counts["market_snapshot"] == before_counts["market_snapshot"] + 1
+    assert after_counts["research_snapshot"] == before_counts["research_snapshot"] + 4
+    assert after_counts["event_log"] >= before_counts["event_log"] + 5
 
 
 def test_market_refresh_endpoint_appends_snapshot_as_json(tmp_path) -> None:

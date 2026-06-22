@@ -122,6 +122,11 @@ def test_daily_workflow_and_import_views_use_portal_shell(tmp_path) -> None:
         assert "统一页脚" in body
         assert "<form" not in body
         _assert_no_forbidden_terms(body)
+    workflow_body = _get(app, "/workflow/daily/view?as_of=2026-06-15").text
+    assert "一键更新今日研究" in workflow_body
+    assert "/workflow/daily/run" in workflow_body
+    assert "大模型不是默认前置步骤" in workflow_body
+    assert "程序负责" in workflow_body
 
 
 def _prepare_workflow_db(tmp_path) -> str:

@@ -77,6 +77,7 @@ HUMAN_ENDPOINT_MAP = {
     "/home": "/app",
     "/entry/home_state": "/app",
     "/workflow/daily/state": "/workflow/daily/view",
+    "/workflow/daily/run": "/workflow/daily/view#daily-auto-run",
     "/guidance/state": "/guidance/view",
     "/market/latest": "/market/view",
     "/theme/state": "/theme/view",
@@ -734,14 +735,14 @@ def _home_entry_link(
 
 def _theme_scope_headline(theme: dict[str, Any]) -> str:
     if not theme.get("available"):
-        return "主线待导入"
+        return "主线待自动生成"
     primary = theme.get("primary") or {}
     return f"{primary.get('display_theme', '当前主线')}：{_theme_state_label(primary.get('theme_state'))}"
 
 
 def _theme_scope_detail(theme: dict[str, Any]) -> str:
     if not theme.get("available"):
-        return "当前没有主线研究快照，先导入或生成主线研究 JSON。"
+        return "当前没有主线研究快照，先运行每日自动研究；自动证据不足时再补充大模型 JSON。"
     primary = theme.get("primary") or {}
     display_theme = str(primary.get("display_theme", "暂无主线"))
     indicators = primary.get("leading_indicators", [])
@@ -859,6 +860,9 @@ def _daily_refresh_card(item: dict[str, Any]) -> str:
 def _daily_workflow_content(data: dict[str, Any]) -> str:
     workflow = data["daily_workflow"]
     primary = workflow["primary_next_action"]
+    model = workflow["automation_model"]
+    program_rows = [[step, "程序按规则做"] for step in model["program_rule_steps"]]
+    llm_rows = [[step, "仅在自动证据不足时补充"] for step in model["llm_supplement_steps"]]
     rows = [
         [
             item["title"],
@@ -875,6 +879,60 @@ def _daily_workflow_content(data: dict[str, Any]) -> str:
 <section>
   {_table(["步骤", "状态", "说明", "日期", "页面", "JSON"], rows, raw_columns={4, 5})}
 </section>
+"""
+    auto_body = f"""
+<section class="panel" id="daily-auto-run">
+  <h2>一键更新今日研究</h2>
+  <p>程序会依次执行：采集市场数据、生成市场快照、生成自动主线快照、更新决策建议、更新影子组合、自检。</p>
+  <p class="detail">大模型不是默认前置步骤；只有自动主线证据不足、政策或产业链解释缺口明显时，再到研究导入页补充 JSON。</p>
+  <div class="badge-row">
+    <label class="inline-control">基准日期 <input id="daily-run-date" type="date" value="{html.escape(str(workflow['reference_date'] or ''))}"></label>
+    <button type="button" id="daily-run-button">一键更新今日研究</button>
+    <a class="step" href="/research/import/view">补充大模型研究 JSON</a>
+  </div>
+  <pre id="daily-run-result">等待运行。</pre>
+</section>
+<section class="grid-2">
+  <div class="panel">
+    <h2>程序负责</h2>
+    {_table(["步骤", "责任"], program_rows)}
+  </div>
+  <div class="panel">
+    <h2>大模型只补充</h2>
+    <p class="detail">{html.escape(model["llm_boundary"])}</p>
+    {_table(["内容", "责任"], llm_rows)}
+  </div>
+</section>
+<script>
+(() => {{
+  const button = document.getElementById('daily-run-button');
+  const input = document.getElementById('daily-run-date');
+  const result = document.getElementById('daily-run-result');
+  button.addEventListener('click', async () => {{
+    const basisDate = input.value;
+    if (!basisDate) {{
+      result.textContent = JSON.stringify({{ status: 'failed', data: {{ reason: 'missing_basis_date' }} }}, null, 2);
+      return;
+    }}
+    button.disabled = true;
+    result.textContent = '正在运行每日自动研究...';
+    try {{
+      const url = `/workflow/daily/run?basis_date=${{encodeURIComponent(basisDate)}}&source=auto&allow_network=true`;
+      const response = await fetch(url, {{ method: 'POST' }});
+      const payload = await response.json();
+      result.textContent = JSON.stringify(payload, null, 2);
+      if (payload.status === 'ok') {{
+        result.textContent += '\\n\\n自动研究完成。页面会在 1 秒后重新加载。';
+        window.setTimeout(() => window.location.reload(), 1000);
+      }}
+    }} catch (error) {{
+      result.textContent = JSON.stringify({{ status: 'failed', data: {{ reason: 'daily_run_request_failed' }} }}, null, 2);
+    }} finally {{
+      button.disabled = false;
+    }}
+  }});
+}})();
+</script>
 """
     source_body = f"""
 <section class="grid-2">
@@ -904,6 +962,7 @@ def _daily_workflow_content(data: dict[str, Any]) -> str:
     {_list_items(workflow["safe_operations"], "暂无可用操作。")}
   </div>
 </section>
+{auto_body}
 {_compact_details("每日闭环明细", loop_body, "保留每一步的状态、日期、人看页面和 JSON 入口，需要核对时再展开。", open_by_default=True)}
 {_compact_details("来源编号和禁止事项", source_body, "来源编号用于追溯，禁止事项用于确认系统不会越过只读边界。")}
 """
@@ -994,8 +1053,18 @@ def _theme_content(data: dict[str, Any]) -> str:
     theme = data["dashboard"]["research"]["theme"]
     history = data["dashboard"]["research"]["theme_history"]
     if not theme["available"]:
-        return _empty_section("主线研究", "当前没有 theme_research 快照，请先导入或生成主线研究 JSON。")
+        return _empty_section("主线研究", "当前没有 theme_research 快照，请先运行每日自动研究；自动证据不足时再导入大模型补充 JSON。")
     primary = theme["primary"] or {}
+    source_profile = theme.get("source_profile", {})
+    source_rows = [
+        ["主线来源", source_profile.get("source_label", "暂无")],
+        ["程序数据贡献", _percent(source_profile.get("program_data_contribution", 0))],
+        ["大模型补充贡献", _percent(source_profile.get("llm_supplement_contribution", 0))],
+        ["仓位直接影响", _percent(source_profile.get("position_weight_impact", 0))],
+        ["评分角色", _theme_score_role_label(source_profile.get("score_role"))],
+        ["决策影响", _theme_decision_impact_label(source_profile.get("decision_impact"))],
+        ["影响边界", "不生成标的，不决定仓位"],
+    ]
     mainline_rows = [
         [
             item["rank"],
@@ -1079,11 +1148,12 @@ def _theme_content(data: dict[str, Any]) -> str:
     </div>
   </div>
   <div class="panel">
-    <h2>怎么读</h2>
+    <h2>来源和影响</h2>
     <p class="detail">主题层禁止输出股票代码；标的只在目标池、研究队列、决策预览和组合页出现。</p>
+    {_table(["项目", "说明"], source_rows)}
     {_help_row([
         ("主线含义", "主线研究回答“现在市场最强的方向是什么”，不回答“应该买哪个标的”。"),
-        ("标的边界", "主题层禁止输出股票代码；标的只在目标池、研究队列、决策预览和组合页出现。"),
+        ("影响范围", "主线快照影响主线展示、首页引导和研究平均置信度；仓位仍由 ResearchFirst、风险边界、目标池和持仓比例决定。"),
     ])}
   </div>
 </section>
@@ -2848,6 +2918,7 @@ def _system_content(data: dict[str, Any]) -> str:
     api_rows = [
         ["/home", "自然人入口 JSON"],
         ["/workflow/daily/state", "每日工作流 JSON"],
+        ["POST /workflow/daily/run", "每日自动研究流水线 JSON"],
         ["/guidance/state", "今日行动边界 JSON"],
         ["/theme/state", "主线研究 JSON"],
         ["/theme/history", "主线变化 JSON"],
@@ -3212,6 +3283,20 @@ def _theme_state_label(value: Any) -> str:
         "weakening": "转弱",
         "exhausted": "衰竭",
     }.get(str(value), "暂无")
+
+
+def _theme_score_role_label(value: Any) -> str:
+    return {
+        "auxiliary_non_decision": "辅助分，不直接用于调仓",
+        "not_available": "暂无评分",
+    }.get(str(value), "辅助说明")
+
+
+def _theme_decision_impact_label(value: Any) -> str:
+    return {
+        "theme_clarity_and_research_confidence_only": "只影响主线清晰度和研究置信度",
+        "none": "不影响",
+    }.get(str(value), "只作研究背景")
 
 
 def _theme_watch_status_label(value: str) -> str:

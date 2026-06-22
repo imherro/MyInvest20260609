@@ -34,6 +34,24 @@ def build_daily_workflow_state(repo: SQLiteRepository, as_of: str | None = None)
         "as_of": as_of,
         "reference_date": reference_date,
         "generated_at": _utc_now(),
+        "auto_run_endpoint": "/workflow/daily/run",
+        "automation_model": {
+            "program_rule_steps": [
+                "采集市场数据",
+                "生成市场快照",
+                "生成自动主线快照",
+                "更新决策建议",
+                "更新影子组合",
+                "系统自检",
+            ],
+            "llm_supplement_steps": [
+                "政策和产业链解释",
+                "主题逻辑和领先指标补充",
+                "风险、失效条件和数据缺口说明",
+            ],
+            "llm_default": "not_required",
+            "llm_boundary": "大模型补充不生成标的、不决定仓位，不能绕过 ResearchFirst。",
+        },
         "primary_next_action": primary,
         "decision_preview": {
             "recommended_action": decision_proposal["recommended_action"],
@@ -44,6 +62,7 @@ def build_daily_workflow_state(repo: SQLiteRepository, as_of: str | None = None)
         "steps": steps,
         "source_ids": _source_ids(replay, latest_mainline),
         "safe_operations": [
+            "运行每日自动研究流水线",
             "只读查看每日工作流状态",
             "追加导入已校验的研究 JSON",
             "查看今日行动边界",
@@ -97,17 +116,17 @@ def _mainline_step(research: dict[str, Any] | None, reference_date: str | None) 
             "mainline_research",
             "主线研究",
             "missing",
-            "缺少 theme_research 主线研究，先生成或导入主线研究 JSON。",
-            "/research/import/view",
-            "/research/import/validate",
+            "缺少 theme_research 主线研究，先运行每日自动研究；自动证据不足时再导入大模型补充 JSON。",
+            "/workflow/daily/view#daily-auto-run",
+            "/workflow/daily/state",
         )
     if reference_date and research["basis_date"] < reference_date:
         return _step(
             "mainline_research",
             "主线研究",
             "warn",
-            "主线研究早于当前参考日期，需要更新或复核。",
-            "/research/import/view",
+            "主线研究早于当前参考日期，优先运行自动主线生成；数据缺口仍存在时再补充大模型研究 JSON。",
+            "/workflow/daily/view#daily-auto-run",
             "/research/latest",
             research["basis_date"],
             research["snapshot_id"],

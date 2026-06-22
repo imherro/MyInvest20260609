@@ -8,6 +8,7 @@ from invest_system.comparison import compute_comparison_state
 from invest_system.macro import compute_macro_state
 from invest_system.repositories import SQLiteRepository
 from invest_system.risk import compute_risk_state
+from invest_system.research.theme_impact import describe_theme_research_impact
 from invest_system.self_check import system_status
 from invest_system.validators.module_contracts import ModuleContractViolation, validate_module_contract
 from invest_system.validators.policies import assert_no_sensitive_content
@@ -234,10 +235,10 @@ def _daily_refresh_state(
                 if research_event
                 else _latest_research_refresh_display_date(timeline)
             ),
-            endpoint="/research/import/view",
-            action_label="导入研究 JSON",
+            endpoint="/workflow/daily/view#daily-auto-run",
+            action_label="一键更新今日研究",
             done_detail="今天已有研究快照写入。",
-            pending_detail="今天还没有研究快照写入。",
+            pending_detail="今天还没有自动研究快照；先运行自动研究，数据缺口仍存在时再补充大模型 JSON。",
         ),
         _daily_refresh_item(
             item_id="qmt",
@@ -788,6 +789,7 @@ def _theme_research_state(research_items: list[dict[str, Any]]) -> dict[str, Any
             "primary": None,
             "mainlines": [],
             "watchlist": _theme_watchlist([]),
+            "source_profile": describe_theme_research_impact(None),
             "data_gaps": [],
             "notes": ["当前没有满足主题层合同的 theme_research 快照。"],
         }
@@ -805,6 +807,7 @@ def _theme_research_state(research_items: list[dict[str, Any]]) -> dict[str, Any
         "primary": primary,
         "mainlines": mainlines,
         "watchlist": _theme_watchlist(mainlines),
+        "source_profile": describe_theme_research_impact(item),
         "data_gaps": item.get("data_gaps", []),
         "conflicts": item.get("conflicts", []),
         "notes": [
